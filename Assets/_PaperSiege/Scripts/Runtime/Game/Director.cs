@@ -39,6 +39,7 @@ namespace PaperSiege
         void Start()
         {
             Progress.LoadLanguage();
+            Music.Build(this);
             if (autoStart) GoTitle();
             // 编辑器里：菜单“演示”→ 自动演示；直接点播放 → 桌面试玩（鼠标键盘模拟双手）
             if (Application.isEditor && HandInput.Sim)

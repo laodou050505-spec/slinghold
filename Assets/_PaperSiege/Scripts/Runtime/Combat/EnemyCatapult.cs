@@ -185,7 +185,7 @@ namespace PaperSiege
             if (glowMat) glowMat.color = new Color(0.55f, 0.38f, 0.24f);
             arm.localRotation = Quaternion.Euler(armThrow, 0, 0);
             Projectile.Spawn(nextAmmo, Side.Enemy, cup.position, aimVel);
-            Sfx.Launch(cup.position, 1f);
+            Sfx.Throw(cup.position);
             if (level != null) timer = Random.Range(level.fireEvery.x, level.fireEvery.y) * (flightScale != null ? flightScale() : 1f);   // 玩家没弹时间隔拉长
         }
     }

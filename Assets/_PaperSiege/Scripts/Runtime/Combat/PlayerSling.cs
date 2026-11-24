@@ -278,14 +278,15 @@ namespace PaperSiege
                 passT = -1f;
                 d.stats.shots++;
                 cooldown = T.reload;
+                Sfx.StopCreak();
                 Sfx.Launch(ForkCenter, pull01);
             }
             state = State.Held;
             pull01 = 0;
         }
 
-        void Cancel() { state = State.Held; pull01 = 0; }
-        void Drop() { state = State.Hidden; pull01 = 0; Show(false); }
+        void Cancel() { state = State.Held; pull01 = 0; Sfx.StopCreak(); }
+        void Drop() { state = State.Hidden; pull01 = 0; Show(false); Sfx.StopCreak(); }
 
         /// <summary>自动测试用：直接按“左手位置 / 右手拉到的位置”算出会怎么飞</summary>
         public static Vector3 VelocityFrom(Vector3 forkCenter, Vector3 pouchPos)

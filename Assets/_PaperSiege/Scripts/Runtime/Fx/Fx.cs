@@ -245,6 +245,7 @@ namespace PaperSiege
                       new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(0.9f, 0.6f), new GradientAlphaKey(0, 1) });
             col.color = g;
             Burst(ps, 70, 2.2f);
+            Sfx.Firework(p);
         }
 
         static void Fade(ParticleSystem ps)

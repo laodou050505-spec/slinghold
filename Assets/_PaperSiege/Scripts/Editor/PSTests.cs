@@ -120,6 +120,7 @@ namespace PaperSiege.EditorTools
             SimHands.Hide(0); SimHands.Hide(1);   // 收弓（左手放下，免得敌弹先被左手吸住）
             Level(1);                               // 换一关重新开局（上一发可能已经打赢了）
             yield return new WaitForSeconds(0.5f);
+            D.catapult.Begin(D.level, D.arena.mine, D.ammo);   // Level() 里的 Quiet() 会停火，这里要敌人开火
             int caught = D.stats.caught, blocked = D.stats.blocked;
             for (int round = 0; round < 2; round++)
             {
@@ -567,6 +568,43 @@ namespace PaperSiege.EditorTools
 
         /// <summary>从玩家眼睛的位置看向某处（模拟低头看），视场角和头显接近</summary>
         public static string SnapPlayerLook(string dir, string name, Vector3 at) => Snap(dir, name, D.head.transform.position, at, 80);
+
+        /// <summary>把合成的音效和音乐导出成 wav（Docs/音频试听/），并统计峰值 / 均方根 / 开头结尾是否突变</summary>
+        public static string ExportAudio()
+        {
+            var dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), "Docs/音频试听");
+            System.IO.Directory.CreateDirectory(dir);
+            var list = new System.Collections.Generic.List<(string, AudioClip)>
+            {
+                ("木块被打", Synth.WoodHit(1)), ("石块被打", Synth.StoneHit(1)), ("积木倒下", Synth.Clatter()), ("炸丸", Synth.Boom()), ("冰丸", Synth.IceCrack()),
+                ("着火", Synth.Fire()), ("灭火", Synth.Hiss()), ("松手发射", Synth.Snap()), ("拉弓吱呀", Synth.Creak()), ("敌人蓄力", Synth.Windup()), ("投石机抛出", Synth.Throw()),
+                ("接住叮", Synth.Ding()), ("挡开", Synth.Block()), ("放积木按按钮", Synth.Place()), ("烟花", Synth.Firework()),
+            };
+            for (int t = 0; t < 6; t++) list.Add(($"音乐_时段{t}", Music.Track(t)));
+            var sb = new System.Text.StringBuilder();
+            foreach (var (name, c) in list)
+            {
+                var d = new float[c.samples]; c.GetData(d, 0);
+                float peak = 0, rms = 0; int clip = 0;
+                foreach (var v in d) { peak = Mathf.Max(peak, Mathf.Abs(v)); rms += v * v; if (Mathf.Abs(v) > 0.999f) clip++; }
+                rms = Mathf.Sqrt(rms / d.Length);
+                float jumpStart = Mathf.Abs(d[0]), jumpEnd = Mathf.Abs(d[d.Length - 1]);
+                WriteWav(System.IO.Path.Combine(dir, name + ".wav"), d, c.frequency);
+                sb.AppendLine($"{name}: {c.length:0.00}s 峰值 {peak:0.00} 均方根 {rms:0.000} 削波 {clip} 首样 {jumpStart:0.000} 尾样 {jumpEnd:0.000}");
+            }
+            return sb.ToString();
+        }
+
+        static void WriteWav(string path, float[] d, int rate)
+        {
+            using var fs = new System.IO.FileStream(path, System.IO.FileMode.Create);
+            using var w = new System.IO.BinaryWriter(fs);
+            int bytes = d.Length * 2;
+            w.Write(System.Text.Encoding.ASCII.GetBytes("RIFF")); w.Write(36 + bytes); w.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
+            w.Write(System.Text.Encoding.ASCII.GetBytes("fmt ")); w.Write(16); w.Write((short)1); w.Write((short)1); w.Write(rate); w.Write(rate * 2); w.Write((short)2); w.Write((short)16);
+            w.Write(System.Text.Encoding.ASCII.GetBytes("data")); w.Write(bytes);
+            foreach (var v in d) w.Write((short)Mathf.Clamp(Mathf.RoundToInt(v * 32767), -32768, 32767));
+        }
 
         public static string State()
         {
