@@ -279,6 +279,44 @@ namespace PaperSiege.EditorTools
             SimHands.Hide(1);
         }
 
+        /// <summary>每关：搭好静置 3 秒，量最大位移，拍敌城</summary>
+        public static string AllLevels(string dir) { Quiet(); D.StartCoroutine(AllRun(dir)); return "all levels started"; }
+
+        static System.Collections.IEnumerator AllRun(string dir)
+        {
+            for (int i = 0; i < Levels.Count; i++)
+            {
+                Level(i); Quiet();
+                yield return new WaitForSeconds(3f);
+                float maxD = 0; foreach (var b in D.arena.enemy.blocks) maxD = Mathf.Max(maxD, Vector3.Distance(b.transform.position, b.homePos));
+                var e = D.arena.enemy.transform.position;
+                Snap(dir, $"L{i + 1:00}", D.arena.tableCenter + Vector3.up * 0.45f + D.arena.forward * 1.3f, e + Vector3.up * 0.22f, 42);
+                Debug.Log($"[逐关] 第{i + 1}关 {D.arena.enemy.blocks.Count}块 静置3秒最大位移 {maxD * 1000:0.0}mm 帅旗耐久 {D.arena.enemy.kingHP}");
+            }
+            Debug.Log("[逐关] 完成");
+        }
+
+        /// <summary>连打帅旗：每隔 2 秒打一发，记录耐久和是否倒下</summary>
+        public static string HitKing(int level, int shots, Ammo a = Ammo.Stone) { Level(level); Quiet(); D.StartCoroutine(HitKingRun(shots, a)); return "hit king started"; }
+
+        static System.Collections.IEnumerator HitKingRun(int shots, Ammo a)
+        {
+            yield return new WaitForSeconds(0.5f);
+            for (int i = 0; i < shots; i++)
+            {
+                var k = D.arena.enemy.king;
+                var from = D.arena.tableCenter + Vector3.up * 0.35f + D.arena.forward * 0.05f;
+                // 瞄旗杆露出墙头的那一截（高抛砸下去）
+                var tgt = k.transform.position + Vector3.up * 2.3f * D.arena.enemy.unit;
+                D.DebugShoot(a, from, tgt, 6.2f, true);
+                yield return new WaitForSeconds(2.2f);
+                Debug.Log($"[打旗] 第{i + 1}发 耐久 {D.arena.enemy.kingHP}/{D.arena.enemy.kingMaxHP} 旗倒 {D.arena.enemy.IsKingDown} phase {D.phase}");
+                if (i == 1) SnapEnemy("1124_打旗", $"第{i + 1}发后");
+            }
+            yield return new WaitForSeconds(1f);
+            SnapEnemy("1124_打旗", "最后");
+        }
+
         public static string State()
         {
             var a = D.arena;

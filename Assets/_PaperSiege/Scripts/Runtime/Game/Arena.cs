@@ -84,6 +84,8 @@ namespace PaperSiege
             // 敌城：在对面地上，正面朝玩家
             var ep = new Vector3(tableCenter.x, 0, tableCenter.z) + forward * T.enemyDistance;
             enemy = Castle.Build(level.enemy, Side.Enemy, ep, rot, T.enemyUnit, true, transform);
+            mine.SetKingHP(3);              // 自己的帅旗 3 点耐久（不会被一发打掉）
+            enemy.SetKingHP(level.kingHP);
             catapultSpot.SetPositionAndRotation(enemy.ToWorld(new Vector3(7.2f, 0, -2.0f)), Quaternion.LookRotation(forward, Vector3.up));   // 投石机正面是本地 -Z → 朝玩家
         }
     }

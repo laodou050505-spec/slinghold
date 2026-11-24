@@ -162,6 +162,15 @@ namespace PaperSiege
             gameObject.layer = Layers.Shot;
             var castle = block ? block.castle : NearestCastle(p);
             float unit = castle ? castle.unit : BlockLibrary.G;
+            // 打中帅旗：只扣耐久（不推倒它）；炸丸在下面 Explode 里扣
+            if (block && block.isKing && type != Ammo.Bomb)
+            {
+                castle.DamageKing(1, transform.position - rb.linearVelocity.normalized);
+                if (type == Ammo.Fire) block.Ignite();
+                if (type == Ammo.Ice) block.Chill(GameTuning.I.freezeSeconds);
+                Sfx.Hit(type, Mat.Wood, p);
+                return;
+            }
             Sfx.Hit(type, block ? block.def.mat : Mat.Wood, p);
             switch (type)
             {
@@ -185,7 +194,7 @@ namespace PaperSiege
                     if (castle) castle.WakeAround(p, T.wakeRadius * unit, block);
                     break;
             }
-            if (block && block.rb && !block.rb.isKinematic)
+            if (block && !block.isKing && block.rb && !block.rb.isKinematic)
             {
                 // 额外推一把（玩具弹太轻，纯物理推不动城）
                 block.rb.AddForceAtPosition(-relVel * rb.mass * T.hitImpulse, p, ForceMode.Impulse);
@@ -203,6 +212,7 @@ namespace PaperSiege
             foreach (var c in castles) c.WakeAround(p, r);
             foreach (var b in blocks)
             {
+                if (b.isKing) { b.castle?.DamageKing(2, p); continue; }   // 炸丸：帅旗 -2（不炸碎、不推飞）
                 float d = Vector3.Distance(b.WorldBounds.ClosestPoint(p), p) / r;
                 // 冻脆的块：范围内全碎（冰 + 炸 = 碎一大片）；石块和木块：离得近的碎
                 if (b.Frozen || (b.def.mat == Mat.Stone && d < 0.55f) || (b.def.mat == Mat.Wood && d < 0.4f && !b.isKing)) { b.Shatter(); continue; }

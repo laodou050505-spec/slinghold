@@ -93,7 +93,8 @@ namespace PaperSiege
             Add("S_Wall", Mat.Stone, new Vector3(2, 1, 1));
             Add("S_Shield", Mat.Stone, new Vector3(3, 2, 0.5f));
             // 帅旗灯笼：底座 + 旗杆（模型由道具组提供，没有时用占位）
-            Add("King", Mat.Wood, new Vector3(0.8f, 2.8f, 0.8f), new Box(0, 0.175f, 0, 0.78f, 0.35f, 0.78f), new Box(0, 1.55f, 0, 0.14f, 2.4f, 0.14f));
+            // 帅旗：底座 + 旗杆 + 旗面（旗面挂在 2.425 格高处、向 +X 伸出 0.9 格；打中旗面也算打中帅旗）
+            Add("King", Mat.Wood, new Vector3(0.8f, 2.8f, 0.8f), new Box(0, 0.175f, 0, 0.78f, 0.35f, 0.78f), new Box(0, 1.55f, 0, 0.14f, 2.4f, 0.14f), new Box(0.47f, 2.425f, 0, 0.86f, 0.55f, 0.1f));
         }
     }
 }

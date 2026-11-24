@@ -94,6 +94,12 @@ namespace PaperSiege
             float v = c.relativeVelocity.magnitude;
             // 冻住的块被撞一下就碎
             if (Frozen && v > 0.6f) { Shatter(); return; }
+            // 帅旗：只有掉下来的积木砸到它（够快）才会被撞醒；弹打它只扣耐久（Projectile 处理）
+            if (isKing)
+            {
+                if (rb.isKinematic && other && !other.isKinematic && other.GetComponent<Block>() && v > 0.6f) Wake();
+                return;
+            }
             // 被动态的块 / 弹撞到：自己苏醒（kinematic 块不会自己动，必须叫醒）
             if (rb.isKinematic && other && !other.isKinematic && v > 0.25f)
             {

@@ -20,6 +20,7 @@ namespace PaperSiege
         public bool tutorial;
         public int timeOfDay;                   // 0 清晨 1 上午 2 午后 3 黄昏 4 入夜 5 烟火夜
         public float aimError = 1.0f;           // 敌人瞄准误差（格）
+        public int kingHP = 1;                  // 敌方帅旗耐久：直接打中 -1、炸丸 -2、冻住时挨打多 -1
     }
 
     public static class Levels
@@ -72,6 +73,30 @@ namespace PaperSiege
             }
         }
 
+        /// <summary>
+        /// 空心小堡：3×3 格一圈积木把帅旗围在正中那格（两层高，旗杆顶露出一截：看得见、打不到旗身）。
+        /// stone = 石块砌（火烧不动，要靠炸）；frontHigh = 正面再加一层（挡住平射，只能高抛或者先拆墙）。
+        /// </summary>
+        static void Shrine(CastleLayout L, float x, float z, bool stone, bool frontHigh, Paint a, Paint b)
+        {
+            string piece = stone ? "S_Cube" : "W_Cube";
+            for (int y = 0; y < 2; y++)
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if (dx == 0 && dz == 0) continue;
+                        L.Add(dz == -1 && dx == 0 && y == 1 && !stone ? "W_Window" : piece, stone ? Paint.Stone : ((dx + dz + y) & 1) == 0 ? a : b, x + dx, y, z + dz);
+                    }
+            if (frontHigh)
+            {
+                for (int dx = -1; dx <= 1; dx++) L.Add(piece, stone ? Paint.Stone : (dx & 1) == 0 ? b : a, x + dx, 2, z - 1);
+                // 正面加高后旗会被挡住看不见：中间垫一块旗座，把帅旗抬高一格，旗面露出墙头（看得见，平射打不着）
+                L.Add(piece, stone ? Paint.Stone : a, x, 0, z);
+                L.king = new Vector3(x, 1, z);
+            }
+            else L.king = new Vector3(x, 0, z);
+        }
+
         static void Hall(CastleLayout L, float x, float z, Paint a)
         {
             L.Add("W_Arch", a, x, 0, z);
@@ -100,6 +125,33 @@ namespace PaperSiege
             return L;
         }
 
+        /// <summary>检查布局里有没有互相重叠的块（按标称尺寸的包围盒，允许贴着）。返回问题列表</summary>
+        public static System.Collections.Generic.List<string> Overlaps(CastleLayout L)
+        {
+            var boxes = new System.Collections.Generic.List<(string n, Bounds b)>();
+            foreach (var p in L.items) boxes.Add((p.piece, BoxOf(p.piece, p.pos, p.yaw)));
+            boxes.Add(("King", BoxOf("King", L.king, 0)));
+            var res = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < boxes.Count; i++)
+                for (int j = i + 1; j < boxes.Count; j++)
+                {
+                    var a = boxes[i].b; var b = boxes[j].b;
+                    var lo = Vector3.Max(a.min, b.min); var hi = Vector3.Min(a.max, b.max);
+                    var o = hi - lo;
+                    if (o.x > 0.06f && o.y > 0.06f && o.z > 0.06f) res.Add($"{boxes[i].n}@{a.center} × {boxes[j].n}@{b.center} 重叠 {o}");
+                }
+            return res;
+        }
+
+        static Bounds BoxOf(string piece, Vector3 pos, float yaw)
+        {
+            var d = BlockLibrary.Def(piece);
+            var s = d.size;
+            if (piece != "W_Cone" && Mathf.Abs(Mathf.DeltaAngle(yaw, 90)) < 1 || Mathf.Abs(Mathf.DeltaAngle(yaw, 270)) < 1) s = new Vector3(s.z, s.y, s.x);
+            if (piece == "W_Cone") s = new Vector3(1f, s.y, 1f);   // 尖顶的檐口伸出去一点，按塔身宽算
+            return new Bounds(pos + Vector3.up * s.y * 0.5f, s);
+        }
+
         public static LevelDef Get(int i)
         {
             var d = new LevelDef { index = i };
@@ -123,79 +175,83 @@ namespace PaperSiege
                     d.start[Ammo.Stone] = 6; d.fireEvery = new Vector2(5.5f, 7f); d.aimError = 1.4f;
                     break;
                 case 2:
-                    d.title = "第三关 · 木楼"; d.timeOfDay = 1; d.newAmmo = Ammo.Fire;
-                    Wall(L, -3, 3, -1.6f, 1, Paint.Ochre, Paint.Cream);
-                    Keep(L, 0, 0.3f, 2, Paint.Teal, Paint.Cream);
-                    Hall(L, -2.2f, 1.2f, Paint.Sage); Hall(L, 2.2f, 1.2f, Paint.Blue);
+                    d.title = "第三关 · 木楼"; d.timeOfDay = 1; d.newAmmo = Ammo.Fire; d.kingHP = 2;
+                    Wall(L, -3, 3, -2.6f, 1, Paint.Ochre, Paint.Cream);
+                    Tower(L, -3.6f, -2.6f, 1, Paint.Teal, Paint.Cream); Tower(L, 3.6f, -2.6f, 1, Paint.Brick, Paint.Cream);
+                    Hall(L, -2.6f, 1.2f, Paint.Sage); Hall(L, 2.6f, 1.2f, Paint.Blue);
                     L.Add("W_Beam", Paint.Cream, 0, 0, 2.6f);
+                    Shrine(L, 0, 0, false, false, Paint.Teal, Paint.Cream);
                     d.start[Ammo.Stone] = 5; d.enemyAmmo = new[] { Ammo.Stone, Ammo.Fire, Ammo.Stone, Ammo.Fire };
                     break;
                 case 3:
-                    d.title = "第四关 · 着火"; d.timeOfDay = 1;
-                    Wall(L, -3, 3, -1.6f, 1, Paint.Brick, Paint.Ochre);
-                    Keep(L, 0, 0.3f, 2, Paint.Blue, Paint.Cream);
-                    Tower(L, -3.6f, -1.6f, 2, Paint.Cream, Paint.Teal); Tower(L, 3.6f, -1.6f, 2, Paint.Teal, Paint.Cream);
-                    Hall(L, -2.2f, 1.4f, Paint.Ochre); Hall(L, 2.2f, 1.4f, Paint.Sage);
+                    d.title = "第四关 · 着火"; d.timeOfDay = 1; d.kingHP = 2;
+                    Wall(L, -3, 3, -2.6f, 1, Paint.Brick, Paint.Ochre);
+                    Tower(L, -3.6f, -2.6f, 2, Paint.Cream, Paint.Teal); Tower(L, 3.6f, -2.6f, 2, Paint.Teal, Paint.Cream);
+                    Hall(L, -2.6f, 1.2f, Paint.Ochre); Hall(L, 2.6f, 1.2f, Paint.Sage);
+                    Keep(L, 0, 2.6f, 2, Paint.Blue, Paint.Cream);   // 诱饵：高楼上没有旗
+                    Shrine(L, 0, 0, false, false, Paint.Blue, Paint.Ochre);
                     d.start[Ammo.Stone] = 5; d.start[Ammo.Fire] = 1; d.enemyAmmo = new[] { Ammo.Fire, Ammo.Stone, Ammo.Fire };
                     break;
                 case 4:
-                    d.title = "第五关 · 高塔"; d.timeOfDay = 2; d.newAmmo = Ammo.Ice;
-                    Wall(L, -3, 3, -1.6f, 2, Paint.Cream, Paint.Teal);
-                    Keep(L, 0, 0.4f, 3, Paint.Brick, Paint.Ochre);
-                    Tower(L, -3.6f, -1.6f, 3, Paint.Ochre, Paint.Cream); Tower(L, 3.6f, -1.6f, 3, Paint.Teal, Paint.Cream);
-                    Tower(L, -2.4f, 1.6f, 1, Paint.Sage, Paint.Teal, true, true); Tower(L, 2.4f, 1.6f, 1, Paint.Blue, Paint.Teal, true, true);
+                    d.title = "第五关 · 高塔"; d.timeOfDay = 2; d.newAmmo = Ammo.Ice; d.kingHP = 2;
+                    Wall(L, -3, 3, -2.6f, 2, Paint.Cream, Paint.Teal);
+                    Tower(L, -3.6f, -2.6f, 3, Paint.Ochre, Paint.Cream); Tower(L, 3.6f, -2.6f, 3, Paint.Teal, Paint.Cream);
+                    Tower(L, -2.6f, 1.6f, 1, Paint.Sage, Paint.Teal, true, true); Tower(L, 2.6f, 1.6f, 1, Paint.Blue, Paint.Teal, true, true);
+                    Keep(L, 0, 2.6f, 3, Paint.Brick, Paint.Ochre);
+                    Shrine(L, 0, 0, false, false, Paint.Cream, Paint.Brick);
                     d.start[Ammo.Stone] = 5; d.enemyAmmo = new[] { Ammo.Stone, Ammo.Ice, Ammo.Fire, Ammo.Ice };
                     break;
                 case 5:
-                    d.title = "第六关 · 双层"; d.timeOfDay = 2;
-                    Wall(L, -4, 4, -2f, 2, Paint.Teal, Paint.Cream);
-                    Wall(L, -2, 2, -0.6f, 3, Paint.Ochre, Paint.Brick);
-                    Keep(L, 0, 0.8f, 3, Paint.Blue, Paint.Cream);
-                    Tower(L, -4.6f, -2f, 3, Paint.Cream, Paint.Ochre); Tower(L, 4.6f, -2f, 3, Paint.Brick, Paint.Cream);
-                    Hall(L, -2.6f, 2f, Paint.Sage); Hall(L, 2.6f, 2f, Paint.Teal);
+                    d.title = "第六关 · 双层"; d.timeOfDay = 2; d.kingHP = 3;
+                    Wall(L, -4, 4, -3.2f, 2, Paint.Teal, Paint.Cream);
+                    Tower(L, -4.6f, -3.2f, 3, Paint.Cream, Paint.Ochre); Tower(L, 4.6f, -3.2f, 3, Paint.Brick, Paint.Cream);
+                    Hall(L, -2.8f, 0.4f, Paint.Sage); Hall(L, 2.8f, 0.4f, Paint.Teal);
+                    Keep(L, 0, 2.6f, 3, Paint.Blue, Paint.Cream);
+                    Shrine(L, 0, 0, false, true, Paint.Ochre, Paint.Brick);
                     d.start[Ammo.Stone] = 4; d.start[Ammo.Fire] = 2; d.enemyAmmo = new[] { Ammo.Fire, Ammo.Ice, Ammo.Stone };
                     break;
                 case 6:
-                    d.title = "第七关 · 石墙"; d.timeOfDay = 3; d.newAmmo = Ammo.Bomb;
-                    StoneWall(L, -4, 4, -3f, 1);
-                    Wall(L, -2, 2, -1.2f, 2, Paint.Cream, Paint.Teal);
-                    Keep(L, 0, 0.6f, 3, Paint.Brick, Paint.Ochre);
-                    Tower(L, -3.4f, -0.6f, 3, Paint.Teal, Paint.Cream); Tower(L, 3.4f, -0.6f, 3, Paint.Ochre, Paint.Cream);
-                    Hall(L, 0, 2.2f, Paint.Sage);
+                    d.title = "第七关 · 石墙"; d.timeOfDay = 3; d.newAmmo = Ammo.Bomb; d.kingHP = 3;
+                    StoneWall(L, -4, 4, -3.4f, 1);
+                    Tower(L, -3.4f, -1.0f, 3, Paint.Teal, Paint.Cream); Tower(L, 3.4f, -1.0f, 3, Paint.Ochre, Paint.Cream);
+                    Hall(L, -2.6f, 2.4f, Paint.Sage); Hall(L, 2.6f, 2.4f, Paint.Blue);
+                    Keep(L, 0, 2.6f, 3, Paint.Brick, Paint.Ochre);
+                    Shrine(L, 0, 0, true, true, Paint.Stone, Paint.Stone);
                     d.start[Ammo.Stone] = 4; d.start[Ammo.Fire] = 1; d.start[Ammo.Ice] = 1; d.enemyAmmo = new[] { Ammo.Bomb, Ammo.Stone, Ammo.Fire, Ammo.Bomb };
                     break;
                 case 7:
-                    d.title = "第八关 · 盾墙"; d.timeOfDay = 3; d.newAmmo = Ammo.Split;
-                    L.Add("S_Shield", Paint.Stone, 0, 0, -4.0f);
-                    StoneWall(L, -5, -1, -3f, 1); StoneWall(L, 1, 5, -3f, 1);
-                    Wall(L, -2, 2, -1.2f, 2, Paint.Teal, Paint.Ochre);
-                    Keep(L, 0, 0.6f, 3, Paint.Blue, Paint.Cream);
-                    Tower(L, -3.6f, -0.8f, 3, Paint.Cream, Paint.Brick); Tower(L, 3.6f, -0.8f, 3, Paint.Brick, Paint.Cream);
-                    Hall(L, -2.2f, 2.2f, Paint.Ochre); Hall(L, 2.2f, 2.2f, Paint.Sage);
+                    d.title = "第八关 · 盾墙"; d.timeOfDay = 3; d.newAmmo = Ammo.Split; d.kingHP = 3;
+                    L.Add("S_Shield", Paint.Stone, 0, 0, -4.6f);
+                    StoneWall(L, -5, -1, -3.4f, 1); StoneWall(L, 1, 5, -3.4f, 1);
+                    Tower(L, -3.6f, -1.0f, 3, Paint.Cream, Paint.Brick); Tower(L, 3.6f, -1.0f, 3, Paint.Brick, Paint.Cream);
+                    Hall(L, -2.6f, 2.4f, Paint.Ochre); Hall(L, 2.6f, 2.4f, Paint.Sage);
+                    Keep(L, 0, 2.6f, 3, Paint.Blue, Paint.Cream);
+                    Shrine(L, 0, 0, true, true, Paint.Stone, Paint.Stone);
                     d.start[Ammo.Stone] = 4; d.start[Ammo.Bomb] = 1; d.enemyAmmo = new[] { Ammo.Split, Ammo.Stone, Ammo.Bomb, Ammo.Fire };
                     break;
                 case 8:
-                    d.title = "第九关 · 要塞"; d.timeOfDay = 4;
-                    L.Add("S_Shield", Paint.Stone, 0, 0, -4.2f);
-                    StoneWall(L, -5, -1, -3.2f, 2); StoneWall(L, 1, 5, -3.2f, 2);
-                    Wall(L, -3, 3, -1.2f, 2, Paint.Ochre, Paint.Cream);
-                    Keep(L, 0, 0.8f, 4, Paint.Brick, Paint.Teal);
-                    Tower(L, -4.4f, -1.2f, 3, Paint.Teal, Paint.Cream); Tower(L, 4.4f, -1.2f, 3, Paint.Cream, Paint.Teal);
-                    Tower(L, -2.6f, 2.4f, 2, Paint.Sage, Paint.Blue, true, true); Tower(L, 2.6f, 2.4f, 2, Paint.Blue, Paint.Sage, true, true);
+                    d.title = "第九关 · 要塞"; d.timeOfDay = 4; d.kingHP = 3;
+                    L.Add("S_Shield", Paint.Stone, 0, 0, -4.8f);
+                    StoneWall(L, -5, -1, -3.6f, 2); StoneWall(L, 1, 5, -3.6f, 2);
+                    Wall(L, -3, 3, -2.2f, 2, Paint.Ochre, Paint.Cream);
+                    Tower(L, -4.4f, -2.2f, 3, Paint.Teal, Paint.Cream); Tower(L, 4.4f, -2.2f, 3, Paint.Cream, Paint.Teal);
+                    Tower(L, -2.6f, 1.4f, 2, Paint.Sage, Paint.Blue, true, true); Tower(L, 2.6f, 1.4f, 2, Paint.Blue, Paint.Sage, true, true);
+                    Keep(L, 0, 2.6f, 4, Paint.Brick, Paint.Teal);
+                    Shrine(L, 0, 0, true, true, Paint.Stone, Paint.Stone);
                     d.start[Ammo.Stone] = 4; d.start[Ammo.Fire] = 1; d.start[Ammo.Ice] = 1; d.start[Ammo.Bomb] = 1;
                     d.enemyAmmo = new[] { Ammo.Fire, Ammo.Bomb, Ammo.Ice, Ammo.Split, Ammo.Stone };
                     d.fireEvery = new Vector2(4f, 5.5f); d.aimError = 0.8f;
                     break;
-                default:  // 第十关：终局大城，帅旗藏在最里面
-                    d.title = "第十关 · 王城"; d.timeOfDay = 5;
-                    L.Add("S_Shield", Paint.Stone, -2.2f, 0, -4.8f); L.Add("S_Shield", Paint.Stone, 2.2f, 0, -4.8f);
-                    StoneWall(L, -6, 6, -3.6f, 2);
-                    Wall(L, -4, 4, -1.6f, 3, Paint.Cream, Paint.Teal);
-                    Wall(L, -2, 2, 0.2f, 3, Paint.Ochre, Paint.Brick);
-                    Keep(L, 0, 2.0f, 5, Paint.Blue, Paint.Cream);
-                    Tower(L, -5f, -1.6f, 4, Paint.Teal, Paint.Cream); Tower(L, 5f, -1.6f, 4, Paint.Cream, Paint.Teal);
-                    Tower(L, -3f, 2.4f, 2, Paint.Sage, Paint.Blue, true, true); Tower(L, 3f, 2.4f, 2, Paint.Blue, Paint.Sage, true, true);
-                    Hall(L, -2.6f, 3.8f, Paint.Ochre); Hall(L, 2.6f, 3.8f, Paint.Brick);
+                default:  // 第十关：终局大城，帅旗在两道墙后的石砌小堡里
+                    d.title = "第十关 · 王城"; d.timeOfDay = 5; d.kingHP = 4;
+                    L.Add("S_Shield", Paint.Stone, -2.2f, 0, -5.6f); L.Add("S_Shield", Paint.Stone, 2.2f, 0, -5.6f);
+                    StoneWall(L, -6, 6, -4.4f, 2);
+                    Wall(L, -4, 4, -2.6f, 3, Paint.Cream, Paint.Teal);
+                    Tower(L, -5f, -2.6f, 4, Paint.Teal, Paint.Cream); Tower(L, 5f, -2.6f, 4, Paint.Cream, Paint.Teal);
+                    Tower(L, -2.8f, 1.2f, 2, Paint.Sage, Paint.Blue, true, true); Tower(L, 2.8f, 1.2f, 2, Paint.Blue, Paint.Sage, true, true);
+                    Hall(L, -2.6f, 3.4f, Paint.Ochre); Hall(L, 2.6f, 3.4f, Paint.Brick);
+                    Keep(L, 0, 2.8f, 5, Paint.Blue, Paint.Cream);
+                    Shrine(L, 0, 0, true, true, Paint.Stone, Paint.Stone);
                     d.start[Ammo.Stone] = 5; d.start[Ammo.Fire] = 1; d.start[Ammo.Ice] = 1; d.start[Ammo.Bomb] = 1; d.start[Ammo.Split] = 1;
                     d.enemyAmmo = new[] { Ammo.Fire, Ammo.Bomb, Ammo.Split, Ammo.Ice, Ammo.Stone };
                     d.fireEvery = new Vector2(3.8f, 5f); d.aimError = 0.7f;

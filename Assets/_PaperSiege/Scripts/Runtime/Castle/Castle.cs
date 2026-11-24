@@ -36,6 +36,8 @@ namespace PaperSiege
         public Block king;
         public CastleLayout layout;
         public event Action<Castle> KingDown;
+        public int kingHP = 1, kingMaxHP = 1;
+        public event Action<Castle> KingHit;
         public bool IsKingDown { get; private set; }
         public float totalVolume;
         float fireTick;
@@ -112,7 +114,7 @@ namespace PaperSiege
             }
             // 刚体：开局冻结
             var rb = go.AddComponent<Rigidbody>();
-            float density = def.mat == Mat.Stone ? 1500f : 600f;   // kg/m³（石块按玩具石膏块的手感，不按真石头）
+            float density = p.piece == "King" ? 3000f : def.mat == Mat.Stone ? 1500f : 600f;   // kg/m³（石块按玩具石膏块的手感；帅旗底座加重，挨一下推不倒）
             rb.mass = Mathf.Max(0.02f, def.Volume * Mathf.Pow(unit, 3) * density);
             rb.isKinematic = true;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
@@ -128,11 +130,11 @@ namespace PaperSiege
         public void WakeAround(Vector3 p, float radius, Block hit = null)
         {
             var seen = new HashSet<Block>();
-            if (hit && hit.castle == this) WakeChain(hit, seen);
+            if (hit && hit.castle == this && !hit.isKing) WakeChain(hit, seen);
             foreach (var c in Physics.OverlapSphere(p, radius, Layers.BlockMask))
             {
                 var b = c.GetComponent<Block>();
-                if (b && b.castle == this) WakeChain(b, seen);
+                if (b && b.castle == this && !b.isKing) WakeChain(b, seen);   // 帅旗不会被弹的冲击叫醒，只扣耐久
             }
         }
 
@@ -185,7 +187,7 @@ namespace PaperSiege
             }
             if (burning.Count == 0) return;
             fireTick += Time.deltaTime;
-            foreach (var b in burning) b.burn = Mathf.Min(1f, b.burn + Time.deltaTime / BurnSeconds);
+            foreach (var b in burning) b.burn = Mathf.Min(1f, b.burn + Time.deltaTime / (BurnSeconds * (b.isKing ? 2f : 1f)));   // 旗杆烧得慢一倍
             if (fireTick < 0.6f) return;
             fireTick = 0;
             foreach (var b in burning.ToArray())
@@ -209,6 +211,36 @@ namespace PaperSiege
                     }
                 }
             }
+        }
+
+        public void SetKingHP(int hp) { kingHP = kingMaxHP = Mathf.Max(1, hp); }
+
+        /// <summary>帅旗挨打：扣耐久（冻住时多扣 1）；灯笼暗一档、旗子抖一下；打光了才倒（有过程：先晃再倒）</summary>
+        public void DamageKing(int dmg, Vector3 from)
+        {
+            if (IsKingDown || !king || king.Dead) return;
+            if (king.Frozen) dmg += 1;
+            kingHP = Mathf.Max(0, kingHP - dmg);
+            king.Hit(1f);
+            Fx.Sparkle(king.WorldBounds.center + Vector3.up * 0.8f * unit, new Color(1f, 0.85f, 0.5f), unit * 0.5f);
+            var flag = king.GetComponentInChildren<FlagSway>();
+            if (flag) flag.Shake(1f);
+            KingLook.SetGlow(king, (float)kingHP / kingMaxHP);
+            KingHit?.Invoke(this);
+            if (kingHP <= 0) StartCoroutine(Topple(from));
+        }
+
+        System.Collections.IEnumerator Topple(Vector3 from)
+        {
+            // 耐久打光：旗杆先晃两下，再朝背离来弹的方向倒下去
+            var flag = king.GetComponentInChildren<FlagSway>();
+            if (flag) flag.Shake(2f);
+            yield return new WaitForSeconds(0.35f);
+            king.Wake();
+            var away = Vector3.ProjectOnPlane(king.transform.position - from, Vector3.up).normalized;
+            if (away.sqrMagnitude < 0.01f) away = transform.forward;
+            king.rb.AddForceAtPosition(away * king.rb.mass * 1.2f, king.WorldBounds.center + Vector3.up * king.WorldBounds.extents.y, ForceMode.Impulse);
+            DeclareKingDown();
         }
 
         void DeclareKingDown()

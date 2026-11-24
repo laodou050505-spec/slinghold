@@ -114,6 +114,8 @@ namespace PaperSiege
             return fc - t.forward * len + (t.right * dd.x + t.up * dd.y) * 0.9f;
         }
 
+        static string Pips(Castle c) => new string('●', c.kingHP) + new string('○', c.kingMaxHP - c.kingHP);
+
         void OnGUI()
         {
             if (!d || d.level == null) return;
@@ -133,12 +135,13 @@ namespace PaperSiege
             var help =
                 $"《木垒》桌面试玩　{d.level.title}　剩 {Mathf.Max(0, d.timeLeft):0} 秒\n" +
                 $"弹：{am}\n" +
-                $"我方完整 {d.arena.mine.Integrity:P0}　敌方完整 {d.arena.enemy.Integrity:P0}　射 {d.stats.shots}　挡 {d.stats.blocked}　接 {d.stats.caught}　修 {d.stats.repaired}\n\n" +
+                $"我方帅旗 {Pips(d.arena.mine)}　敌方帅旗 {Pips(d.arena.enemy)}　我方完整 {d.arena.mine.Integrity:P0}　敌方完整 {d.arena.enemy.Integrity:P0}\n" +
+                $"射 {d.stats.shots}　挡 {d.stats.blocked}　接 {d.stats.caught}　修 {d.stats.repaired}\n\n" +
                 "左键按住往后拖：拉弓（往下拖=往上瞄，往左拖=往右瞄，越远越满）　松开：发射\n" +
                 "鼠标移到飞来的敌弹上：挡　按住 G：握拳接住\n" +
                 "按住 E：在桌上捏积木，拖到缺口松开=修城　V：往下拍（灭火）\n" +
                 "1～5：换弹　B：收 / 举弓　右键拖：转头　WASD：走动　N/P：换关　R：重来";
-            GUI.Box(new Rect(fs, fs, fs * 44, fs * 11.5f), help, box);
+            GUI.Box(new Rect(fs, fs, fs * 44, fs * 13f), help, box);
             if (d.phase == Director.Phase.Won || d.phase == Director.Phase.Lost)
             {
                 var msg = d.phase == Director.Phase.Won ? "胜利！敌方帅旗倒了　N 下一关 / R 重来" : "失守……我方帅旗倒了　R 重来";
