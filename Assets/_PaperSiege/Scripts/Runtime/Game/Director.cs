@@ -35,7 +35,12 @@ namespace PaperSiege
         void Start()
         {
             if (autoStart) StartLevel(levelIndex);
-            if (Application.isEditor && DemoDriver.Requested) gameObject.AddComponent<DemoDriver>();
+            // 编辑器里：菜单“演示”→ 自动演示；直接点播放 → 桌面试玩（鼠标键盘模拟双手）
+            if (Application.isEditor && HandInput.Sim)
+            {
+                if (DemoDriver.Requested) gameObject.AddComponent<DemoDriver>();
+                else gameObject.AddComponent<DesktopPlay>();
+            }
         }
 
         public void StartLevel(int i)

@@ -9,7 +9,7 @@ namespace PaperSiege.EditorTools
         [MenuItem("PaperSiege/演示：拉弓发射")]
         public static void Demo() => Play(true);
 
-        [MenuItem("PaperSiege/手动试玩（鼠标 + 键盘模拟手）")]
+        [MenuItem("PaperSiege/桌面试玩（鼠标 + 键盘模拟双手）")]
         public static void Manual() => Play(false);
 
         static void Play(bool demo)

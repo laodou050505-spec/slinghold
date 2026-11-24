@@ -13,6 +13,7 @@ namespace PaperSiege.EditorTools
         /// <summary>测试时：模拟手收起来（不自动挡弹）、投石机停火</summary>
         public static string Quiet(bool stopEnemy = true)
         {
+            foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp);   // 自动测试接管模拟手
             SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
             if (stopEnemy) D.catapult.Stop();
             return "quiet";
@@ -247,6 +248,35 @@ namespace PaperSiege.EditorTools
             Debug.Log("[松手逐帧] 距叉口/到皮兜最近/皮兜原点到弹心(mm)： " + trace);
             Debug.Log($"[松手检查] 弹半径 {r * 1000:0.0}mm，飞出时弹心到弓架最近 {minClear * 1000:0.0}mm、到皮兜最近 {minPouch * 1000:0.0}mm → {(minClear > r && minPouch > r ? "不穿模" : "穿模！")}");
             SimHands.Hide(0); SimHands.Hide(1);
+        }
+
+        /// <summary>桌面试玩的拖动换算：模拟“按下 → 往下（/左）拖 → 松开”，看发射方向和力度</summary>
+        public static string DesktopDrag(float dx, float dy)
+        {
+            var dp = Object.FindAnyObjectByType<DesktopPlay>();
+            if (!dp) return "没有 DesktopPlay";
+            D.StartCoroutine(DragRun(dp, new Vector2(dx, dy)));
+            return "drag started";
+        }
+
+        static System.Collections.IEnumerator DragRun(DesktopPlay dp, Vector2 dd)
+        {
+            var t = D.head.transform;
+            SimHands.scripted = true;
+            SimHands.Pose(0, t.position + t.forward * 0.40f - t.right * 0.10f - t.up * 0.10f, true);
+            yield return new WaitForSeconds(0.3f);
+            SimHands.Pose(1, D.sling.PouchRest, true);
+            yield return null; yield return null;
+            for (float k = 0; k <= 1f; k += Time.deltaTime / 0.5f) { SimHands.Pose(1, dp.HandFromDrag(dd * k), true); yield return null; }
+            for (int i = 0; i < 10; i++) { SimHands.Pose(1, dp.HandFromDrag(dd), true); yield return null; }
+            var v = D.sling.LaunchVelocity();
+            float pitch = Mathf.Asin(Mathf.Clamp(v.normalized.y, -1, 1)) * Mathf.Rad2Deg;
+            float yaw = Vector3.SignedAngle(Vector3.ProjectOnPlane(t.forward, Vector3.up), Vector3.ProjectOnPlane(v, Vector3.up), Vector3.up);
+            int shots = D.stats.shots;
+            SimHands.Pose(1, dp.HandFromDrag(dd), false);
+            yield return null;
+            Debug.Log($"[拖动] 拖({dd.x:0.00},{dd.y:0.00}) → 拉满 {D.sling.pull01:0.00}? 速度 {v.magnitude:0.0} m/s 仰角 {pitch:0}° 偏航 {yaw:0}°（正=右） 射出 {D.stats.shots - shots}");
+            SimHands.Hide(1);
         }
 
         public static string State()
