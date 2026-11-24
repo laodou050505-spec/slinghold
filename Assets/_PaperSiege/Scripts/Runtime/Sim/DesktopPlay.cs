@@ -12,6 +12,8 @@ namespace PaperSiege
     public class DesktopPlay : MonoBehaviour
     {
         Director d;
+        float clickT;
+        static Vector3 SimHand1Point() => HandInput.SimHand[1].pinchPoint;
         bool bowUp = true, drawing;
         Vector2 press;
         float patT = -1f; Vector3 patFrom;
@@ -23,7 +25,7 @@ namespace PaperSiege
             SimHands.scripted = true;
             var e = d.head.transform.eulerAngles;
             d.head.transform.rotation = Quaternion.Euler(14f, e.y, 0f);   // 桌面上视线抬平一点，敌城在画面中间
-            d.StartLevel(0);   // 从第 1 关（边玩边学）开始
+            // 从标题页开始（Director 自己进标题）
         }
 
         Vector3 CamPt(float fwd, float right, float up)
@@ -59,11 +61,19 @@ namespace PaperSiege
                 if (kb[(Key)((int)Key.Digit1 + i)].wasPressedThisFrame && d.ammo.Count((Ammo)i) > 0) d.ammo.selected = (Ammo)i;
             if (kb.bKey.wasPressedThisFrame) bowUp = !bowUp;
             // ── 左手：弓架举在视野左前方
-            if (bowUp) SimHands.Pose(0, CamPt(0.40f, -0.10f, -0.10f), true);
+            if (bowUp && d.phase == Director.Phase.Battle) SimHands.Pose(0, CamPt(0.40f, -0.10f, -0.10f), true);
             else SimHands.Hide(0);
             // ── 右手
             var sling = d.sling;
             var mp = ms.position.ReadValue();
+            // 点按钮：左键点到木头按钮 = 右手在那儿捏一下
+            if (ms.leftButton.wasPressedThisFrame && Physics.Raycast(cam.ScreenPointToRay(mp), out var bh, 5f, 1 << 12))
+            {
+                SimHands.Pose(1, bh.point, true);
+                clickT = 0.08f;
+                return;
+            }
+            if (clickT > 0f) { clickT -= Time.deltaTime; SimHands.Pose(1, SimHand1Point(), clickT > 0f); return; }
             if (bowUp && sling && ms.leftButton.wasPressedThisFrame && sling.state == PlayerSling.State.Held)
             {
                 drawing = true; press = mp;
@@ -114,11 +124,20 @@ namespace PaperSiege
             return fc - t.forward * len + (t.right * dd.x + t.up * dd.y) * 0.9f;
         }
 
+        void TitleHint()
+        {
+            int fs = Mathf.Max(14, Screen.height / 52);
+            var st = new GUIStyle(GUI.skin.box) { fontSize = fs, padding = new RectOffset(fs, fs, fs / 2, fs / 2) };
+            st.normal.textColor = new Color(0.98f, 0.94f, 0.86f);
+            GUI.Box(new Rect(fs, fs, fs * 34, fs * 2.4f), "桌面试玩：左键点桌上的积木按钮（开始 / 选关 / 地球仪 = 切换语言 / 音乐音效）", st);
+        }
+
         static string Pips(Castle c) => new string('●', c.kingHP) + new string('○', c.kingMaxHP - c.kingHP);
 
         void OnGUI()
         {
             if (!d || d.level == null) return;
+            if (d.phase == Director.Phase.Title) { TitleHint(); return; }
             int fs = Mathf.Max(14, Screen.height / 52);   // 字号跟着窗口高度（高分屏上也看得清）
             if (box == null || box.fontSize != fs)
             {
@@ -142,11 +161,6 @@ namespace PaperSiege
                 "按住 E：在桌上捏积木，拖到缺口松开=修城　V：往下拍（灭火）\n" +
                 "1～5：换弹　B：收 / 举弓　右键拖：转头　WASD：走动　N/P：换关　R：重来";
             GUI.Box(new Rect(fs, fs, fs * 44, fs * 13f), help, box);
-            if (d.phase == Director.Phase.Won || d.phase == Director.Phase.Lost)
-            {
-                var msg = d.phase == Director.Phase.Won ? "胜利！敌方帅旗倒了　N 下一关 / R 重来" : "失守……我方帅旗倒了　R 重来";
-                GUI.Label(new Rect(0, Screen.height * 0.4f, Screen.width, fs * 3), msg, title);
-            }
         }
     }
 }

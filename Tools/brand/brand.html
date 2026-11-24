@@ -1,0 +1,117 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:Outfit;src:url("../../ArtSource/Fonts/Outfit[wght].ttf");font-weight:100 900}
+@font-face{font-family:NotoSC;src:url("../../ArtSource/Fonts/NotoSansSC-Bold.otf");font-weight:700}
+html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+#stage{position:absolute;left:0;top:0}
+.abs{position:absolute}
+.cap{position:absolute;left:0;width:100%;text-align:center;white-space:nowrap;font-family:Outfit,NotoSC}
+</style></head><body><div id="stage"></div><script>
+// 品牌图合成（用无头 Chrome 截成透明底 PNG，见 render.sh）。?m=lockup|plate|splash|check  &c=white|black  &l=zh|en
+// TRIPO XR 组合标志 = 官方横版标志（800×200，字高 90、字间距 24～33）+ 用户给的 X（缩到字高 90，只换颜色）+ 从标志里原样取出的 R。
+const q = new URLSearchParams(location.search), m = q.get('m') || 'lockup', col = q.get('c') || 'white', lang = q.get('l') || 'zh';
+const RAW = '../../ArtSource/Brand/raw/';
+const L = { x0: 54, y0: 33, h: 134, capTop: 55, cap: 90, oRight: 746, rL: 367, rW: 93, xW: 106 * 90 / 99, gapWord: 62, gapXR: 26 };
+L.xLeft = L.oRight + L.gapWord; L.rLeft = L.xLeft + L.xW + L.gapXR; L.right = L.rLeft + L.rW - 1; L.w = L.right - L.x0;
+function lockup(parent, left, top, s) {   // 把组合标志的内容框（宽 L.w × 高 134）左上角放在 (left, top)，放大 s 倍
+  const g = document.createElement('div'); g.className = 'abs';
+  g.style.cssText = `left:${left}px;top:${top}px;width:${L.w}px;height:${L.h}px;transform-origin:0 0;transform:scale(${s})`;
+  const logo = `${RAW}tripo_logo_h_800_${col}.png`;
+  g.innerHTML = `<img class="abs" src="${logo}" style="left:${-L.x0}px;top:${-L.y0}px">
+    <img class="abs" src="${RAW}x_glyph_106.png" style="left:${L.xLeft - L.x0}px;top:${L.capTop - L.y0}px;height:${L.cap}px;${col == 'white' ? 'filter:invert(1)' : ''}">
+    <div class="abs" style="left:${L.rLeft - L.x0}px;top:0;width:${L.rW}px;height:${L.h}px;overflow:hidden"><img class="abs" src="${logo}" style="left:${-L.rL}px;top:${-L.y0}px"></div>`;
+  parent.appendChild(g); return g;
+}
+const st = document.getElementById('stage');
+function size(w, h) { st.style.width = w + 'px'; st.style.height = h + 'px'; document.title = w + 'x' + h; }
+if (m == 'lockup') { const M = 54; size(Math.ceil(L.w) + 2 * M, 200); lockup(st, M, 33, 1); }
+// 11-17 用户：官方标志是 TRIPO，没有“TRIPO XR”这个标志 —— 标志原样不动，XR 两个字怎么放有三种排法（?v=1|2|3）：
+//   1 = 标志旁边用品牌字体 Outfit 细体写 XR（和标志明显不是一体）；2 = 用用户给的 X + 标志里的 R，按标志的字形接在后面；3 = 标志单独放，整句“TRIPO XR 出品”写成下面一行字
+const v = q.get('v') || '1', GREY = '#c9ccd8';
+const LW = L.oRight - L.x0;   // 官方标志内容宽 692
+function official(parent, left, top, s) {
+  const g = document.createElement('div'); g.className = 'abs';
+  g.style.cssText = `left:${left}px;top:${top}px;width:${LW}px;height:${L.h}px;transform-origin:0 0;transform:scale(${s})`;
+  g.innerHTML = `<img class="abs" src="${RAW}tripo_logo_h_800_${col}.png" style="left:${-L.x0}px;top:${-L.y0}px">`;
+  parent.appendChild(g); return g;
+}
+function txt(parent, t, left, top, px, weight, color, ls, fam) {
+  const c = document.createElement('div'); c.className = 'abs';
+  c.style.cssText = `left:${left}px;top:${top}px;font-family:${fam || 'Outfit'};font-weight:${weight};font-size:${px}px;line-height:1;color:${color};letter-spacing:${ls}em;white-space:nowrap`;
+  c.textContent = t; parent.appendChild(c); return c;
+}
+function center(el, W) { el.style.left = '0'; el.style.width = W + 'px'; el.style.textAlign = 'center'; el.style.boxSizing = 'border-box'; el.style.paddingLeft = el.style.letterSpacing; }
+// 一行“标志 + XR”：返回这一行的总宽（1 倍时）
+function nameRow(parent, left, top, s) {
+  if (v == '2') { lockup(parent, left, top, s); return L.w * s; }
+  official(parent, left, top, s);
+  if (v == '3') return LW * s;
+  // v1：XR 用 Outfit 细体，大写字高和标志的字一样高（90），离标志一个词距
+  const fs = 90 / 0.7 * s, x = left + (LW + 46) * s;
+  txt(parent, 'XR', x, top + (L.capTop - L.y0) * s - fs * 0.15, fs, 300, '#fff', 0.04);
+  return (LW + 46 + 168) * s;
+}
+function rowW() { return v == '2' ? L.w : v == '3' ? LW : LW + 46 + 168; }
+if (m == 'plate') {   // 铭牌牌面（180.6×56mm，约 8.86 像素 / 毫米）
+  const W = 1600, H = 496; size(W, H);
+  const capPx = 54, fs = capPx / 0.7;
+  if (v == '3') {
+    const lw = 940, s = lw / LW, lh = L.h * s, gap = 60, top = (H - (lh + gap + capPx)) / 2;
+    official(st, (W - lw) / 2, top, s);
+    const c = txt(st, '', 0, top + lh + gap - fs * 0.15, fs, 500, GREY, 0.24); center(c, W);
+    c.innerHTML = lang == 'zh' ? 'TRIPO XR<span style="font-family:NotoSC;font-weight:700;font-size:0.9em;letter-spacing:0.5em;margin-left:0.6em">出品</span>' : 'TRIPO XR DEVELOPERS';
+  } else {
+    const lw = lang == 'zh' ? 1240 : 1160, s = lw / rowW(), lh = L.h * s;
+    if (lang == 'zh') {
+      const gap = 58, zhH = 66, top = (H - (lh + gap + zhH)) / 2;
+      nameRow(st, (W - lw) / 2, top, s);
+      const c = txt(st, '出品', 0, top + lh + gap - 4, 70, 700, GREY, 0.9, 'NotoSC'); center(c, W);
+    } else {
+      const g1 = 40, g2 = 46, top = (H - (capPx + g1 + lh + g2 + capPx)) / 2;
+      center(txt(st, 'A', 0, top - fs * 0.15, fs, 500, GREY, 0.34), W);
+      nameRow(st, (W - lw) / 2, top + capPx + g1, s);
+      center(txt(st, 'PRODUCTION', 0, top + capPx + g1 + lh + g2 - fs * 0.15, fs, 500, GREY, 0.34), W);
+    }
+  }
+}
+if (m == 'splash') {  // 启动画面：照 Unity 那张的结构 —— 左边两行小号大写字 MADE / WITH（字距拉开），右边标志，两者上下居中对齐。
+  // 11-17 用户：标志别那么大 —— Unity 那张里标志只比两行字高一半左右：标志缩到 0.66（高 88，两行字约高 75）。
+  // 上下各留一截透明边（整张约 3:1）：Unity 是把整张图按比例放进固定区域的，图太扁的话按高度放会被放得很大
+  const K = 0.66, M = 36, mw = 200, gap = 34, lh = L.h * K, H = 250;
+  const W = Math.ceil(M + mw + gap + rowW() * K + M); size(W, H);
+  const fs = 37, top = (H - lh) / 2;
+  const t = txt(st, '', M, H / 2 - fs * 1.22, fs, 500, '#e6e6e6', 0.3); t.style.lineHeight = '1.32'; t.style.width = mw + 'px'; t.style.textAlign = 'right';
+  t.innerHTML = 'MADE<br>WITH';
+  nameRow(st, M + mw + gap, top, K);
+}
+if (m == 'vrsplash') {   // 头显里的启动图（PlayerSettings 的 Virtual Reality Splash Image）：XR 下 Unity 不画“标志列表”，只认这一张贴图。
+  // 2048×1024、不透明、底色 = 启动画面背景色 #231F20，内容和 made_with_tripo 一样（MADE / WITH + TRIPO 标志），居中，约占宽度的 62%（11-17 用户看过头显后要大一点，原来 46%）
+  const W = 2048, H = 1024; size(W, H); document.body.style.background = '#231f20'; st.style.background = '#231f20';
+  const K = 0.66, mw = 200, gap = 34, lh = L.h * K, cw = mw + gap + rowW() * K, k = W * 0.62 / cw, ch = lh;
+  const g = document.createElement('div'); g.className = 'abs';
+  g.style.cssText = `left:${(W - cw * k) / 2}px;top:${(H - ch * k) / 2}px;width:${cw}px;height:${ch}px;transform-origin:0 0;transform:scale(${k})`;
+  st.appendChild(g);
+  const fs = 37, t = txt(g, '', 0, ch / 2 - fs * 1.22, fs, 500, '#e6e6e6', 0.3); t.style.lineHeight = '1.32'; t.style.width = mw + 'px'; t.style.textAlign = 'right';
+  t.innerHTML = 'MADE<br>WITH';
+  nameRow(g, mw + gap, 0, K);
+}
+if (m == 'sheet') {   // 三种排法并排：每行 = 中文牌面 / 英文牌面 / 启动画面
+  size(2460, 1150); document.body.style.background = '#3c3e4a';
+  ['1', '2', '3'].forEach((vv, i) => {
+    const y = 70 + i * 360;
+    txt(st, ['① XR 用品牌字体细体，放在标志旁边', '② XR 用你给的 X + 标志里的 R，接在标志后面', '③ 标志单独放，“Tripo XR 出品”整句写成一行字'][i], 30, y - 44, 30, 500, '#fff', 0, 'NotoSC');
+    [['plate', 'zh', 30, 760, 236, '#1b1c26'], ['plate', 'en', 810, 760, 236, '#1b1c26'], ['splash', '', 1590, 840, 150, '#231f20']].forEach(([mm, ll, x, w, h, bgc]) => {
+      const f = document.createElement('iframe'); f.src = `brand.html?m=${mm}&l=${ll}&v=${vv}`;
+      const sw = mm == 'plate' ? 1600 : 1360, sh = mm == 'plate' ? 496 : 206, k = w / sw;
+      f.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sw}px;height:${sh}px;border:0;background:${bgc};transform-origin:0 0;transform:scale(${k})`;
+      st.appendChild(f);
+    });
+  });
+}
+if (m == 'check') {   // 自查：深色底 / 浅色底各放一份，看拼出来的 XR 和原字标是不是一套
+  size(1200, 900); document.body.style.background = '#231f20';
+  col_ = col; lockup(st, 60, 40, 1);
+  const lt = document.createElement('div'); lt.className = 'abs'; lt.style.cssText = 'left:0;top:230px;width:1200px;height:220px;background:#ececec'; st.appendChild(lt);
+  const g = lockup(st, 60, 270, 1); g.querySelectorAll('img').forEach(i => { i.src = i.src.replace('_white', '_black'); i.style.filter = ''; });
+  lockup(st, 60, 500, 2.2).style.transformOrigin = '0 0';
+}
+</script></body></html>

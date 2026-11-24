@@ -7,7 +7,7 @@ namespace PaperSiege
     public class Director : MonoBehaviour
     {
         public static Director I { get; private set; }
-        public enum Phase { Idle, Battle, Won, Lost }
+        public enum Phase { Idle, Title, Battle, Won, Lost }
 
         public Arena arena;
         public Camera head;
@@ -25,6 +25,8 @@ namespace PaperSiege
         public SupplyTray supply;
         public Stats stats = new();
         public event Action<Phase> PhaseChanged;
+        TitleMenu title;
+        ResultBoard result;
         bool laidOut;
         GameTuning T => GameTuning.I;
 
@@ -36,7 +38,8 @@ namespace PaperSiege
 
         void Start()
         {
-            if (autoStart) StartLevel(levelIndex);
+            Progress.LoadLanguage();
+            if (autoStart) GoTitle();
             // 编辑器里：菜单“演示”→ 自动演示；直接点播放 → 桌面试玩（鼠标键盘模拟双手）
             if (Application.isEditor && HandInput.Sim)
             {
@@ -45,8 +48,28 @@ namespace PaperSiege
             }
         }
 
+        /// <summary>标题页：自己的城和要打的那一关的敌城照样摆着（对峙），盒盖合着，桌上是开始 / 选关 / 语言 / 声音按钮，头顶吊着字标</summary>
+        public void GoTitle()
+        {
+            if (result) { result.Close(); result = null; }
+            foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
+            if (!sky) { sky = SkyDome.Build(this, FindAnyObjectByType<Light>()); arena.sky = sky; }
+            if (!laidOut) { arena.Layout(); laidOut = true; }
+            levelIndex = Progress.Unlocked;
+            level = Levels.Get(levelIndex);
+            arena.BuildCastles(level);
+            if (catapult) catapult.Stop();
+            foreach (var c in new MonoBehaviour[] { GetComponent<Tutorial>(), GetComponent<LevelTips>() }) if (c) Destroy(c);
+            sky.Close();
+            if (title) Destroy(title.gameObject);
+            title = TitleMenu.Build(this);
+            SetPhase(Phase.Title);
+        }
+
         public void StartLevel(int i)
         {
+            if (title) { title.Close(); title = null; }
+            if (result) { result.Close(); result = null; }
             levelIndex = Mathf.Clamp(i, 0, Levels.Count - 1);
             level = Levels.Get(levelIndex);
             foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
@@ -55,6 +78,7 @@ namespace PaperSiege
             arena.BuildCastles(level);
             ammo.Reset(level.start);
             stats = new Stats();
+            CastleMarks.Credit(arena.mine);
             if (!catapult) catapult = EnemyCatapult.Build(arena.catapultSpot, T.enemyUnit);
             catapult.transform.SetPositionAndRotation(arena.catapultSpot.position, arena.catapultSpot.rotation);
             catapult.flightScale = () => ammo.Total == 0 ? T.mercySlow : 1f;
@@ -92,7 +116,15 @@ namespace PaperSiege
             catapult.Stop();
             SetPhase(win ? Phase.Won : Phase.Lost);
             if (sky) sky.OnEnd(win);
+            if (win) { Progress.SetStars(levelIndex, ResultBoard.Score(this, true)); if (levelIndex + 1 > Progress.Unlocked) Progress.Unlocked = levelIndex + 1; }
+            StartCoroutine(ShowResult(win));
             Debug.Log($"[PaperSiege] 第 {levelIndex + 1} 关 {(win ? "胜" : "负")}  我方完整度 {arena.mine.Integrity:0.00} 敌方 {arena.enemy.Integrity:0.00}  射 {stats.shots} 挡 {stats.blocked} 接 {stats.caught}");
+        }
+
+        System.Collections.IEnumerator ShowResult(bool win)
+        {
+            yield return new WaitForSeconds(win ? 2.5f : 2.0f);   // 先看完倒塌 / 烟花
+            if (phase == Phase.Won || phase == Phase.Lost) result = ResultBoard.Build(this, win);
         }
 
         /// <summary>调试 / 自动测试：从 from 用给定速度大小打 at（取低抛解；打不到就用最大速度 45°）</summary>

@@ -129,7 +129,7 @@ namespace PaperSiege
 
         public void OnLevel(LevelDef lv)
         {
-            if (lv.index != level) { todFrom = todTo = tod = Mathf.Clamp(lv.timeOfDay, 0, Times.Length - 1); level = lv.index; }
+            todFrom = todTo = tod = Mathf.Clamp(lv.timeOfDay, 0, Times.Length - 1); level = lv.index;
             sink = 0; swirl = 0;
             openTarget = 0; open = 0; ApplyLid();
             StopAllCoroutines();
@@ -143,6 +143,14 @@ namespace PaperSiege
             for (float t = 0; t < 0.9f; t += Time.deltaTime) { crack = Mathf.SmoothStep(0, 1, t / 0.9f); ApplyLid(); yield return null; }
             // 发生：从敌城那头开始，一条条翻起来飞走
             openTarget = 1f;
+        }
+
+        /// <summary>标题页：盒盖合上（有过程）、回到房间原来的光</summary>
+        public void Close()
+        {
+            StopAllCoroutines();
+            openTarget = 0f; crack = 0f;
+            level = -2;   // 下次开局一定重新掀盖
         }
 
         public void OnEnd(bool win)
@@ -197,7 +205,7 @@ namespace PaperSiege
         void Update()
         {
             if (!d || d.level == null) return;
-            if (d.level.index != level) OnLevel(d.level);
+            if (d.phase == Director.Phase.Battle && d.level.index != level) OnLevel(d.level);
             float dt = Time.deltaTime;
             // 盒盖展开 / 合上（4 秒展开、3 秒合上）
             open = Mathf.MoveTowards(open, openTarget, dt / (openTarget > open ? 4f : 3f));

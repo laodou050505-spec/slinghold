@@ -515,6 +515,59 @@ namespace PaperSiege.EditorTools
             return $"不透明 {opaque * 100f / px.Length:0}%，左右两侧 15% 区域里不透明 {sides * 100f / (px.Length * 0.3f):0}%";
         }
 
+        /// <summary>整局流程：标题 → 捏“开始” → 打赢 → 结算（截图）→ 捏“下一关” → 进下一关</summary>
+        public static string FlowCheck(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(FlowRun(dir)); return "flow started"; }
+
+        static System.Collections.IEnumerator PressButton(string zh)
+        {
+            WoodButton b = null;
+            foreach (var x in WoodButton.All) if (x && x.Key == zh) b = x;
+            if (!b) { Debug.Log("[流程] 找不到按钮 " + zh); yield break; }
+            var p = b.ClosestPoint(b.transform.position - D.arena.forward * 0.1f);
+            SimHands.scripted = true;
+            SimHands.Pose(1, p - D.arena.forward * 0.02f, false); yield return null; yield return null;
+            SimHands.Pose(1, p, true); yield return null; yield return null;
+            SimHands.Pose(1, p, false); yield return new WaitForSeconds(0.4f);
+            SimHands.Hide(1);
+        }
+
+        static System.Collections.IEnumerator FlowRun(string dir)
+        {
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            Progress.Unlocked = 2;
+            D.GoTitle();
+            yield return new WaitForSeconds(1.0f);
+            Debug.Log($"[流程] 标题 phase={D.phase} 按钮={WoodButton.All.Count}");
+            yield return PressButton("继续");
+            yield return new WaitForSeconds(1.0f);
+            Debug.Log($"[流程] 捏“继续”后 phase={D.phase} 关={D.levelIndex + 1}");
+            Quiet();
+            yield return new WaitForSeconds(5f);
+            // 直接让敌方帅旗耐久打光（模拟打赢）
+            D.arena.enemy.DamageKing(99, D.arena.enemy.transform.position - D.arena.forward);
+            yield return new WaitForSeconds(5.5f);
+            Debug.Log($"[流程] 赢后 phase={D.phase} 结算板={(GameObject.Find("ResultBoard") != null)} 星={Progress.Stars(D.levelIndex)} 解锁到={Progress.Unlocked + 1}");
+            var rb = GameObject.Find("ResultBoard");
+            if (rb) SnapPlayerLook(dir, "结算_胜利", rb.transform.position);
+            yield return PressButton("下一关");
+            yield return new WaitForSeconds(1.0f);
+            Debug.Log($"[流程] 捏“下一关”后 phase={D.phase} 关={D.levelIndex + 1}");
+            Quiet();
+            yield return new WaitForSeconds(5f);
+            D.arena.mine.DamageKing(99, D.arena.mine.transform.position + D.arena.forward);
+            yield return new WaitForSeconds(5.0f);
+            rb = GameObject.Find("ResultBoard");
+            if (rb) SnapPlayerLook(dir, "结算_失守", rb.transform.position);
+            Debug.Log($"[流程] 输后 phase={D.phase} 结算板={(rb != null)}");
+            yield return PressButton("回标题");
+            yield return new WaitForSeconds(1.0f);
+            Debug.Log($"[流程] 捏“回标题”后 phase={D.phase}");
+            Debug.Log("[流程] 完成");
+        }
+
+        /// <summary>从玩家眼睛的位置看向某处（模拟低头看），视场角和头显接近</summary>
+        public static string SnapPlayerLook(string dir, string name, Vector3 at) => Snap(dir, name, D.head.transform.position, at, 80);
+
         public static string State()
         {
             var a = D.arena;
