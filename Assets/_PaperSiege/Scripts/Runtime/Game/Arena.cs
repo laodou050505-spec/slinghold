@@ -24,12 +24,35 @@ namespace PaperSiege
             var hp = head ? head.position : new Vector3(0, 1.5f, 0);
             var f = head ? Vector3.ProjectOnPlane(head.forward, Vector3.up) : Vector3.forward;
             forward = f.sqrMagnitude > 1e-4f ? f.normalized : Vector3.forward;
-            if (!HasRealTable(out tableCenter))
+            // 真实桌子：系统空间扫描里有玩家面前合适的桌子就用它（高度 / 尺寸按真实的）；
+            // 没有（编辑器里、或玩家没扫房间）就在身前放一张虚拟木桌
+            var room = RoomTable.I;
+            if (room && room.TryFront(hp, forward, out var t))
+            {
+                var toPlayer = hp - t.center; toPlayer.y = 0;
+                bool aIsDepth = Mathf.Abs(Vector3.Dot(toPlayer, t.axisA)) * t.halfB > Mathf.Abs(Vector3.Dot(toPlayer, t.axisB)) * t.halfA;
+                var nearAxis = aIsDepth ? t.axisA : t.axisB;
+                float nearHalf = aIsDepth ? t.halfA : t.halfB;
+                var dir = nearAxis * Mathf.Sign(Vector3.Dot(toPlayer, nearAxis));
+                tableCenter = t.center + dir * Mathf.Max(0f, nearHalf - 0.2f);
+                tableSize = new Vector2(
+                    Mathf.Clamp((aIsDepth ? t.halfB : t.halfA) * 2f - 0.04f, 0.45f, 0.9f),
+                    Mathf.Clamp(nearHalf * 2f - 0.04f, 0.3f, 0.6f));
+                usingRealTable = true;
+            }
+            else
+            {
                 tableCenter = new Vector3(hp.x, T.tableHeight, hp.z) + forward * 0.5f;
+                usingRealTable = false;
+            }
+            // 天花板：系统扫描里读到就用它（盒盖 / 字标 / 天空开口都以它为准），否则默认 2.5 m
+            float ceil = room ? room.CeilingAbove(hp) : 0f;
+            ceilingHeight = ceil > hp.y + 0.6f ? ceil : 2.5f;
             BuildEnv();
         }
 
-        bool HasRealTable(out Vector3 c) { c = default; return false; }   // D3：接 RoomTable
+        /// <summary>这一局用的是不是系统扫描出来的真桌子</summary>
+        public bool usingRealTable { get; private set; }
 
         void BuildEnv()
         {

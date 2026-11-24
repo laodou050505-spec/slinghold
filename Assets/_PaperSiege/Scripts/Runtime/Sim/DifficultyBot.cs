@@ -115,22 +115,35 @@ namespace PaperSiege
             bool highArc = false;
             if (skill.smart)
             {
-                // 帅旗前面（朝玩家那一侧）还有块挡着 → 拆它们；没有了 → 打旗
-                var blockers = alive.Where(b => { var c = b.WorldBounds.center; var toK = kingPos - c; return Vector3.Dot(toK, d.arena.forward) > 0 && Vector2.Distance(new Vector2(c.x, c.z), new Vector2(kingPos.x, kingPos.z)) < 2.2f * e.unit; })
-                                    .OrderBy(b => Vector3.Distance(b.WorldBounds.center, kingPos)).ToList();
-                var pick = blockers.Count > 0 ? blockers[0] : null;
-                target = pick ? pick.WorldBounds.center : kingPos;
-                if (pick && pick.def.mat == Mat.Stone && d.ammo.Count(Ammo.Bomb) > 0) a = Ammo.Bomb;
-                else if (pick && pick.Wood && d.ammo.Count(Ammo.Fire) > 0) a = Ammo.Fire;
-                else if (!pick && d.ammo.Count(Ammo.Split) > 0) a = Ammo.Split;
-                else if (d.ammo.Count(Ammo.Stone) == 0) a = d.ammo.AutoSelect();
-                highArc = !pick || e.blocks.Any(b => b.name == "S_Shield" && b.InPlace);   // 有盾墙 / 打旗：高抛
+                // 先看这条线能不能打到帅旗的旗面（露在城头的那个命中区）；能打就直接打旗（高抛越墙），
+                // 打不到才拆挡住弹道的那一块 —— 和真人看着预瞄线做的事一样
+                var flagPt = e.king.WorldBounds.center + Vector3.up * 0.05f;
+                var from0 = d.arena.tableCenter + Vector3.up * 0.35f;
+                var dirToKing = (flagPt - from0).normalized;
+                bool los = !Physics.SphereCast(from0, 0.006f, dirToKing, out var lh, Vector3.Distance(from0, flagPt) - 0.06f, Layers.BlockMask)
+                           || (lh.collider.GetComponent<Block>() is Block hb && hb.isKing);
+                if (los) { target = flagPt; highArc = true; }
+                else
+                {
+                    // 挡住的那块：沿视线查到的第一个非帅旗积木
+                    var blocking = Physics.SphereCast(from0, 0.006f, dirToKing, out var bh, 8f, Layers.BlockMask) ? bh.collider.GetComponent<Block>() : null;
+                    var pick = blocking ?? alive.OrderBy(b => Vector3.Distance(b.WorldBounds.center, flagPt)).FirstOrDefault();
+                    target = pick ? pick.WorldBounds.center : flagPt;
+                    if (pick && pick.def.mat == Mat.Stone && d.ammo.Count(Ammo.Bomb) > 0) a = Ammo.Bomb;
+                    else if (pick && pick.Wood && d.ammo.Count(Ammo.Fire) > 0) a = Ammo.Fire;
+                    highArc = false;
+                }
+                if (a == Ammo.Stone && d.ammo.Count(Ammo.Stone) == 0) a = d.ammo.AutoSelect();
             }
             else
             {
-                target = rng.NextDouble() < 0.5 || alive.Count == 0 ? kingPos : alive.OrderByDescending(b => b.WorldBounds.max.y).Take(6).ElementAt(rng.Next(Mathf.Min(6, alive.Count))).WorldBounds.center;
+                // 新手：知道要打帅旗那一片（真人新手也会往城中间打），但瞄不准、不太会用高抛 —— 误差靠 aimErr 体现
+                var nearKing = alive.Where(b => Vector3.Distance(b.WorldBounds.center, kingPos) < 2.5f * e.unit).ToList();
+                target = rng.NextDouble() < 0.6 || nearKing.Count == 0
+                    ? kingPos
+                    : nearKing[rng.Next(nearKing.Count)].WorldBounds.center;
                 a = d.ammo.AutoSelect();
-                highArc = rng.NextDouble() < 0.3;
+                highArc = rng.NextDouble() < 0.6;
             }
             if (d.ammo.Count(a) == 0) a = d.ammo.AutoSelect();
             if (d.ammo.Count(a) == 0) return;
