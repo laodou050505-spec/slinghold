@@ -87,7 +87,23 @@ namespace PaperSiege
 
         public void Show(bool on) => gameObject.SetActive(on);
 
-        /// <summary>跟着弓架：挂在左手（弓架握把）正下方、稍靠近玩家 —— 右手往下一够就拿到，不挡视线、不挡自己的城</summary>
+        /// <summary>放在桌上：自己城的左前方（和右边的补给盘对称），朝向玩家。固定的实物，永远不挡视线</summary>
+        public void PlaceOnTable(Arena a)
+        {
+            var right = Vector3.Cross(Vector3.up, a.forward);
+            transform.localScale = Vector3.one;
+            transform.SetPositionAndRotation(a.tableCenter - right * 0.3f - a.forward * 0.16f, Quaternion.LookRotation(a.forward, Vector3.up));
+            gameObject.SetActive(true);
+        }
+
+        /// <summary>选中的那格轻轻抬起</summary>
+        public void Tick()
+        {
+            for (int i = 0; i < 5; i++)
+                if (balls[i]) balls[i].localPosition = new Vector3((i - 2) * Cell, store.selected == (Ammo)i ? 0.026f : 0.017f, 0);
+        }
+
+        /// <summary>（旧）挂在左手下方：瞄敌城时会挡住自己的城，已改成放在桌上</summary>
         public void Follow(Vector3 forkPos, Transform head)
         {
             transform.localScale = Vector3.one * Scale;

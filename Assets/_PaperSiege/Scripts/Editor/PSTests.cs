@@ -174,6 +174,81 @@ namespace PaperSiege.EditorTools
             Log("完成 " + State());
         }
 
+        // ── 松手瞬间：慢放逐帧截图 + 量弹到弓架模型的最近距离（不能穿模）
+        public static string ReleaseCheck(string dir)
+        {
+            Level(0); Quiet();
+            D.StartCoroutine(ReleaseRun(dir));
+            return "release check started";
+        }
+
+        static float PouchClearance(Vector3 p) => MeshClearance(GameObject.Find("Pouch"), p);
+        static float ForkClearance(Vector3 p) => MeshClearance(GameObject.Find("SlingFork"), p);
+
+        static float MeshClearance(GameObject fork, Vector3 p)
+        {
+            float best = float.MaxValue;
+            foreach (var mf in fork.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.name == "LoadedBall") continue;   // 兜里那颗弹不算皮兜
+                var m = mf.sharedMesh; var tr = mf.transform;
+                foreach (var v in m.vertices) best = Mathf.Min(best, Vector3.Distance(tr.TransformPoint(v), p));
+            }
+            return best;
+        }
+
+        static System.Collections.IEnumerator ReleaseRun(string dir)
+        {
+            var sling = D.sling;
+            var bow = HeadPt(0.42f, -0.09f, -0.16f);
+            SimHands.Pose(0, bow, true);
+            yield return new WaitForSeconds(0.4f);
+            var pr = sling.PouchRest;
+            SimHands.Pose(1, pr, true);
+            yield return null; yield return null;
+            // 静止时（刚抓住皮兜、还没拉）皮兜里的弹离弓架多远
+            float r = GameTuning.I.playerBallRadius;
+            Transform LoadedBall() { var g = GameObject.Find("LoadedBall"); return g ? g.transform : null; }
+            var lb = LoadedBall();
+            Debug.Log($"[松手检查] 静止时弹心到皮兜最近 {(lb ? PouchClearance(lb.position) * 1000 : -1):0.0}mm，到弓架 {(lb ? ForkClearance(lb.position) * 1000 : -1):0.0}mm（弹半径 {r * 1000:0.0}mm）");
+            var fc = sling.ForkCenter;
+            var target = D.arena.enemy.blocks[0].WorldBounds.center;
+            Ballistics.Solve(fc, target, 4.4f, out var lo, out _);
+            var to = fc - lo.normalized * 0.26f;
+            yield return Move(1, pr, to, 0.6f, true);
+            yield return new WaitForSeconds(0.3f);
+            lb = LoadedBall();
+            Debug.Log($"[松手检查] 拉满时弹心到皮兜最近 {(lb ? PouchClearance(lb.position) * 1000 : -1):0.0}mm");
+            var side = HeadPt(0.46f, 0.32f, -0.08f);
+            Snap(dir, "0_拉满", side, sling.ForkCenter, 45);
+            // 松手，1/10 速度
+            Time.timeScale = 0.1f;
+            SimHands.Pose(1, to, false);
+            yield return null;
+            Projectile ball = Projectile.Live.Find(x => x && x.from == Side.Player);
+            float minClear = float.MaxValue, minPouch = float.MaxValue;
+            var trace = new System.Text.StringBuilder();
+            var fcNow = sling.ForkCenter; var aim = (fcNow - to).normalized;
+            int shot = 0; float lastSnapD = 99f;
+            for (int f = 0; f < 600 && ball; f++)
+            {
+                var bp = ball.transform.position;
+                float along = Vector3.Dot(bp - fcNow, aim);          // <0：还在叉口后面；>0：已经飞过叉口
+                minClear = Mathf.Min(minClear, ForkClearance(bp));
+                float pc = PouchClearance(bp);
+                minPouch = Mathf.Min(minPouch, pc);
+                trace.Append($"{along * 100:0.0}cm/{pc * 1000:0.0}mm/{(GameObject.Find("Pouch").transform.position - bp).magnitude * 1000:0}  ");
+                // 每前进约 6 cm 截一张（接近 → 穿过 → 飞出）
+                if (Mathf.Abs(along - lastSnapD) > 0.06f || f == 0) { Snap(dir, $"{++shot}_松手_距叉口{along * 100:0}cm", side, fcNow, 45); lastSnapD = along; }
+                if (along > 0.12f) break;
+                yield return null;
+            }
+            Time.timeScale = 1f;
+            Debug.Log("[松手逐帧] 距叉口/到皮兜最近/皮兜原点到弹心(mm)： " + trace);
+            Debug.Log($"[松手检查] 弹半径 {r * 1000:0.0}mm，飞出时弹心到弓架最近 {minClear * 1000:0.0}mm、到皮兜最近 {minPouch * 1000:0.0}mm → {(minClear > r && minPouch > r ? "不穿模" : "穿模！")}");
+            SimHands.Hide(0); SimHands.Hide(1);
+        }
+
         public static string State()
         {
             var a = D.arena;

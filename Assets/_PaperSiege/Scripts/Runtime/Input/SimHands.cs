@@ -45,11 +45,16 @@ namespace PaperSiege
             viewMats = new Material[2];
             for (int s = 0; s < 2; s++)
             {
-                var v = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var v = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 v.name = s == 0 ? "SimHand_L" : "SimHand_R";
                 Destroy(v.GetComponent<Collider>());
-                v.transform.localScale = Vector3.one * 0.022f;
-                viewMats[s] = v.GetComponent<Renderer>().material;
+                var m = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                m.SetFloat("_Surface", 1); m.SetOverrideTag("RenderType", "Transparent");
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 0); m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); m.renderQueue = 3000;
+                v.GetComponent<Renderer>().sharedMaterial = m;
+                v.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                viewMats[s] = m;
                 views[s] = v.transform;
                 pos[s] = cam.transform.position + cam.transform.forward * handDist + cam.transform.right * (s == 0 ? -0.15f : 0.15f) - Vector3.up * 0.2f;
             }
@@ -63,11 +68,15 @@ namespace PaperSiege
             for (int s = 0; s < 2; s++)
             {
                 var h = HandInput.SimHand[s];
-                views[s].gameObject.SetActive(h.tracked);
+                var sl = Director.I ? Director.I.sling : null;
+                bool slingHas = sl && ((s == 0 && sl.Holding) || (s == 1 && sl.Drawing));
+                views[s].gameObject.SetActive(h.tracked && !slingHas);
                 if (!h.tracked) continue;
                 views[s].position = h.pinch ? h.pinchPoint : h.palm;
-                views[s].localScale = Vector3.one * (h.fist ? 0.03f : 0.022f);
-                viewMats[s].color = h.pinch ? new Color(1f, 0.6f, 0.2f) : h.fist ? new Color(0.8f, 0.3f, 0.3f) : new Color(0.9f, 0.85f, 0.8f);
+                views[s].rotation = Quaternion.LookRotation(cam.transform.forward) * Quaternion.Euler(90, 0, 0);   // 圆片正对镜头
+                float d = h.fist ? 0.034f : 0.026f;
+                views[s].localScale = new Vector3(d, 0.001f, d);
+                viewMats[s].color = h.pinch ? new Color(1f, 0.75f, 0.5f, 0.45f) : h.fist ? new Color(0.95f, 0.55f, 0.5f, 0.5f) : new Color(1f, 0.95f, 0.9f, 0.35f);
             }
         }
 

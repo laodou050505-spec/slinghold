@@ -25,6 +25,16 @@ namespace PaperSiege
         Vector3 forkPos;
         Quaternion forkRot;
         Ammo loadedType = Ammo.Stone;
+        Vector3 releasePos;
+        float springT = 9f;   // 松手后皮兜回弹计时
+        float passT = -1f;    // 皮兜越过叉口的时刻（-1 = 还没越过）
+        Projectile flying;    // 刚射出去、还在皮兜里的那颗
+        float launchSpeed;
+        const float PouchInner = 0.0019f;   // 皮兜模型中线内侧兜面离原点 1.9 mm（朝弓架一侧）
+        /// <summary>弹心在皮兜原点前方多远：贴着兜面坐在兜里，皮兜从后面包住弹（不穿模）</summary>
+        float BallOffset => PouchInner + GameTuning.I.playerBallRadius + 0.0006f;
+        /// <summary>皮兜在 pp 时，兜里那颗弹的中心</summary>
+        Vector3 BallAt(Vector3 pp) => pp + aimDir * BallOffset;
         InputTuning IT => InputTuning.I;
         GameTuning T => GameTuning.I;
 
@@ -39,6 +49,7 @@ namespace PaperSiege
             d = director;
             input = HandInput.Instance;
             if (!fork) BuildLook();
+            box.PlaceOnTable(d.arena);
             state = State.Hidden;
             cooldown = 0;
             Show(false);
@@ -109,7 +120,6 @@ namespace PaperSiege
             if (!fork) return;
             fork.gameObject.SetActive(on); pouch.gameObject.SetActive(on);
             bandL.enabled = bandR.enabled = on;
-            box.Show(on);
             if (!on) { preview.Hide(); if (loaded) loaded.gameObject.SetActive(false); }
         }
 
@@ -136,15 +146,19 @@ namespace PaperSiege
             }
             if (state == State.Hidden) return;
 
-            // ── 右手：选弹 / 抓皮兜 / 拉 / 放
+            // ── 右手：在桌上的弹盒里捏一颗 = 换弹（不架弓时也可以先选好）
+            if (rightFree && input.pinchDown[1] && state != State.Drawing)
+            {
+                var pick = box.Pick(R.pinchPoint, 0.03f);
+                if (pick.HasValue && d.ammo.Count(pick.Value) > 0) { d.ammo.selected = pick.Value; box.Tick(); }
+            }
+            // ── 右手：抓皮兜 / 拉 / 放
             if (state == State.Held)
             {
-                aimDir = Vector3.Slerp(aimDir, HeadForward(), Time.deltaTime * 4f);
+                if (springT >= 0.45f) aimDir = Vector3.Slerp(aimDir, HeadForward(), Time.deltaTime * 4f);   // 刚松手、皮兜还在回弹时锁住方向（否则皮兜会斜着蹭进飞出的弹）
                 if (rightFree && input.pinchDown[1])
                 {
-                    var pick = box.Pick(R.pinchPoint, 0.03f);
-                    if (pick.HasValue) { if (d.ammo.Count(pick.Value) > 0) d.ammo.selected = pick.Value; }
-                    else if (Vector3.Distance(R.pinchPoint, PouchRest) < IT.pouchGrab && cooldown <= 0f) { state = State.Drawing; rightLostT = 0; }
+                    if (!box.Pick(R.pinchPoint, 0.03f).HasValue && Vector3.Distance(R.pinchPoint, PouchRest) < IT.pouchGrab && cooldown <= 0f) { state = State.Drawing; rightLostT = 0; }
                 }
             }
             else if (state == State.Drawing)
@@ -184,22 +198,41 @@ namespace PaperSiege
             fork.localScale = Vector3.one * s;
             var tipL = fork.TransformPoint(PropAnchors.ForkTipL * BlockLibrary.G);
             var tipR = fork.TransformPoint(PropAnchors.ForkTipR * BlockLibrary.G);
-            Vector3 pp = state == State.Drawing ? ClampPull(input.hands[1].pinchPoint) : PouchRest;
+            Vector3 pp = PouchRest;
+            if (state == State.Drawing) pp = ClampPull(input.hands[1].pinchPoint);
+            else if (springT < 0.45f)
+            {
+                // 松手：皮兜兜着弹一起往前冲，到叉口弹脱兜飞出；之后皮兜在叉口前后晃两下停住（衰减振荡）
+                springT += Time.deltaTime;
+                // 皮兜跟在弹的后面（兜面贴着弹，不穿进弹里），直到皮兜自己越过叉口才开始回弹。
+                // 按“位置”判断而不是按时间：画面上的弹有物理插值，比物理位置最多滞后一步，按时间切换会让皮兜跳到弹前面去。
+                if (passT < 0f)
+                {
+                    pp = flying ? flying.transform.position - aimDir * BallOffset : ForkCenter;
+                    if (!flying || Vector3.Dot(pp - ForkCenter, aimDir) >= 0f) passT = springT;
+                }
+                if (passT >= 0f)
+                {
+                    float t = springT - passT;
+                    pp = ForkCenter + aimDir * (0.035f * Mathf.Exp(-t / 0.06f) * Mathf.Sin(t * 42f)) - aimDir * 0.03f * (1f - Mathf.Exp(-t / 0.05f));
+                }
+            }
+            else pp = PouchRest;
             pouch.SetPositionAndRotation(pp, forkRot * Quaternion.Euler(0, 180, 0));   // 模型兜口朝本地 -Z，转过来朝向弓架
             bandL.SetPosition(0, tipL); bandL.SetPosition(1, pouch.TransformPoint(PropAnchors.PouchHoleR));
             bandR.SetPosition(0, tipR); bandR.SetPosition(1, pouch.TransformPoint(PropAnchors.PouchHoleL));
             var c = Color.Lerp(new Color(0.42f, 0.27f, 0.17f), new Color(1f, 0.62f, 0.3f), state == State.Drawing ? pull01 : 0f);
             bandL.material.color = bandR.material.color = c;
             bandL.widthMultiplier = bandR.widthMultiplier = Mathf.Lerp(0.0045f, 0.003f, state == State.Drawing ? pull01 : 0f);
-            box.Follow(forkPos, d.head ? d.head.transform : null);
+            box.Tick();
             // 皮兜里的弹
             var type = d.ammo.AutoSelect();
             bool hasAmmo = d.ammo.Count(type) > 0 && cooldown <= 0f;
-            if (!loaded || loadedType != type) { if (loaded) Destroy(loaded.gameObject); loaded = BallLook.Build(pouch, type, T.playerBallRadius); loadedType = type; }
+            if (!loaded || loadedType != type) { if (loaded) Destroy(loaded.gameObject); loaded = BallLook.Build(pouch, type, T.playerBallRadius); loaded.name = "LoadedBall"; loadedType = type; }
             loaded.gameObject.SetActive(hasAmmo);
-            loaded.position = pp;
+            loaded.position = BallAt(pp);
             // 预瞄
-            if (state == State.Drawing && pull01 > 0f && hasAmmo) preview.Show(ForkCenter, LaunchVelocity(), T.playerBallRadius);
+            if (state == State.Drawing && pull01 > 0f && hasAmmo) preview.Show(BallAt(pp), LaunchVelocity(), T.playerBallRadius);
             else preview.Hide();
             if (state == State.Drawing) Sfx.Creak(pp, pull01);
         }
@@ -235,7 +268,14 @@ namespace PaperSiege
             {
                 var v = LaunchVelocity();
                 d.ammo.Take(type);
-                Projectile.Spawn(type, Side.Player, ForkCenter + aimDir * 0.01f, v);
+                // 弹从皮兜所在处出发，沿“皮兜 → 两叉中点”穿过叉口（叉内侧间距约 7 cm，弹直径 2.8 cm，碰不到叉）
+                var pouchAt = ClampPull(input.hands[1].pinchPoint);
+                var from = BallAt(pouchAt);
+                flying = Projectile.Spawn(type, Side.Player, from, v);
+                launchSpeed = v.magnitude;
+                releasePos = pouchAt;
+                springT = 0f;
+                passT = -1f;
                 d.stats.shots++;
                 cooldown = T.reload;
                 Sfx.Launch(ForkCenter, pull01);

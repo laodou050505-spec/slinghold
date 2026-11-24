@@ -68,6 +68,19 @@ namespace PaperSiege
         GameTuning T => GameTuning.I;
 
         public bool Catchable => from == Side.Enemy && state == State.Flying;
+        static Material trailMat;
+        static Material TrailMat
+        {
+            get
+            {
+                if (trailMat) return trailMat;
+                trailMat = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+                trailMat.SetFloat("_Surface", 1); trailMat.SetOverrideTag("RenderType", "Transparent");
+                trailMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha); trailMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                trailMat.SetInt("_ZWrite", 0); trailMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); trailMat.renderQueue = 3000;
+                return trailMat;
+            }
+        }
 
         public static Projectile Spawn(Ammo type, Side from, Vector3 pos, Vector3 vel)
         {
@@ -87,6 +100,14 @@ namespace PaperSiege
             rb.angularVelocity = Random.insideUnitSphere * 6f;
             p.rb = rb;
             p.visual = BallLook.Build(go.transform, type, r);
+            // 淡淡的拖尾：看得清弹道
+            var tr = go.AddComponent<TrailRenderer>();
+            tr.time = 0.22f; tr.minVertexDistance = 0.01f;
+            tr.widthCurve = AnimationCurve.Linear(0, r * 1.3f, 1, 0);
+            tr.material = TrailMat;
+            var tc = BallLook.Tint(type);
+            tr.colorGradient = new Gradient { colorKeys = new[] { new GradientColorKey(Color.Lerp(tc, Color.white, 0.5f), 0), new GradientColorKey(tc, 1) }, alphaKeys = new[] { new GradientAlphaKey(0.55f, 0), new GradientAlphaKey(0, 1) } };
+            tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             Live.Add(p);
             return p;
         }

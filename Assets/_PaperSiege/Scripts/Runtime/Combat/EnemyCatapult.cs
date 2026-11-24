@@ -48,14 +48,14 @@ namespace PaperSiege
                 var am = lib.Meshes("C_Arm");
                 var axle = new GameObject("Axle").transform;
                 axle.SetParent(transform, false);
-                axle.localPosition = PropAnchors.CatapultAxle * s;
+                axle.localPosition = PropAnchors.CatapultAxle * unit;   // 锚点单位是“格”：× 每格米数
                 arm = axle;
                 if (am != null) Mesh("Arm", am.lod0, axle, Vector3.zero, s);
                 var wm = lib.Meshes("C_Wheel");
-                if (wm != null) foreach (var w in PropAnchors.CatapultWheels) Mesh("Wheel", wm.lod0, transform, w * s, s);
+                if (wm != null) foreach (var w in PropAnchors.CatapultWheels) Mesh("Wheel", wm.lod0, transform, w * unit, s);
                 cup = new GameObject("Cup").transform;
                 cup.SetParent(axle, false);
-                cup.localPosition = PropAnchors.CatapultCup * s;
+                cup.localPosition = PropAnchors.CatapultCup * unit;
             }
             else
             {

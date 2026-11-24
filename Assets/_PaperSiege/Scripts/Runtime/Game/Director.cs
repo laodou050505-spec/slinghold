@@ -35,6 +35,7 @@ namespace PaperSiege
         void Start()
         {
             if (autoStart) StartLevel(levelIndex);
+            if (Application.isEditor && DemoDriver.Requested) gameObject.AddComponent<DemoDriver>();
         }
 
         public void StartLevel(int i)
