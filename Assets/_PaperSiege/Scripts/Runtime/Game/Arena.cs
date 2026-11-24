@@ -12,6 +12,8 @@ namespace PaperSiege
         public Vector2 tableSize = new(0.9f, 0.6f);
         public Vector3 forward = Vector3.forward;   // 玩家面朝的水平方向（朝敌城）
         public Castle mine, enemy;
+        public float ceilingHeight = 2.5f;   // 真实房间的天花板高度（D3 从空间扫描读，读不到用 2.5 m）
+        public SkyDome sky;
         public Transform catapultSpot;  // 投石机位置（敌城前侧，地面上）
         GameObject env;
         GameTuning T => GameTuning.I;
@@ -47,6 +49,8 @@ namespace PaperSiege
             table.AddComponent<BoxCollider>().size = new Vector3(tableSize.x, 0.04f, tableSize.y);
             // 编辑器占位房间
             if (HandInput.Sim) EditorRoom(rot);
+            // 盒盖：盖在玩家和敌城之间那片天花板上（宽 2.4 m、长 = 敌城距离 + 1.2 m）
+            if (sky) sky.BuildLid(new Vector3(tableCenter.x, 0, tableCenter.z) + forward * (T.enemyDistance * 0.5f + 0.2f), forward, ceilingHeight, 2.4f, T.enemyDistance + 1.2f);
             catapultSpot = new GameObject("CatapultSpot").transform;
             catapultSpot.SetParent(env.transform, false);
         }
@@ -54,7 +58,18 @@ namespace PaperSiege
         void EditorRoom(Quaternion rot)
         {
             Prim("RoomFloor", new Vector3(tableCenter.x, -0.051f, tableCenter.z) + forward * 1.5f, new Vector3(6, 0.1f, 7.5f), rot, new Color(0.56f, 0.45f, 0.34f));
-            Prim("RoomWall", new Vector3(tableCenter.x, 1.4f, tableCenter.z) + forward * 5.2f, new Vector3(6, 2.8f, 0.1f), rot, new Color(0.86f, 0.84f, 0.8f));
+            Prim("RoomWall", new Vector3(tableCenter.x, 1.25f, tableCenter.z) + forward * 5.2f, new Vector3(6, 2.5f, 0.1f), rot, new Color(0.86f, 0.84f, 0.8f));
+            Prim("RoomWallL", new Vector3(tableCenter.x, 1.25f, tableCenter.z) - Vector3.Cross(Vector3.up, forward) * 3f + forward * 1.5f, new Vector3(0.1f, 2.5f, 7.5f), rot, new Color(0.83f, 0.81f, 0.77f));
+            Prim("RoomWallR", new Vector3(tableCenter.x, 1.25f, tableCenter.z) + Vector3.Cross(Vector3.up, forward) * 3f + forward * 1.5f, new Vector3(0.1f, 2.5f, 7.5f), rot, new Color(0.83f, 0.81f, 0.77f));
+            // 占位天花板（盒盖那片之外的部分）：四块拼成一个框，中间留出盒盖的位置
+            var cc = new Vector3(tableCenter.x, ceilingHeight + 0.03f, tableCenter.z) + forward * 1.5f;
+            var r = Vector3.Cross(Vector3.up, forward);
+            Prim("CeilL", cc - r * 2.1f, new Vector3(1.8f, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
+            Prim("CeilR", cc + r * 2.1f, new Vector3(1.8f, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
+            float lidL = T.enemyDistance + 1.2f, lidC = T.enemyDistance * 0.5f + 0.2f - 1.5f;
+            float back = (7.5f / 2) - (lidC + lidL / 2), front = (7.5f / 2) + (lidC - lidL / 2);
+            if (back > 0.01f) Prim("CeilB", cc + forward * (7.5f / 2 - back / 2), new Vector3(2.4f, 0.06f, back), rot, new Color(0.9f, 0.89f, 0.86f));
+            if (front > 0.01f) Prim("CeilF", cc - forward * (7.5f / 2 - front / 2), new Vector3(2.4f, 0.06f, front), rot, new Color(0.9f, 0.89f, 0.86f));
             var legH = tableCenter.y - 0.04f;
             Prim("TableTopLook", tableCenter - Vector3.up * 0.02f, new Vector3(tableSize.x, 0.04f, tableSize.y), rot, new Color(0.48f, 0.33f, 0.21f));
             foreach (var (sx, sz) in new[] { (-1, -1), (1, -1), (-1, 1), (1, 1) })

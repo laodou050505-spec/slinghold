@@ -169,7 +169,7 @@ namespace PaperSiege
             var castle = block ? block.castle : NearestCastle(p);
             float unit = castle ? castle.unit : BlockLibrary.G;
             // 打中帅旗：只扣耐久（不推倒它）；炸丸在下面 Explode 里扣
-            if (block && block.isKing && type != Ammo.Bomb)
+            if (block && block.isKing && type != Ammo.Bomb && castle)
             {
                 castle.DamageKing(1, transform.position - rb.linearVelocity.normalized);
                 if (type == Ammo.Fire) block.Ignite();
@@ -177,7 +177,7 @@ namespace PaperSiege
                 Sfx.Hit(type, Mat.Wood, p);
                 return;
             }
-            Sfx.Hit(type, block ? block.def.mat : Mat.Wood, p);
+            Sfx.Hit(type, block && block.def != null ? block.def.mat : Mat.Wood, p);
             switch (type)
             {
                 case Ammo.Bomb:

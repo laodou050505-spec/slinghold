@@ -432,6 +432,89 @@ namespace PaperSiege.EditorTools
             Debug.Log("[提示] 完成");
         }
 
+        /// <summary>天空：开场逐帧（盒盖掀开）+ 每个时段一张（往上看天）</summary>
+        public static string SkyCheck(string dir) { Quiet(); D.StartCoroutine(SkyRun(dir)); return "sky check started"; }
+
+        static System.Collections.IEnumerator SkyRun(string dir)
+        {
+            var t = D.head.transform;
+            t.rotation = Quaternion.Euler(-12, 0, 0);   // 微微抬头：看得到天花板和远处的城
+            Level(1); Quiet();
+            for (int f = 0; f < 9; f++)
+            {
+                Snap(dir, $"开场_{f:0}_{f * 0.7f:0.0}s", t.position, t.position + t.forward, 80);
+                yield return new WaitForSeconds(0.7f);
+            }
+            foreach (var i in new[] { 0, 2, 4, 6, 8, 9 })
+            {
+                Level(i); Quiet();
+                yield return new WaitForSeconds(5.8f);
+                Snap(dir, $"时段_L{i + 1}", t.position, t.position + t.forward, 80);
+                Debug.Log($"[天空] 第{i + 1}关 时段 {D.level.timeOfDay} 盒盖开 {D.sky.Open:0.00}");
+            }
+            // 最后 30 秒：太阳下沉
+            Level(4); Quiet();
+            yield return new WaitForSeconds(5.5f);
+            Snap(dir, "下沉_前", t.position, t.position + t.forward, 80);
+            D.timeLeft = 2f;
+            yield return new WaitForSeconds(1.0f);
+            D.timeLeft = 30f;
+            for (float x = 0; x < 6f; x += Time.deltaTime) { D.timeLeft = Mathf.Max(1f, 30f - x * 5f); yield return null; }
+            Snap(dir, "下沉_后", t.position, t.position + t.forward, 80);
+            // 赢：烟花
+            D.End(true);
+            yield return new WaitForSeconds(1.2f);
+            Snap(dir, "赢_烟花", t.position, t.position + t.forward, 80);
+            Level(4); Quiet();
+            yield return new WaitForSeconds(5.5f);
+            D.End(false);
+            yield return new WaitForSeconds(2.0f);
+            Snap(dir, "输_合上", t.position, t.position + t.forward, 80);
+            t.rotation = Quaternion.Euler(14, 0, 0);
+            Debug.Log("[天空] 完成");
+        }
+
+        /// <summary>模拟头显：藏掉占位房间、相机清屏全透明，截一张带 alpha 的图，统计“天空”占了画面哪里</summary>
+        public static string PassthroughCheck(string dir)
+        {
+            var cam = D.head;
+            var hidden = new System.Collections.Generic.List<GameObject>();
+            foreach (var r in Object.FindObjectsByType<Renderer>())
+            {
+                var n = r.name;
+                if (n.StartsWith("Room") || n.StartsWith("Ceil") || n == "TableTopLook" || n == "Leg") { r.gameObject.SetActive(false); hidden.Add(r.gameObject); }
+            }
+            var bg = cam.backgroundColor; var cf = cam.clearFlags;
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0, 0, 0, 0);
+            var t = cam.transform; var r0 = t.rotation;
+            t.rotation = Quaternion.Euler(-35, 0, 0);
+            int w = 800, h = 450;
+            var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
+            cam.targetTexture = rt; cam.Render(); cam.targetTexture = null;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false); tex.ReadPixels(new Rect(0, 0, w, h), 0, 0); tex.Apply();
+            RenderTexture.active = null;
+            int opaque = 0, top = 0, bottom = 0, sides = 0;
+            var px = tex.GetPixels();
+            for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+            {
+                if (px[y * w + x].a < 0.5f) continue;
+                opaque++;
+                if (x < w * 0.15f || x > w * 0.85f) sides++;
+                if (y > h * 0.85f) top++;
+            }
+            // 透明部分画成品红，方便肉眼看
+            for (int i = 0; i < px.Length; i++) if (px[i].a < 0.5f) px[i] = new Color(1, 0, 1, 1);
+            tex.SetPixels(px); tex.Apply();
+            var outDir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), "Docs/进度截图", dir);
+            System.IO.Directory.CreateDirectory(outDir);
+            System.IO.File.WriteAllBytes(System.IO.Path.Combine(outDir, "透视模拟_品红为真实房间.png"), tex.EncodeToPNG());
+            t.rotation = r0; cam.clearFlags = cf; cam.backgroundColor = bg;
+            foreach (var g in hidden) g.SetActive(true);
+            rt.Release();
+            return $"不透明 {opaque * 100f / px.Length:0}%，左右两侧 15% 区域里不透明 {sides * 100f / (px.Length * 0.3f):0}%";
+        }
+
         public static string State()
         {
             var a = D.arena;

@@ -216,6 +216,37 @@ namespace PaperSiege
             Burst(ps, 12, 0.6f);
         }
 
+        /// <summary>烟花：先一道细光往上蹿（预警），到顶炸成一圈亮点，慢慢下坠、熄灭</summary>
+        public static void Firework(Vector3 p, Color c)
+        {
+            var rise = Make("FwRise", p - Vector3.up * 1.2f);
+            var rm = rise.main;
+            rm.startLifetime = 0.4f; rm.startSpeed = 3.2f; rm.startSize = 0.05f; rm.startColor = Color.Lerp(c, Color.white, 0.6f);
+            var rs = rise.shape; rs.shapeType = ParticleSystemShapeType.Cone; rs.angle = 2; rs.radius = 0.001f;
+            rise.transform.rotation = Quaternion.LookRotation(Vector3.up);
+            var tr = rise.trails; tr.enabled = true; tr.lifetime = 0.3f; tr.widthOverTrail = 0.5f;
+            rise.GetComponent<ParticleSystemRenderer>().trailMaterial = Soft;
+            Burst(rise, 1, 0.5f);
+            var ps = Make("Firework", p);
+            var m = ps.main;
+            m.startDelay = 0.4f;
+            m.startLifetime = new ParticleSystem.MinMaxCurve(1.0f, 1.6f);
+            m.startSpeed = new ParticleSystem.MinMaxCurve(1.4f, 2.0f);
+            m.startSize = new ParticleSystem.MinMaxCurve(0.07f, 0.12f);
+            m.startColor = new ParticleSystem.MinMaxGradient(c, Color.Lerp(c, Color.white, 0.5f));
+            m.gravityModifier = 0.08f;
+            var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Sphere; sh.radius = 0.02f;
+            ps.transform.position = p;   // 升空那道光在下面 0.6 m 处起步，到这里炸开
+            var ptr = ps.trails; ptr.enabled = true; ptr.lifetime = 0.25f; ptr.widthOverTrail = 0.4f;
+            ps.GetComponent<ParticleSystemRenderer>().trailMaterial = Soft;
+            var col = ps.colorOverLifetime; col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(c, 0.3f), new GradientColorKey(c * 0.6f, 1) },
+                      new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(0.9f, 0.6f), new GradientAlphaKey(0, 1) });
+            col.color = g;
+            Burst(ps, 70, 2.2f);
+        }
+
         static void Fade(ParticleSystem ps)
         {
             var col = ps.colorOverLifetime; col.enabled = true;

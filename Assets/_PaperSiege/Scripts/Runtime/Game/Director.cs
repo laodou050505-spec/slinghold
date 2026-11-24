@@ -20,6 +20,7 @@ namespace PaperSiege
         public readonly AmmoStore ammo = new();
         public EnemyCatapult catapult;
         public PlayerSling sling;
+        public SkyDome sky;
         public Defense defense;
         public SupplyTray supply;
         public Stats stats = new();
@@ -49,6 +50,7 @@ namespace PaperSiege
             levelIndex = Mathf.Clamp(i, 0, Levels.Count - 1);
             level = Levels.Get(levelIndex);
             foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
+            if (!sky) { sky = SkyDome.Build(this, FindAnyObjectByType<Light>()); arena.sky = sky; }
             if (!laidOut) { arena.Layout(); laidOut = true; }
             arena.BuildCastles(level);
             ammo.Reset(level.start);
@@ -89,6 +91,7 @@ namespace PaperSiege
             if (phase != Phase.Battle) return;
             catapult.Stop();
             SetPhase(win ? Phase.Won : Phase.Lost);
+            if (sky) sky.OnEnd(win);
             Debug.Log($"[PaperSiege] 第 {levelIndex + 1} 关 {(win ? "胜" : "负")}  我方完整度 {arena.mine.Integrity:0.00} 敌方 {arena.enemy.Integrity:0.00}  射 {stats.shots} 挡 {stats.blocked} 接 {stats.caught}");
         }
 
