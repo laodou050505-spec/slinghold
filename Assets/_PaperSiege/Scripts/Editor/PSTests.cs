@@ -606,6 +606,58 @@ namespace PaperSiege.EditorTools
             foreach (var v in d) w.Write((short)Mathf.Clamp(Mathf.RoundToInt(v * 32767), -32768, 32767));
         }
 
+        /// <summary>难度模拟：每关 × 两档 × n 局，加速 timeScale 倍跑真实物理。结果写到日志 [难度] 和 Docs/难度模拟.md</summary>
+        public static string Difficulty(int n = 6, float speed = 4f, int from = 0, int to = 9)
+        {
+            foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp);
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            D.StartCoroutine(DiffRun(n, speed, from, to));
+            return "difficulty started";
+        }
+
+        static System.Collections.IEnumerator DiffRun(int n, float speed, int from, int to)
+        {
+            var bot = DifficultyBot.Attach(D);
+            var lines = new System.Collections.Generic.List<string> { "| 关 | 新手胜率 | 熟练胜率 | 熟练平均用时 |", "|---|---|---|---|" };
+            Time.timeScale = speed;
+            for (int lv = from; lv <= to; lv++)
+            {
+                string a = "", b = "", tb = "";
+                yield return bot.Run(lv, DifficultyBot.Novice, n, 100 + lv, r => { Debug.Log("[难度] " + r); });
+                a = $"{bot.wins}/{bot.games}";
+                yield return bot.Run(lv, DifficultyBot.Skilled, n, 200 + lv, r => { Debug.Log("[难度] " + r); });
+                b = $"{bot.wins}/{bot.games}"; tb = bot.times.Count > 0 ? $"{System.Linq.Enumerable.Average(bot.times):0}s" : "-";
+                lines.Add($"| {lv + 1} | {a} | {b} | {tb} |");
+            }
+            Time.timeScale = 1f;
+            var path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), "Docs/难度模拟.md");
+            System.IO.File.WriteAllText(path, "# 难度模拟（机器人 vs AI，真实物理）\n\n" + string.Join("\n", lines) + "\n");
+            Debug.Log("[难度] 完成");
+            D.GoTitle();
+        }
+
+        /// <summary>敌弹威力：投石机朝我方城打 n 发、一发都不挡，每发后统计</summary>
+        static bool onlyStone;
+        public static string EnemyPower(int level, int n, bool stone = false) { onlyStone = stone; foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(PowRun(level, n)); return "power started"; }
+
+        static System.Collections.IEnumerator PowRun(int level, int n)
+        {
+            Level(level); Quiet();
+            var tips = D.GetComponent<LevelTips>(); if (tips) Object.Destroy(tips);
+            yield return new WaitForSeconds(1f);
+            var mine = D.arena.mine;
+            for (int i = 0; i < n; i++)
+            {
+                var alive = mine.Alive.Where(b => !b.isKing && b.InPlace).OrderByDescending(b => b.WorldBounds.max.y).ToList();
+                var tgt = alive.Count > 0 ? alive[i % Mathf.Min(4, alive.Count)].WorldBounds.center : mine.king.WorldBounds.center;   // 正对高处的块（不加误差）
+                D.catapult.FireAt(tgt, 1.9f, onlyStone ? Ammo.Stone : D.level.enemyAmmo[i % D.level.enemyAmmo.Length]);
+                yield return new WaitForSeconds(4.5f);
+                int moved = mine.blocks.Count(b => !b.isKing && !b.InPlace);
+                Debug.Log($"[敌弹] 第{i + 1}发（{D.level.enemyAmmo[i % D.level.enemyAmmo.Length]}）后：我方离位 {moved}/{mine.blocks.Count - 1} 块 完整 {mine.Integrity:0.00} 帅旗 {mine.kingHP}/{mine.kingMaxHP} 着火 {mine.Burning.Count}");
+            }
+            Debug.Log("[敌弹] 完成");
+        }
+
         public static string State()
         {
             var a = D.arena;

@@ -17,6 +17,8 @@ namespace PaperSiege
         public Phase phase = Phase.Idle;
         public float timeLeft;
         public bool timerPaused;
+        /// <summary>这一局是时间到了结束的（结算板上写“时间到”而不是“失守”）</summary>
+        public bool timeUp;
         public readonly AmmoStore ammo = new();
         public EnemyCatapult catapult;
         public PlayerSling sling;
@@ -99,6 +101,7 @@ namespace PaperSiege
             if (!supply) supply = gameObject.AddComponent<SupplyTray>();
             supply.Setup(this);
             timeLeft = level.timeLimit;
+            timeUp = false;
             SetPhase(Phase.Battle);
         }
 
@@ -108,7 +111,9 @@ namespace PaperSiege
         {
             if (phase != Phase.Battle) return;
             if (!timerPaused) timeLeft -= Time.deltaTime;
-            if (timeLeft <= 0f) End(arena.enemy.Integrity < arena.mine.Integrity);
+            // 时间到了 = 没打下对方的帅旗 = 这一关没过（唯一的赢法就是打倒帅旗；
+            // 原来“比完整度”会让玩家躲满三分钟就赢，帅旗防护全失去意义）
+            if (timeLeft <= 0f) { timeUp = true; End(false); }
         }
 
         public void End(bool win)

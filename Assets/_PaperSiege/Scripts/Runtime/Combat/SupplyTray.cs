@@ -23,6 +23,15 @@ namespace PaperSiege
         public bool ClaimedThisFrame(int s) => claimed[s];
         public int Count => pieces.Count;
 
+        /// <summary>难度模拟器用：直接从盘里拿走一块（不走手势）</summary>
+        public bool TakeOne()
+        {
+            if (pieces.Count == 0) return false;
+            var p = pieces[pieces.Count - 1]; pieces.RemoveAt(pieces.Count - 1);
+            if (p) Destroy(p.gameObject);
+            return true;
+        }
+
         public void Setup(Director director)
         {
             d = director; input = HandInput.Instance;

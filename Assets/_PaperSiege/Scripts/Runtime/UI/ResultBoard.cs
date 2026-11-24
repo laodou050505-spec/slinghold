@@ -69,7 +69,7 @@ namespace PaperSiege
                 lk.transform.localPosition = new Vector3(0, 0.001f, 0.021f);
             }
             float zf = -0.0025f;   // 板子正面（朝玩家）
-            Text(board, new Vector3(0, 0.08f, zf), new Vector2(0.3f, 0.07f), 1.2f).text = Loc.T(win ? "胜利！" : "失守……");
+            Text(board, new Vector3(0, 0.08f, zf), new Vector2(0.3f, 0.07f), 1.2f).text = Loc.T(win ? "胜利！" : d.timeUp ? "时间到……" : "失守……");
             Text(board, new Vector3(0, 0.035f, zf), new Vector2(0.38f, 0.03f), 0.5f).text = Loc.T(d.level.title);
             var s = d.stats;
             Text(board, new Vector3(0, -0.015f, zf), new Vector2(0.4f, 0.035f), 0.6f).text =

@@ -112,6 +112,7 @@ namespace PaperSiege
 
         void Update()
         {
+            if (Projectile.DebugImpacts && Time.frameCount % 60 == 0) Debug.Log($"[投石机] active={active} target={(target ? target.name : "null")} timer={timer:0.0} windT={windT:0.00} ts={Time.timeScale}");
             if (!target) return;
             if (!active && windT < 0f) return;   // 停火时只处理教学指定的那一发
             if (windT < 0f)
@@ -157,6 +158,12 @@ namespace PaperSiege
             var aim = PickTarget();
             float flight = Mathf.Min(Random.Range(T.enemyFlight.x, T.enemyFlight.y), MaxFlight(cup.position, aim));
             aimVel = Ballistics.VelocityFor(cup.position, aim, flight);
+            if (Projectile.DebugImpacts)
+            {
+                var land = Ballistics.Predict(cup.position, aimVel, T.enemyBallRadius, null, 4f);
+                var cb = CastleBounds(target);
+                Debug.Log($"[瞄准] 目标 {aim.ToString("F3")} 预测落点 {land.ToString("F3")} 城盒 中心 {cb.center.ToString("F3")} 尺寸 {cb.size.ToString("F3")} 飞行 {flight:0.00}s 出手 {cup.position.ToString("F2")}");
+            }
             Sfx.Windup(transform.position);
         }
 
@@ -173,8 +180,20 @@ namespace PaperSiege
                 var top = alive.OrderByDescending(b => b.WorldBounds.max.y).Take(Mathf.Max(3, alive.Count / 2)).ToList();
                 pick = top[Random.Range(0, top.Count)];
             }
-            var e = Random.insideUnitSphere * level.aimError * target.unit;
-            return pick.WorldBounds.center + e;
+            // 误差：我方城很小（一格 5 cm），误差按格算但封顶 0.6 格；落点夹在城的包围盒里 —— 敌弹基本都会打到城上（难度靠频率和玩家挡 / 接）
+            var e = Random.insideUnitSphere * Mathf.Min(0.6f, level.aimError * 0.5f) * target.unit;
+            var p = pick.WorldBounds.center + e;
+            var cb = CastleBounds(target);
+            return cb.ClosestPoint(p);
+        }
+
+        static Bounds CastleBounds(Castle c)
+        {
+            Bounds b = default; bool any = false;
+            foreach (var x in c.Alive) { if (x.isKing) continue; if (!any) { b = x.WorldBounds; any = true; } else b.Encapsulate(x.WorldBounds); }
+            if (!any) b = new Bounds(c.transform.position, Vector3.one * c.unit);
+            b.Expand(-c.unit * 0.3f);   // 往里收一点，不打边缘
+            return b;
         }
 
         void Fire()

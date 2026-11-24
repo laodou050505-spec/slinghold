@@ -21,7 +21,12 @@ namespace PaperSiege
         public const float ImpactRefUnit = 0.09f;
         /// <summary>打敌城用的弹质量：敌城积木按体积变重，弹也按同样比例变重，每发打塌的块数不变</summary>
         public float PlayerImpactMass => playerBallMass * Mathf.Pow(enemyUnit / ImpactRefUnit, 3);
-        [Tooltip("敌弹质量（kg）")] public float enemyBallMass = 0.12f;
+        [Tooltip("敌弹打我方城的威力（相对玩家弹打敌城；1 = 一样强。玩家还能挡 / 接，所以默认略弱）")] public float enemyPower = 0.8f;
+        /// <summary>敌弹撞击质量：按我方城积木体积换算，让一发石丸打我方城的效果 ≈ 玩家石丸打敌城 × enemyPower</summary>
+        public float EnemyImpactMass => playerBallMass * Mathf.Pow(playerUnit / ImpactRefUnit, 3) * enemyPower
+                                        * (slingSpeedMax / Mathf.Max(1f, EnemyImpactSpeed)) * 1.0f;
+        /// <summary>敌弹落到我方城时的大致速度（米/秒）</summary>
+        public float EnemyImpactSpeed => 3.2f;
         [Tooltip("命中时额外给被打的块的冲量倍率")] public float hitImpulse = 1.5f;
         [Tooltip("命中后叫醒周围多大范围（格）")] public float wakeRadius = 1.4f;
         [Tooltip("冰冻持续（秒）")] public float freezeSeconds = 8f;

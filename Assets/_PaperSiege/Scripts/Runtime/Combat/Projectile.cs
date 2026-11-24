@@ -56,6 +56,7 @@ namespace PaperSiege
     {
         public enum State { Flying, Held, Spent }
         public static readonly List<Projectile> Live = new();
+        public static bool DebugImpacts;
 
         public Ammo type;
         public Side from;
@@ -93,12 +94,13 @@ namespace PaperSiege
             p.type = type; p.from = from; p.radius = r;
             var col = go.AddComponent<SphereCollider>(); col.radius = r;
             var rb = go.AddComponent<Rigidbody>();
-            rb.mass = from == Side.Player ? T.PlayerImpactMass : T.enemyBallMass;
-            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.mass = from == Side.Player ? T.PlayerImpactMass : T.EnemyImpactMass;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;   // 对运动学（冻结）积木也可靠；再加 FixedUpdate 里的扫掠保险
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.linearVelocity = vel;
             rb.angularVelocity = Random.insideUnitSphere * 6f;
             p.rb = rb;
+            p.IgnoreOwnCastle(col);
             p.visual = BallLook.Build(go.transform, type, r);
             // 淡淡的拖尾：看得清弹道
             var tr = go.AddComponent<TrailRenderer>();
@@ -114,9 +116,64 @@ namespace PaperSiege
 
         void OnDestroy() => Live.Remove(this);
 
+        void IgnoreOwnCastle(Collider mine)
+        {
+            foreach (var c in FindObjectsByType<Castle>(FindObjectsSortMode.None))
+            {
+                if (c.side != from) continue;
+                foreach (var b in c.blocks) if (b) foreach (var bc in b.GetComponents<Collider>()) Physics.IgnoreCollision(mine, bc, true);
+            }
+        }
+
+        Vector3 lastPos;
+        bool hasLast;
+        static readonly RaycastHit[] hits = new RaycastHit[16];
+        /// <summary>己方的城：弹飞过自己的城时直接穿过去（站在自己城后面拉弓，弹道经常擦过自己的塔顶）</summary>
+        bool IsOwn(Block b) => b && b.castle && ((from == Side.Player && b.castle.side == Side.Player) || (from == Side.Enemy && b.castle.side == Side.Enemy));
+        readonly System.Collections.Generic.List<Collider> ignored = new();
+
         void FixedUpdate()
         {
-            if (state != State.Flying || rb.isKinematic) return;
+            if (state != State.Flying || rb.isKinematic) { hasLast = false; return; }
+            // 保险：自己扫一遍这一步走过的路（冻结的积木是运动学刚体，快速的小弹偶尔会被引擎漏检、直接穿过去）
+            var pos = rb.position;
+            if (hasLast)
+            {
+                var seg = pos - lastPos;
+                float len = seg.magnitude;
+                if (len > 1e-4f)
+                {
+                    int n = Physics.SphereCastNonAlloc(lastPos, radius * 0.9f, seg / len, hits, len, Layers.BlockMask, QueryTriggerInteraction.Ignore);
+                    float best = float.MaxValue; Block blk = null; Vector3 hp = default;
+                    for (int i = 0; i < n; i++)
+                    {
+                        var b = hits[i].collider.GetComponent<Block>();
+                        if (!b || IsOwn(b) || hits[i].distance >= best) continue;
+                        best = hits[i].distance; blk = b; hp = hits[i].point;
+                    }
+                    // 引擎漏检了（这一步已经穿进 / 穿过一块敌方积木）：按撞上处理 —— 先把积木叫醒、推一把（物理冲量照常给），再走命中效果
+                    // 漏检 = 这一步扫到了敌方积木，可这一步结束时弹已经陷进它里面或者已经越过它（引擎没给碰撞回调）
+                    bool missed = false;
+                    if (blk)
+                    {
+                        float distNow = Vector3.Distance(blk.WorldBounds.ClosestPoint(pos), pos);
+                        bool inside = distNow < radius * 0.5f;
+                        bool passed = Vector3.Dot(pos - hp, seg) > 0f;   // 现在的位置在接触点前方 = 已经穿过去了
+                        missed = inside || passed;
+                    }
+                    if (missed)
+                    {
+                        var v = rb.linearVelocity;
+                        rb.position = lastPos + seg / len * Mathf.Max(0f, best - 0.002f);
+                        if (blk.castle) blk.castle.WakeAround(hp, 0.6f * blk.Unit, blk);
+                        if (blk.rb && !blk.rb.isKinematic && !blk.isKing) blk.rb.AddForceAtPosition(v * rb.mass, hp, ForceMode.Impulse);   // 本来撞上会传过去的动量
+                        Impact(hp, blk, v);
+                        hasLast = false;
+                        return;
+                    }
+                }
+            }
+            lastPos = pos; hasLast = true;
             rb.AddForce(Physics.gravity * (T.shotGravity - 1f), ForceMode.Acceleration);   // 自带重力 + 这一项 = 重力 × shotGravity
             if (type == Ammo.Split && !didSplit && rb.linearVelocity.y < 0f) Split();
         }
@@ -159,6 +216,8 @@ namespace PaperSiege
             if (state != State.Flying) return;
             var p = c.GetContact(0).point;
             var block = c.collider.GetComponent<Block>();
+            if (IsOwn(block)) return;   // 修城时新放上去的积木不在忽略名单里：撞到己方的直接无视
+            if (DebugImpacts && !block) Debug.Log($"[命中物] {from} 弹打到 {c.collider.name}（层 {LayerMask.LayerToName(c.collider.gameObject.layer)} / {c.collider.gameObject.layer}，父 {(c.collider.transform.parent ? c.collider.transform.parent.name : "-")}）于 {p.ToString("F3")}");
             Impact(p, block, c.relativeVelocity);
         }
 
@@ -200,6 +259,7 @@ namespace PaperSiege
                     if (castle) castle.WakeAround(p, T.wakeRadius * unit, block);
                     break;
             }
+            if (DebugImpacts) Debug.Log($"[命中] {from} {type} 打 {(block ? block.name + (block.castle ? "@" + block.castle.side : "") : "（非积木）")} kinematic={(block && block.rb ? block.rb.isKinematic : true)} relVel={relVel.magnitude:0.0} mass={rb.mass:0.000}");
             if (block && !block.isKing && block.rb && !block.rb.isKinematic)
             {
                 // 额外推一把（玩具弹太轻，纯物理推不动城）

@@ -37,7 +37,7 @@ namespace PaperSiege
             // 标题 / 结算
             { "开始", "Start" }, { "继续", "Continue" },
             { "音乐", "Music" }, { "音乐 ×", "Music off" }, { "音效", "SFX" }, { "音效 ×", "SFX off" },
-            { "胜利！", "Victory!" }, { "失守……", "Your banner fell…" },
+            { "胜利！", "Victory!" }, { "失守……", "Your banner fell…" }, { "时间到……", "Out of time…" },
             { "射 {0}　挡 {1}　接 {2}　修 {3}", "Shots {0}   Blocks {1}   Catches {2}   Repairs {3}" },
             { "赢　·　接住 3 发　·　帅旗没挨打", "Win  ·  Catch 3  ·  Banner untouched" },
             { "下一关", "Next" }, { "重来", "Retry" }, { "回标题", "Title" },
