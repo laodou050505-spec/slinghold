@@ -171,17 +171,35 @@ def cutter_box(sx, sy, sz, loc, rot=(0, 0, 0)):
 
 
 def finish(ob, rng, bevel, seg=3, jitter=0.0, warp=0.0, angle=32):
-    """倒角 + 加权法线 + 手工不规整（整体轻微歪斜 + 顶点噪声）"""
-    md = ob.modifiers.new('bevel', 'BEVEL')
-    md.width = bevel
-    md.segments = seg
+    """磨旧的棱：每条硬棱一道宽窄不一的斜角（平切，像被磨掉 / 削掉），再轻轻倒圆；
+    然后整体轻微歪斜 + 低频起伏（手工木块不是绝对方正的）。"""
+    me = ob.data
+    # 每条硬棱随机一个斜角宽度（权重 0.25～1）
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    lay = bm.edges.layers.float.get('bevel_weight_edge') or bm.edges.layers.float.new('bevel_weight_edge')
+    for e in bm.edges:
+        if len(e.link_faces) == 2 and e.link_faces[0].normal.angle(e.link_faces[1].normal) > math.radians(angle):
+            e[lay] = rng.uniform(0.25, 1.0) if rng.random() < 0.85 else rng.uniform(0.05, 0.2)
+        else:
+            e[lay] = 0.0
+    bm.to_mesh(me)
+    bm.free()
+    md = ob.modifiers.new('chamfer', 'BEVEL')
+    md.width = bevel * 1.5
+    md.segments = 1
+    md.limit_method = 'WEIGHT'
+    md.use_clamp_overlap = True
+    apply_mods(ob)
+    md = ob.modifiers.new('round', 'BEVEL')
+    md.width = bevel * 0.25
+    md.segments = max(2, seg - 1)
     md.limit_method = 'ANGLE'
-    md.angle_limit = math.radians(angle)
+    md.angle_limit = math.radians(20)
     md.use_clamp_overlap = True
     md.profile = 0.6
     apply_mods(ob)
     me = ob.data
-    # 手工不规整：上部轻微平移 / 缩放，加低频噪声位移
     zs = [v.co.z for v in me.vertices]
     zmin, zmax = min(zs), max(zs)
     h = max(1e-4, zmax - zmin)
@@ -195,10 +213,6 @@ def finish(ob, rng, bevel, seg=3, jitter=0.0, warp=0.0, angle=32):
             v.co += Vector((noise.noise(q), noise.noise(q + Vector((31, 7, 3))), noise.noise(q + Vector((5, 53, 11))))) * jitter
     for p in me.polygons:
         p.use_smooth = True
-    wn = ob.modifiers.new('wn', 'WEIGHTED_NORMAL')
-    wn.keep_sharp = True
-    wn.weight = 60
-    apply_mods(ob)
     return ob
 
 

@@ -55,6 +55,7 @@ Material:
     - _Spec: 0.12
     - _Terminator: 0.42
     m_Colors:
+    - _BareTint: {r: 0.86, g: 0.93, b: 1.04, a: 1}
     - _PaintColor: {r: 0.43137255, g: 0.4862745, b: 0.27058825, a: 1}
     - _ShadowTint: {r: 0.72, g: 0.66, b: 0.76, a: 1}
   m_BuildTextureStacks: []

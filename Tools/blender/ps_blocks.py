@@ -290,6 +290,8 @@ def s_shield(rng):
 
 WOOD = [w_cube, w_slab, w_beam, w_pillar, w_column, w_arch, w_window, w_battlement, w_gate, w_roof, w_cone]
 STONE = [s_cube, s_slab, s_pillar, s_arch, s_battlement, s_wall, s_shield]
+if len(argv) > 2 and argv[2] == 'quick':      # 冒烟测试：只做几件
+    WOOD, STONE = [w_cube, w_gate], [s_cube]
 # 木纹方向：竖着的件沿 Z，其余沿 X
 GRAIN_Z = {'W_Pillar', 'W_Column', 'W_Window', 'W_Cube', 'W_Cone'}
 
@@ -378,7 +380,7 @@ def bake_material(name, stone, grain_z):
     b.link(bev.outputs['Normal'], dot.inputs[0])
     b.link(geo.outputs['True Normal'], dot.inputs[1])
     edge = b.math('MULTIPLY', b.math('SUBTRACT', 1.0, dot.outputs['Value']), 9.0, clamp=True)
-    ao = b.node('ShaderNodeAmbientOcclusion', samples=24)
+    ao = b.node('ShaderNodeAmbientOcclusion', samples=24, only_local=True)   # 只算自身遮挡（逐对烘焙时低模也在场景里，不能让它挡住高模）
     ao.inputs['Distance'].default_value = 0.45 * g
     aoF = ao.outputs['AO']
     grain = b.noise(obj, 1.0, detail=6.0, rough=0.6, **ga)
@@ -456,6 +458,9 @@ def bake_material(name, stone, grain_z):
     b.link(brush, comb.inputs[2])
     emMask = b.node('ShaderNodeEmission')
     b.link(comb.outputs['Color'], emMask.inputs['Color'])
+    emWhite = b.node('ShaderNodeEmission')
+    emWhite.inputs['Color'].default_value = (1, 1, 1, 1)
+    m['_white'] = emWhite.name
     emLine = b.node('ShaderNodeEmission')
     b.link(lineF, emLine.inputs['Color'])
     m['_line'] = emLine.name
@@ -479,7 +484,7 @@ def bake_material(name, stone, grain_z):
 def route(m, which):
     t = m.node_tree
     out = t.nodes[m['_out']]
-    src = {'mask': m['_mask'], 'albedo': m['_alb'], 'normal': m['_bsdf'], 'line': m['_line']}[which]
+    src = {'mask': m['_mask'], 'albedo': m['_alb'], 'normal': m['_bsdf'], 'line': m['_line'], 'cover': m['_white']}[which]
     for l in list(out.inputs['Surface'].links):
         t.links.remove(l)
     t.links.new(t.nodes[src].outputs[0], out.inputs['Surface'])
@@ -520,73 +525,87 @@ def unwrap_and_pack(objs):
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.003, scale_to_bounds=False)
+    bpy.ops.uv.smart_project(angle_limit=math.radians(72), island_margin=0.002, scale_to_bounds=False)
     bpy.ops.uv.select_all(action='SELECT')
     bpy.ops.uv.average_islands_scale()
-    bpy.ops.uv.pack_islands(margin=0.004, rotate=True)
+    bpy.ops.uv.pack_islands(margin=0.0025, rotate=True, shape_method='CONCAVE', margin_method='FRACTION')
     bpy.ops.object.mode_set(mode='OBJECT')
 
 
-def bake_set(name, objs, stone):
+def bake_set(name, pairs, stone):
+    """pairs = [(低模, 高模)]：低模展 UV 打包成一张图集，逐对把高模烘到低模（selected to active）"""
+    import numpy as np
+    from ps_wear import dilate
     sc = bpy.context.scene
-    for o in bpy.data.objects:
-        o.hide_render = o not in objs
-    # 摊开摆放，避免 AO 互相遮挡
-    for i, o in enumerate(objs):
-        o.location = ((i % 6) * 5 * g, (i // 6) * 5 * g, 0)
-    triangulate(objs)
-    unwrap_and_pack(objs)
+    lows = [l for l, h in pairs]
+    for i, (l, h) in enumerate(pairs):
+        loc = ((i % 6) * 5 * g, (i // 6) * 5 * g, 0)
+        l.location = loc
+        h.location = loc
+    unwrap_and_pack(lows)
     mats = {}
-    for o in objs:
-        gz = (o.name in GRAIN_Z) and not stone
+    for l, h in pairs:
+        gz = (l.name in GRAIN_Z) and not stone
         key = ('S' if stone else 'W') + ('Z' if gz else 'X')
         if key not in mats:
             mats[key] = bake_material(name + '_' + key, stone, gz)
-        o.data.materials.clear()
-        o.data.materials.append(mats[key])
+        h.data.materials.clear()
+        h.data.materials.append(mats[key])
+    tgt = bpy.data.materials.new('target_' + name)
+    tgt.use_nodes = True
+    tn = tgt.node_tree.nodes.new('ShaderNodeTexImage')
+    tgt.node_tree.nodes.active = tn
+    for l in lows:
+        l.data.materials.clear()
+        l.data.materials.append(tgt)
+    passes = (('cover', 'Non-Color'), ('albedo', 'sRGB'), ('mask', 'Non-Color'), ('normal', 'Non-Color'), ('line', 'Non-Color'))
     imgs = {}
-    for which, cs in (('mask', 'Non-Color'), ('albedo', 'sRGB'), ('normal', 'Non-Color'), ('line', 'Non-Color')):
-        im = bpy.data.images.new(f'{name}_{which}', RES, RES, alpha=False, float_buffer=False)
+    for which, cs in passes:
+        im = bpy.data.images.new(f'{name}_{which}', RES, RES, alpha=True, float_buffer=False)
+        im.generated_color = (0, 0, 0, 0)
         im.colorspace_settings.name = cs
         imgs[which] = im
-    bpy.ops.object.select_all(action='DESELECT')
-    for o in objs:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-    for which in ('albedo', 'mask', 'normal', 'line'):
+    sc.render.bake.margin = 0
+    sc.render.bake.use_clear = False
+    for which, _ in passes:
         for m in mats.values():
             route(m, which)
-            nd = m.node_tree.nodes['BAKE']
-            nd.image = imgs[which]
-            m.node_tree.nodes.active = nd
-        if which == 'normal':
-            sc.cycles.samples = 8
-            bpy.ops.object.bake(type='NORMAL', normal_space='TANGENT')
-        else:
-            sc.cycles.samples = 48 if which == 'mask' else (16 if which == 'line' else 4)
-            bpy.ops.object.bake(type='EMIT')
-        if which == 'line':
-            continue
-        p = os.path.join(OUT, 'tex', f'{name}_{which}.png')
-        imgs[which].filepath_raw = p
-        imgs[which].file_format = 'PNG'
-        imgs[which].save()
-        print('烘焙完成', p)
-    # 棱线写进 mask 的 A 通道，再存一次 mask（带透明通道）
-    import numpy as np
-    mk = np.array(imgs['mask'].pixels[:], dtype=np.float32).reshape(-1, 4)
-    ln = np.array(imgs['line'].pixels[:], dtype=np.float32).reshape(-1, 4)
-    mk[:, 3] = ln[:, 0]
-    out = bpy.data.images.new(f'{name}_maskA', RES, RES, alpha=True, float_buffer=False)
-    out.colorspace_settings.name = 'Non-Color'
-    out.alpha_mode = 'CHANNEL_PACKED'
-    out.pixels[:] = mk.ravel()
-    p = os.path.join(OUT, 'tex', f'{name}_mask.png')
-    out.filepath_raw = p
-    out.file_format = 'PNG'
-    out.save()
-    print('棱线写入 mask.A', p)
-    return imgs
+        tn.image = imgs[which]
+        sc.cycles.samples = {'mask': 40, 'line': 12, 'normal': 6}.get(which, 2)
+        for l, h in pairs:
+            for o in bpy.data.objects:
+                o.hide_render = o not in (l, h)
+            bpy.ops.object.select_all(action='DESELECT')
+            h.select_set(True)
+            l.select_set(True)
+            bpy.context.view_layer.objects.active = l
+            kw = dict(use_selected_to_active=True, cage_extrusion=0.015 * g, max_ray_distance=0.06 * g, margin=0, use_clear=False)
+            if which == 'normal':
+                bpy.ops.object.bake(type='NORMAL', normal_space='TANGENT', **kw)
+            else:
+                bpy.ops.object.bake(type='EMIT', **kw)
+        print('烘焙完成', name, which)
+    # 向 UV 岛外扩边，然后存盘；棱线写进 mask 的 A 通道
+    px = {w: np.array(imgs[w].pixels[:], dtype=np.float32).reshape(RES, RES, 4) for w, _ in passes}
+    cover = px['cover'][..., 0] > 0.5
+    print('图集覆盖率', name, round(float(cover.mean()), 3))
+    for w in ('albedo', 'mask', 'normal', 'line'):
+        px[w] = dilate(px[w], cover)
+    px['mask'][..., 3] = px['line'][..., 0]
+    for w in ('albedo', 'normal'):
+        px[w][..., 3] = 1.0
+    for w in ('albedo', 'mask', 'normal'):
+        out = bpy.data.images.new(f'{name}_{w}_out', RES, RES, alpha=True, float_buffer=False)
+        out.colorspace_settings.name = 'sRGB' if w == 'albedo' else 'Non-Color'
+        out.alpha_mode = 'CHANNEL_PACKED'
+        out.pixels[:] = px[w].ravel()
+        pth = os.path.join(OUT, 'tex', f'{name}_{w}.png')
+        out.filepath_raw = pth
+        out.file_format = 'PNG'
+        out.save()
+        print('存盘', pth)
+    for o in bpy.data.objects:
+        o.hide_render = False
 
 
 def export_set(name, objs):
@@ -599,30 +618,46 @@ def export_set(name, objs):
     p = os.path.join(OUT, f'blocks_{name}.fbx')
     bpy.ops.export_scene.fbx(filepath=p, use_selection=True, apply_scale_options='FBX_SCALE_UNITS',
                              axis_forward='-Z', axis_up='Y', bake_space_transform=True,
-                             mesh_smooth_type='FACE', use_tspace=True, add_leaf_bones=False,
+                             mesh_smooth_type='OFF', use_tspace=True, add_leaf_bones=False,
                              path_mode='STRIP', embed_textures=False, use_custom_props=False)
     print('导出', p)
 
 
 def main():
+    from ps_wear import damage, make_low, make_lod, TARGET
     reset()
     setup_cycles()
     rng = random.Random(1124)
     report = []
     sets = {}
     for name, fns, stone in (('wood', WOOD, False), ('stone', STONE, True)):
-        objs = []
+        pairs = []
         for fn in fns:
-            o = fn(rng)
-            tris, nm = mesh_report(o)
-            report.append(f'{o.name:14s} 三角面 {tris:5d}  非流形边 {nm}')
-            objs.append(o)
-        sets[name] = objs
-    print('\n'.join(report))
-    for name, objs in sets.items():
-        bake_set(name, objs, name == 'stone')
+            base = fn(rng)
+            nm = base.name
+            base.name = nm + '_HI'
+            hi = damage(base, rng, stone, 2 if nm in GRAIN_Z else 0)
+            lo = make_low(hi, nm, TARGET[nm])
+            tris, nonman = mesh_report(lo)
+            htris = len(hi.data.polygons)
+            report.append(f'{nm:14s} 低模三角面 {tris:5d}  非流形边 {nonman}   高模面 {htris}')
+            print(report[-1])
+            pairs.append((lo, hi))
+        sets[name] = pairs
+    for name, pairs in sets.items():
+        bake_set(name, pairs, name == 'stone')
+    out = {}
+    for name, pairs in sets.items():
+        lows = [l for l, h in pairs]
+        lods = [make_lod(l) for l in lows]
+        for l, lod in zip(lows, lods):
+            t1, n1 = mesh_report(lod)
+            report.append(f'{lod.name:18s} 三角面 {t1:5d}  非流形边 {n1}')
+        for l, h in pairs:
+            bpy.data.objects.remove(h, do_unlink=True)
+        out[name] = lows + lods
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'blocks.blend'))
-    for name, objs in sets.items():
+    for name, objs in out.items():
         export_set(name, objs)
     open(os.path.join(OUT, 'report.txt'), 'w').write('\n'.join(report) + '\n')
 

@@ -54,6 +54,8 @@ namespace PaperSiege.EditorTools
                 m.SetColor("_ShadowTint", new Color(0.72f, 0.66f, 0.76f));
                 m.SetFloat("_Ambient", 1.1f);
                 m.SetFloat("_NormalScale", stone ? 0.8f : 1f);
+                // 石块在暖光下会被照成米黄：本色往冷灰偏一点，保持“灰石头”的感觉
+                m.SetColor("_BareTint", stone ? new Color(0.86f, 0.93f, 1.04f) : Color.white);
                 m.enableInstancing = true;
                 EditorUtility.SetDirty(m);
             }
@@ -69,7 +71,16 @@ namespace PaperSiege.EditorTools
             return d;
         }
 
+        /// <summary>示范城用远景低模（敌城在 3 米外）</summary>
+        static bool useLod;
+
         static GameObject Piece(Dictionary<string, Mesh> ms, string name, Paint paint, Transform parent, Vector3 posG, float yaw = 0, float scale = 1)
+        {
+            if (useLod && ms.ContainsKey(name + "_LOD1")) { var go1 = Piece0(ms, name + "_LOD1", paint, parent, posG, yaw, scale); go1.name = name; return go1; }
+            return Piece0(ms, name, paint, parent, posG, yaw, scale);
+        }
+
+        static GameObject Piece0(Dictionary<string, Mesh> ms, string name, Paint paint, Transform parent, Vector3 posG, float yaw = 0, float scale = 1)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -132,9 +143,9 @@ namespace PaperSiege.EditorTools
             sun.shadowStrength = 0.75f;
             sun.transform.rotation = Quaternion.Euler(42, -35, 0);
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.78f, 0.80f, 0.86f);
-            RenderSettings.ambientEquatorColor = new Color(0.70f, 0.64f, 0.58f);
-            RenderSettings.ambientGroundColor = new Color(0.42f, 0.34f, 0.28f);
+            RenderSettings.ambientSkyColor = new Color(0.80f, 0.82f, 0.88f);
+            RenderSettings.ambientEquatorColor = new Color(0.72f, 0.70f, 0.68f);
+            RenderSettings.ambientGroundColor = new Color(0.50f, 0.47f, 0.44f);
             DynamicGI.UpdateEnvironment();   // 改了环境光要刷新球谐，否则着色器里 SampleSH 拿到的是旧的（暗部会发黑）
             // 占位房间（编辑器里代替透视画面）：地板、两面墙、一张桌子
             var room = new GameObject("RoomStandIn").transform;
@@ -155,6 +166,7 @@ namespace PaperSiege.EditorTools
             // 玩家的城（桌上）和敌城（3 米外地上，放大 1.6 倍）
             var mine = DemoCastle(ms, null, "MyCastle", 1);
             mine.transform.position = new Vector3(0, 0.84f, 0.45f);
+            useLod = true;
             var enemy = DemoCastle(ms, null, "EnemyCastle", 2);
             enemy.transform.position = new Vector3(0.3f, 0, 3.0f);
             enemy.transform.rotation = Quaternion.Euler(0, 8, 0);
@@ -166,6 +178,7 @@ namespace PaperSiege.EditorTools
             Piece(ms, "S_Battlement", Paint.Stone, sw, new Vector3(-2, 1, -3.2f));
             Piece(ms, "S_Battlement", Paint.Stone, sw, new Vector3(2, 1, -3.2f));
             Piece(ms, "S_Shield", Paint.Stone, sw, new Vector3(0, 1, -3.4f));
+            useLod = false;
             // 相机
             Cam("Cam_Player", new Vector3(-0.05f, 1.36f, -0.12f), new Vector3(0.25f, 0.72f, 2.4f), 75);
             Cam("Cam_Lineup", new Vector3(-1.6f, 0.62f, 0.55f), new Vector3(-1.6f, 0.02f, 1.38f), 52);
@@ -245,7 +258,7 @@ namespace PaperSiege.EditorTools
             var outs = new List<string>();
             foreach (var set in new[] { "W_", "S_" })
             {
-                var names = ms.Keys.Where(k => k.StartsWith(set)).OrderBy(k => k).ToList();
+                var names = ms.Keys.Where(k => k.StartsWith(set) && !k.EndsWith("_LOD1")).OrderBy(k => k).ToList();
                 int cols = 8, rows = (names.Count + 1) / 2;
                 var sheet = new Texture2D(cols * tile, rows * tile, TextureFormat.RGB24, false);
                 var rt = new RenderTexture(tile, tile, 24) { antiAliasing = 4 };

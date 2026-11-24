@@ -15,6 +15,7 @@ Shader "PaperSiege/Block"
         _BrushStrength ("笔触明暗", Range(0, 1)) = 0.55
         _AOStrength ("缝隙 AO", Range(0, 1)) = 0.75
         _PaintCover ("漆面覆盖倍率", Range(0, 1.5)) = 1
+        _BareTint ("裸木 / 裸石色调", Color) = (1, 1, 1, 1)
         [Header(Light)]
         _ShadowTint ("背光面色调", Color) = (0.72, 0.66, 0.76, 1)
         _Terminator ("明暗交界位置", Range(0, 1)) = 0.42
@@ -44,6 +45,7 @@ Shader "PaperSiege/Block"
     CBUFFER_START(UnityPerMaterial)
         half4 _PaintColor;
         half _NormalScale, _BrushStrength, _AOStrength, _PaintCover;
+        half4 _BareTint;
         half4 _ShadowTint;
         half _Terminator, _Softness, _Ambient, _Spec;
         half _OutlineWidth, _OutlineDarken, _OutlineSat, _OutlineMaxWorld, _LineStrength;
@@ -54,7 +56,7 @@ Shader "PaperSiege/Block"
     half3 BaseColor(float2 uv, out half4 m)
     {
         m = SAMPLE_TEXTURE2D(_Mask, sampler_Mask, uv);
-        half3 bare = SAMPLE_TEXTURE2D(_Albedo, sampler_Albedo, uv).rgb;
+        half3 bare = SAMPLE_TEXTURE2D(_Albedo, sampler_Albedo, uv).rgb * _BareTint.rgb;
         half brush = lerp(1.0h, (m.b - 0.5h) * 1.1h + 1.0h, _BrushStrength);
         half3 paint = _PaintColor.rgb * brush;
         half cover = saturate(m.r * _PaintCover);
