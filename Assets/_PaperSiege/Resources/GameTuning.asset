@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7db065618420c45b1b0fc05271d8c7d1, type: 3}
+  m_Name: GameTuning
+  m_EditorClassIdentifier: Assembly-CSharp::PaperSiege.GameTuning
+  playerUnit: 0.05
+  enemyUnit: 0.09
+  enemyDistance: 3
+  enemyDistanceMin: 1.8
+  tableHeight: 0.85
+  shotGravity: 0.55
+  playerBallRadius: 0.014
+  enemyBallRadius: 0.02
+  playerBallMass: 0.3
+  enemyBallMass: 0.12
+  hitImpulse: 1.5
+  wakeRadius: 1.4
+  freezeSeconds: 8
+  iceRadius: 1.5
+  bombRadius: 2.2
+  bombForce: 2.2
+  splitCount: 3
+  splitAngle: 9
+  slingSpeedMin: 2
+  slingSpeedMax: 6.2
+  reload: 2
+  enemyFlight: {x: 1.7, y: 2.1}
+  windup: 1.2
+  mercySlow: 1.35
+  supplyStart: 3
+  supplyMax: 5
+  supplyEvery: 20

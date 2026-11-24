@@ -16,6 +16,7 @@ Shader "PaperSiege/Block"
         _AOStrength ("缝隙 AO", Range(0, 1)) = 0.75
         _PaintCover ("漆面覆盖倍率", Range(0, 1.5)) = 1
         _BareTint ("裸木 / 裸石色调", Color) = (1, 1, 1, 1)
+        _EmissionStrength ("自发光（albedo.A 遮罩，道具用）", Range(0, 4)) = 0
         [Header(Light)]
         _ShadowTint ("背光面色调", Color) = (0.72, 0.66, 0.76, 1)
         _Terminator ("明暗交界位置", Range(0, 1)) = 0.42
@@ -46,6 +47,7 @@ Shader "PaperSiege/Block"
         half4 _PaintColor;
         half _NormalScale, _BrushStrength, _AOStrength, _PaintCover;
         half4 _BareTint;
+        half _EmissionStrength;
         half4 _ShadowTint;
         half _Terminator, _Softness, _Ambient, _Spec;
         half _OutlineWidth, _OutlineDarken, _OutlineSat, _OutlineMaxWorld, _LineStrength;
@@ -171,6 +173,8 @@ Shader "PaperSiege/Block"
                 col += half3(0.75, 0.9, 1.0) * fr * _Frost * 0.45h;
                 // 余烬：烧焦块缝隙里透出暗红（AO 低的地方更亮），随时间闪由脚本控制 _Ember
                 col += half3(1.0, 0.36, 0.08) * _Ember * (1.0h - m.g) * 1.6h;
+                // 自发光：灯笼纸面、火丸火纹、引信（只在道具材质里开）
+                col += base * SAMPLE_TEXTURE2D(_Albedo, sampler_Albedo, i.uv).a * _EmissionStrength;
                 // 棱线：画在受光之后，和外轮廓描边是同一种颜色（不受光照影响，像墨线）
                 col = lerp(col, LineColor(base), lineK);
                 col = lerp(col, half3(1, 0.97, 0.9), _Flash * 0.6h);

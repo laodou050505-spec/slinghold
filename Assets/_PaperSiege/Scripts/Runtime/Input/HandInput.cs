@@ -53,7 +53,7 @@ namespace PaperSiege
         readonly float[] pinchT0 = new float[2], anchorT = new float[2], lostT = { -9f, -9f };
         readonly Vector3[] anchorP = new Vector3[2];
         readonly Hand[] last = new Hand[2];
-        readonly Vector3[] lastPalm = new Vector3[2];
+        readonly System.Collections.Generic.Queue<(float t, Vector3 p)>[] palmHist = { new(), new() };
         readonly bool[] hasLastPalm = new bool[2];
         readonly Vector3[] freezeSig = new Vector3[2]; readonly float[] frozenFor = new float[2];
         const float FrozenAfter = 0.3f;
@@ -119,18 +119,17 @@ namespace PaperSiege
             return h;
         }
 
-        /// <summary>掌心速度：位置差分再做一阶平滑（单帧追踪抖动不会被当成拍）</summary>
+        /// <summary>掌心速度：最近 velSmooth（80 ms）窗口内的平均速度（规范第 4 条）。单帧追踪抖动被窗口平均掉，快速一拍又不会被平滑吃掉</summary>
         void Velocity(int s, ref Hand h)
         {
-            float dt = Mathf.Max(1e-3f, Time.deltaTime);
-            if (hasLastPalm[s])
-            {
-                var v = (h.palm - lastPalm[s]) / dt;
-                float k = 1f - Mathf.Exp(-dt / Mathf.Max(0.005f, T.velSmooth));
-                h.vel = Vector3.Lerp(hands[s].vel, v, k);
-            }
-            else h.vel = Vector3.zero;
-            lastPalm[s] = h.palm; hasLastPalm[s] = true;
+            var q = palmHist[s];
+            if (!hasLastPalm[s]) q.Clear();
+            float now = Time.time;
+            q.Enqueue((now, h.palm));
+            while (q.Count > 2 && now - q.Peek().t > T.velSmooth) q.Dequeue();
+            var (t0, p0) = q.Peek();
+            h.vel = now - t0 > 1e-3f ? (h.palm - p0) / (now - t0) : Vector3.zero;
+            hasLastPalm[s] = true;
         }
 
         void SimUpdate()

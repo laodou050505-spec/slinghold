@@ -30,6 +30,31 @@ namespace PaperSiege.EditorTools
             AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
         }
 
+        /// <summary>把 ArtSource/Models/props 下的道具 FBX 和贴图拷进工程，建 M_Props 材质</summary>
+        public static void SyncProps()
+        {
+            string src = Path.Combine(Proj, "ArtSource/Models/props");
+            string dst = Path.Combine(Proj, "Assets/_PaperSiege/Art/Props");
+            Directory.CreateDirectory(Path.Combine(dst, "Textures"));
+            File.Copy(Path.Combine(src, "props.fbx"), Path.Combine(dst, "props.fbx"), true);
+            foreach (var f in Directory.GetFiles(Path.Combine(src, "tex"), "*.png")) File.Copy(f, Path.Combine(dst, "Textures", Path.GetFileName(f)), true);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            string path = $"{MatDir}/M_Props.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (!m) { m = new Material(Shader.Find("PaperSiege/Block")); AssetDatabase.CreateAsset(m, path); }
+            Texture T(string n) => AssetDatabase.LoadAssetAtPath<Texture>($"Assets/_PaperSiege/Art/Props/Textures/{n}.png");
+            m.SetTexture("_Albedo", T("props_albedo"));
+            m.SetTexture("_Mask", T("props_mask"));
+            m.SetTexture("_Normal", T("props_normal"));
+            m.SetFloat("_PaintCover", 0f);            // 道具的颜色全部烘在 albedo 里
+            m.SetFloat("_EmissionStrength", 1.2f);
+            m.SetColor("_ShadowTint", new Color(0.72f, 0.66f, 0.76f));
+            m.SetFloat("_Ambient", 1.1f);
+            m.enableInstancing = true;
+            EditorUtility.SetDirty(m);
+            AssetDatabase.SaveAssets();
+        }
+
         public static Material Mat(string name) => AssetDatabase.LoadAssetAtPath<Material>($"{MatDir}/{name}.mat");
 
         public static void BuildMaterials()
@@ -68,6 +93,14 @@ namespace PaperSiege.EditorTools
             foreach (var f in new[] { "blocks_wood", "blocks_stone" })
                 foreach (var m in AssetDatabase.LoadAllAssetsAtPath($"{BlocksDir}/{f}.fbx").OfType<Mesh>())
                     d[m.name] = m;
+            return d;
+        }
+
+        /// <summary>道具组的网格（ArtSource/Models/props → Art/Props/props.fbx），还没有时返回空</summary>
+        public static Dictionary<string, Mesh> PropMeshes()
+        {
+            var d = new Dictionary<string, Mesh>();
+            foreach (var m in AssetDatabase.LoadAllAssetsAtPath("Assets/_PaperSiege/Art/Props/props.fbx").OfType<Mesh>()) d[m.name] = m;
             return d;
         }
 

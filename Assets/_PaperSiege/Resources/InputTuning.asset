@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f3849efed7e994d8a9007f32cf43dcc5, type: 3}
+  m_Name: InputTuning
+  m_EditorClassIdentifier: Assembly-CSharp::PaperSiege.InputTuning
+  pinchOn: 0.04
+  pinchOff: 0.055
+  staleAfter: 12
+  curlRatio: 1.22
+  extendRatio: 1.45
+  velSmooth: 0.08
+  handSmoothing: 0.03
+  lostGrace: 0.2
+  lostPrompt: 2.5
+  pouchGrab: 0.1
+  pullMin: 0.05
+  pullMax: 0.35
+  bowHoldOnLost: 1
+  releaseOnLost: 1
+  catchRadius: 0.2
+  catchHover: 0.6
+  patSpeed: 1.2
+  patRadius: 0.07
+  grabRadius: 0.04
+  snapDistance: 0.04
+  gazeSnap: 4

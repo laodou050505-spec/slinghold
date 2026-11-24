@@ -1,0 +1,130 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4bfc960eae1c44ce29ed403752ab7ea0, type: 3}
+  m_Name: BlockLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::PaperSiege.BlockLibrary
+  meshes:
+  - id: A_Box
+    lod0: {fileID: 1471492395713037035, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 451340068165734684, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: A_Peg
+    lod0: {fileID: 764824308458163829, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -7409552061221305195, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: B_Bomb
+    lod0: {fileID: 4386494435858846854, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -6324210103957133683, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: B_Fire
+    lod0: {fileID: 5261607544530645565, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -5751595954817168569, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: B_Ice
+    lod0: {fileID: 5411407014535044428, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 4554481364915632830, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: B_Split
+    lod0: {fileID: -2370550840985943480, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -3489703308506757814, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: B_Stone
+    lod0: {fileID: 5965155297881091370, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 104330184674233239, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: C_Arm
+    lod0: {fileID: -2942530249445147848, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -5688330369184947287, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: C_Frame
+    lod0: {fileID: -2958971552291687717, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -3005661757891380544, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: C_Wheel
+    lod0: {fileID: -1533092626831874587, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 1223353757652245687, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: H_Tag
+    lod0: {fileID: -564734400181465252, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 644637542663090082, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: K_Flag
+    lod0: {fileID: 816199132213925310, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -8564381063976943793, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: K_Lantern
+    lod0: {fileID: 1654089997489816617, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 5863787894312525184, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: K_Pole
+    lod0: {fileID: 5150317340430709483, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 374153894646923627, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: S_Arch
+    lod0: {fileID: -5189360786273959903, guid: a32747e578214442bbe694a69629023e, type: 3}
+    lod1: {fileID: -2271051423694381992, guid: a32747e578214442bbe694a69629023e, type: 3}
+  - id: S_Battlement
+    lod0: {fileID: 9006746442436484133, guid: a32747e578214442bbe694a69629023e, type: 3}
+    lod1: {fileID: -8359148790798643873, guid: a32747e578214442bbe694a69629023e, type: 3}
+  - id: S_Cube
+    lod0: {fileID: -8725994952784612151, guid: a32747e578214442bbe694a69629023e, type: 3}
+    lod1: {fileID: 8711478330688153861, guid: a32747e578214442bbe694a69629023e, type: 3}
+  - id: S_Fork
+    lod0: {fileID: -2776537582504397542, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: 6485404697127374395, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: S_Pillar
+    lod0: {fileID: -1808963950023981333, guid: a32747e578214442bbe694a69629023e, type: 3}
+    lod1: {fileID: -4959972025711376897, guid: a32747e578214442bbe694a69629023e, type: 3}
+  - id: S_Pouch
+    lod0: {fileID: 1090299777199268999, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -2287953062373836454, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: S_Shield
+    lod0: {fileID: 1790430535684957566, guid: a32747e578214442bbe694a69629023e, type: 3}
+    lod1: {fileID: -5543151551077723042, guid: a32747e578214442bbe694a69629023e, type: 3}
+  - id: S_Slab
+    lod0: {fileID: -7301681912095298096, guid: a32747e578214442bbe694a69629023e, type: 3}
+    lod1: {fileID: 5834565756059539354, guid: a32747e578214442bbe694a69629023e, type: 3}
+  - id: S_Wall
+    lod0: {fileID: 8393207014292559236, guid: a32747e578214442bbe694a69629023e, type: 3}
+    lod1: {fileID: 4145306130913776911, guid: a32747e578214442bbe694a69629023e, type: 3}
+  - id: T_Tray
+    lod0: {fileID: -2662832447062423040, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+    lod1: {fileID: -2507531085839021447, guid: cf8bd4515dd7347c0be7bb6132e27a06, type: 3}
+  - id: W_Arch
+    lod0: {fileID: 290525094886310677, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: -3186869823622455235, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Battlement
+    lod0: {fileID: -1001086624621861816, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: -8687236175922038093, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Beam
+    lod0: {fileID: -818960877175810084, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: 2263372232719461806, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Column
+    lod0: {fileID: -4101949759252197354, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: -512341063056240433, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Cone
+    lod0: {fileID: -5499793307601148056, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: 1254260094480353874, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Cube
+    lod0: {fileID: 1243103999300865451, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: -597809304225133460, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Gate
+    lod0: {fileID: 3123071214311806146, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: -4877701542562278129, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Pillar
+    lod0: {fileID: -1777373981067595217, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: 2080366385835131059, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Roof
+    lod0: {fileID: 911918672695610585, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: -376839833358321051, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Slab
+    lod0: {fileID: 3095801192040757900, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: 2226765814998826386, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  - id: W_Window
+    lod0: {fileID: 1063993192177015364, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+    lod1: {fileID: -3224644330371377553, guid: efa0f40ac4c8b4c968223b727f2bd96f, type: 3}
+  paints:
+  - {fileID: 2100000, guid: 87bcad450f0544ea6ae797c283073c03, type: 2}
+  - {fileID: 2100000, guid: e7127ae562a9e448899c71327b9804b1, type: 2}
+  - {fileID: 2100000, guid: 1cd679de5dc7949ea8cbf46eee39e80e, type: 2}
+  - {fileID: 2100000, guid: ebeb3e593ad0b4e08b2eda1c58d0fb6c, type: 2}
+  - {fileID: 2100000, guid: b752e2b03c7944ab98e46f603d510d8c, type: 2}
+  - {fileID: 2100000, guid: 304dd90f2d72349b89da88dc7295d366, type: 2}
+  - {fileID: 2100000, guid: 5418cbd134a8347feb2c7e3b4028d481, type: 2}
+  - {fileID: 2100000, guid: 78c0ac2fff9354db3a7ca9fc7c6fd173, type: 2}
+  propMaterial: {fileID: 2100000, guid: 9e0e75397de3c4731a3b115dc8239c5a, type: 2}
