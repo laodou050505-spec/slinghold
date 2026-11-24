@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: GameTuning
   m_EditorClassIdentifier: Assembly-CSharp::PaperSiege.GameTuning
   playerUnit: 0.05
-  enemyUnit: 0.09
-  enemyDistance: 3
+  enemyUnit: 0.115
+  enemyDistance: 3.2
   enemyDistanceMin: 1.8
   tableHeight: 0.85
   shotGravity: 0.55
@@ -35,7 +35,9 @@ MonoBehaviour:
   reload: 2
   enemyFlight: {x: 1.7, y: 2.1}
   windup: 1.2
-  mercySlow: 1.35
+  mercySlow: 1.5
+  mercyCatchRadius: 0.27
+  enemyApexMax: 2.2
   supplyStart: 3
   supplyMax: 5
   supplyEvery: 20

@@ -47,7 +47,7 @@ namespace PaperSiege
             get
             {
                 var cs = GetComponents<BoxCollider>();
-                if (cs.Length == 0) return new Bounds(transform.position, Vector3.one * Unit);
+                if (cs.Length == 0) return mr ? mr.bounds : new Bounds(transform.position, Vector3.one * Unit);   // 演示用样品块没有碰撞体
                 var b = cs[0].bounds;
                 for (int i = 1; i < cs.Length; i++) b.Encapsulate(cs[i].bounds);
                 return b;

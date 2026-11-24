@@ -8,8 +8,8 @@ namespace PaperSiege
     {
         [Header("场地")]
         [Tooltip("玩家城每格多少米")] public float playerUnit = 0.05f;
-        [Tooltip("敌城每格多少米（比玩家城大，3 米外也看得清）")] public float enemyUnit = 0.09f;
-        [Tooltip("敌城离玩家城多远（米）")] public float enemyDistance = 3.0f;
+        [Tooltip("敌城每格多少米（比玩家城大，3 米外也看得清）。改大小不改难度：玩家弹的撞击质量按它的立方自动换算")] public float enemyUnit = 0.115f;
+        [Tooltip("敌城离玩家城多远（米）")] public float enemyDistance = 3.2f;
         [Tooltip("房间小时最近距离（米）")] public float enemyDistanceMin = 1.8f;
         [Tooltip("没读到桌子时的虚拟桌高（米）")] public float tableHeight = 0.85f;
 
@@ -17,7 +17,10 @@ namespace PaperSiege
         [Tooltip("弹的重力倍率（<1 弧线更慢更好看、更好接）")] public float shotGravity = 0.55f;
         [Tooltip("玩家弹半径（米）")] public float playerBallRadius = 0.014f;
         [Tooltip("敌弹半径（米），大一点好接")] public float enemyBallRadius = 0.02f;
-        [Tooltip("玩家弹质量（kg）")] public float playerBallMass = 0.3f;
+        [Tooltip("玩家弹质量（kg，按敌城每格 9 cm 时的手感；实际按 enemyUnit 的立方换算）")] public float playerBallMass = 0.3f;
+        public const float ImpactRefUnit = 0.09f;
+        /// <summary>打敌城用的弹质量：敌城积木按体积变重，弹也按同样比例变重，每发打塌的块数不变</summary>
+        public float PlayerImpactMass => playerBallMass * Mathf.Pow(enemyUnit / ImpactRefUnit, 3);
         [Tooltip("敌弹质量（kg）")] public float enemyBallMass = 0.12f;
         [Tooltip("命中时额外给被打的块的冲量倍率")] public float hitImpulse = 1.5f;
         [Tooltip("命中后叫醒周围多大范围（格）")] public float wakeRadius = 1.4f;
@@ -35,7 +38,9 @@ namespace PaperSiege
         [Header("敌人")]
         [Tooltip("敌弹飞行时间（秒），越长越慢越好接")] public Vector2 enemyFlight = new(1.7f, 2.1f);
         [Tooltip("蓄力预警时长（秒）")] public float windup = 1.2f;
-        [Tooltip("玩家没弹时敌弹飞行时间倍率")] public float mercySlow = 1.35f;
+        [Tooltip("玩家没弹时：下一发来得更晚（开火间隔倍率）")] public float mercySlow = 1.5f;
+        [Tooltip("玩家没弹时：吸住范围加大（米）")] public float mercyCatchRadius = 0.27f;
+        [Tooltip("敌弹弧顶离地最高多少米（不让玩家仰头追弹、不穿过天花板）")] public float enemyApexMax = 2.2f;
 
         [Header("补给")]
         public int supplyStart = 3;

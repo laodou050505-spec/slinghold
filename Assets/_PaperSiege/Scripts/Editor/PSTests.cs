@@ -317,6 +317,121 @@ namespace PaperSiege.EditorTools
             SnapEnemy("1124_打旗", "最后");
         }
 
+        /// <summary>自动走一遍教学：模拟手按提示做，每一步截图</summary>
+        public static string TutorialWalk(string dir)
+        {
+            foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp);
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            D.head.transform.rotation = Quaternion.Euler(14, 0, 0);
+            D.StartLevel(0);
+            D.StartCoroutine(TutRun(dir));   // 里面等一帧再找教学对象（旧的那份要到帧末才销毁）
+            return "tutorial walk started";
+        }
+
+        static System.Collections.IEnumerator TutRun(string dir)
+        {
+            yield return null;
+            Tutorial tut = null;
+            foreach (var x in Object.FindObjectsByType<Tutorial>()) if (x && !x.Equals(null)) tut = x;
+            void L(string s) => Debug.Log($"[教学] {s}  step={tut.step}");
+            var t = D.head.transform;
+            Vector3 bow() => t.position + t.forward * 0.40f - t.right * 0.10f - t.up * 0.10f;
+            yield return new WaitForSeconds(2.0f);
+            SnapPlayer(dir, "1_举弓"); L("开始");
+            SimHands.Pose(0, bow(), true);
+            yield return new WaitForSeconds(1.2f);
+            SnapPlayer(dir, "2_抓皮兜"); L("举弓后");
+            SimHands.Pose(1, D.sling.PouchRest, true);
+            yield return new WaitForSeconds(1.4f);
+            SnapPlayer(dir, "3_往后拉"); L("抓皮兜后");
+            var target = D.arena.enemy.blocks[2].WorldBounds.center;
+            for (float k = 0; k < 1f; k += Time.deltaTime / 0.6f)
+            {
+                var fc = D.sling.ForkCenter;
+                var dirv = Ballistics.Solve(fc, target, 4.6f, out var lo, out _) ? lo.normalized : t.forward;
+                SimHands.Pose(1, Vector3.Lerp(D.sling.PouchRest, fc - dirv * 0.27f, k), true);
+                yield return null;
+            }
+            yield return new WaitForSeconds(0.8f);
+            SnapPlayer(dir, "4_松手"); L("拉开后");
+            var hold = GameObject.Find("Pouch").transform.position;
+            SimHands.Pose(1, hold, false);
+            yield return null; SimHands.Hide(1);
+            SimHands.Pose(0, bow(), false); yield return null; SimHands.Hide(0);   // 放下弓，免得左手挡弹
+            // 挡、接：右手追着敌弹（张手 / 握拳）
+            for (int phase = 5; phase <= 6; phase++)
+            {
+                float wait = 0;
+                while (tut.step < phase && wait < 15f) { wait += Time.deltaTime; yield return null; }
+                Projectile p = null;
+                wait = 0;
+                while (p == null && wait < 10f) { p = Projectile.Live.Find(x => x && x.from == Side.Enemy && x.state == Projectile.State.Flying); wait += Time.deltaTime; yield return null; }
+                float apex = 0f, ft = 0f; bool snapped = false;
+                while (p && p.state == Projectile.State.Flying)
+                {
+                    ft += Time.deltaTime;
+                    if (!snapped && ft > 0.7f)
+                    {
+                        snapped = true;
+                        SnapPlayer(dir, phase == 5 ? "5_挡" : "6_接"); L(phase == 5 ? "敌弹飞来（挡）" : "敌弹飞来（接）");
+                        var gh = GameObject.Find("GhostHand_R");
+                        L($"示范右手 active={(gh ? gh.activeInHierarchy : false)} pos={(gh ? gh.GetComponentInChildren<SkinnedMeshRenderer>().bounds.center.ToString("F2") : "-")} 弹={p.transform.position.ToString("F2")}");
+                    }
+                    apex = Mathf.Max(apex, p.transform.position.y);
+                    // 手在城的正上方等着（像真人一样迎着弹道），弹飞近了再追过去
+                    var c = D.arena.mine.transform.position + Vector3.up * 0.18f;
+                    var hp = Vector3.Distance(p.transform.position, c) < 0.6f ? p.transform.position + (t.position - p.transform.position).normalized * 0.05f : c;
+                    SimHands.Pose(1, hp, false, phase == 6, (t.position - hp).normalized * -1f);
+                    yield return null;
+                }
+                yield return new WaitForSeconds(0.8f);
+                SimHands.Hide(1);
+                L($"第{phase}步结果 挡{D.stats.blocked} 接{D.stats.caught} 敌弹最高 {apex:0.00}m（从被看到起）");
+            }
+            // 修城
+            { float w = 0; while (tut.step < 7 && w < 15f) { w += Time.deltaTime; yield return null; } }
+            yield return new WaitForSeconds(4.5f);
+            SnapPlayer(dir, "7_修城"); L("缺口出现后");
+            var piece = GameObject.Find("Patch").transform.position + Vector3.up * 0.017f;
+            SimHands.Pose(1, piece, true); yield return null; yield return null;
+            int slot = D.arena.mine.layout.items.FindIndex(x => x.piece == "W_Battlement");
+            var to = D.arena.mine.SlotCenter(slot) + Vector3.up * 0.02f;
+            for (float k = 0; k < 1f; k += Time.deltaTime / 0.6f) { SimHands.Pose(1, Vector3.Lerp(piece, to, k), true); yield return null; }
+            SimHands.Pose(1, to, false); yield return null; SimHands.Hide(1);
+            yield return new WaitForSeconds(3f);
+            L($"修城后 补={D.stats.repaired}");
+            { float w = 0; while (tut.step < 8 && w < 10f) { w += Time.deltaTime; yield return null; } }
+            yield return new WaitForSeconds(1.0f);
+            SnapPlayer(dir, "8_开打"); L($"开打 敌方帅旗耐久={D.arena.enemy.kingHP} 计时暂停={D.timerPaused} 剩{D.timeLeft:0}s");
+        }
+
+        /// <summary>新弹演示台 + 着火提示：各关拍演示台近景</summary>
+        public static string TipsCheck(string dir) { Quiet(); D.StartCoroutine(TipsRun(dir)); return "tips check started"; }
+
+        static System.Collections.IEnumerator TipsRun(string dir)
+        {
+            foreach (var i in new[] { 2, 4, 6, 7 })
+            {
+                Level(i); Quiet();
+                yield return new WaitForSeconds(2.4f);
+                var st = GameObject.Find("AmmoDemo");
+                if (!st) { Debug.Log($"[提示] 第{i + 1}关 没有演示台"); continue; }
+                var p = st.transform.position;
+                var cam = p - D.arena.forward * 0.45f + Vector3.up * 0.28f - Vector3.Cross(Vector3.up, D.arena.forward) * 0.1f;
+                Snap(dir, $"L{i + 1}_演示_a", cam, p + Vector3.up * 0.12f, 50);
+                yield return new WaitForSeconds(1.4f);
+                Snap(dir, $"L{i + 1}_演示_b", cam, p + Vector3.up * 0.12f, 50);
+                Debug.Log($"[提示] 第{i + 1}关 演示台 {p.ToString("F2")}");
+            }
+            Level(3); Quiet();
+            yield return new WaitForSeconds(1f);
+            var b = D.arena.mine.blocks.Find(x => x.Wood && !x.isKing && x.name == "W_Cube");
+            b.Ignite();
+            yield return new WaitForSeconds(1.2f);
+            SnapPlayer(dir, "着火提示");
+            Debug.Log("[提示] 完成");
+        }
+
         public static string State()
         {
             var a = D.arena;

@@ -23,7 +23,7 @@ namespace PaperSiege
             SimHands.scripted = true;
             var e = d.head.transform.eulerAngles;
             d.head.transform.rotation = Quaternion.Euler(14f, e.y, 0f);   // 桌面上视线抬平一点，敌城在画面中间
-            d.StartLevel(1);   // 从第二关“小城”开始（第一关只有一堵矮墙，一发就赢）
+            d.StartLevel(0);   // 从第 1 关（边玩边学）开始
         }
 
         Vector3 CamPt(float fwd, float right, float up)

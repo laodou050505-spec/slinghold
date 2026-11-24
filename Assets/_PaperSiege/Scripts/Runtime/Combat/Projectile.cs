@@ -93,7 +93,7 @@ namespace PaperSiege
             p.type = type; p.from = from; p.radius = r;
             var col = go.AddComponent<SphereCollider>(); col.radius = r;
             var rb = go.AddComponent<Rigidbody>();
-            rb.mass = from == Side.Player ? T.playerBallMass : T.enemyBallMass;
+            rb.mass = from == Side.Player ? T.PlayerImpactMass : T.enemyBallMass;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.linearVelocity = vel;
@@ -130,6 +130,12 @@ namespace PaperSiege
                 if (spentT > 2.6f) Destroy(gameObject);
             }
             if (transform.position.y < -2f) Destroy(gameObject);
+            // 舒适保险：敌弹绝不打到人 —— 飞到离头 40 cm 以内就化成一团小烟散掉
+            if (from == Side.Enemy && state == State.Flying && Director.I && Director.I.head && Vector3.Distance(transform.position, Director.I.head.transform.position) < 0.4f)
+            {
+                Fx.Dust(transform.position, 0.03f, 8);
+                Destroy(gameObject);
+            }
         }
 
         void Split()

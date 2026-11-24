@@ -16,6 +16,7 @@ namespace PaperSiege
         public LevelDef level;
         public Phase phase = Phase.Idle;
         public float timeLeft;
+        public bool timerPaused;
         public readonly AmmoStore ammo = new();
         public EnemyCatapult catapult;
         public PlayerSling sling;
@@ -55,7 +56,13 @@ namespace PaperSiege
             if (!catapult) catapult = EnemyCatapult.Build(arena.catapultSpot, T.enemyUnit);
             catapult.transform.SetPositionAndRotation(arena.catapultSpot.position, arena.catapultSpot.rotation);
             catapult.flightScale = () => ammo.Total == 0 ? T.mercySlow : 1f;
-            catapult.Begin(level, arena.mine, ammo);
+            timerPaused = false;
+            var oldTut = GetComponent<Tutorial>();
+            if (oldTut) Destroy(oldTut);
+            var oldTips = GetComponent<LevelTips>();
+            if (oldTips) Destroy(oldTips);
+            if (level.tutorial) { catapult.Aim(level, arena.mine); gameObject.AddComponent<Tutorial>(); }   // 教学关：投石机由教学控制
+            else { catapult.Begin(level, arena.mine, ammo); gameObject.AddComponent<LevelTips>(); }   // 其余关：新弹演示、着火 / 没弹提示
             arena.mine.KingDown += _ => End(false);
             arena.enemy.KingDown += _ => End(true);
             if (!sling) sling = gameObject.AddComponent<PlayerSling>();
@@ -73,7 +80,7 @@ namespace PaperSiege
         void Update()
         {
             if (phase != Phase.Battle) return;
-            timeLeft -= Time.deltaTime;
+            if (!timerPaused) timeLeft -= Time.deltaTime;
             if (timeLeft <= 0f) End(arena.enemy.Integrity < arena.mine.Integrity);
         }
 

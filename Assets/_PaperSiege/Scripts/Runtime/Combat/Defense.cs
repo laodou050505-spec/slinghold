@@ -43,7 +43,8 @@ namespace PaperSiege
                 {
                     if (!HandFree(s)) continue;
                     var h = input.hands[s];
-                    if (Vector3.Distance(p.transform.position, h.palm) < IT.catchRadius)
+                    float rad = d.ammo.Total == 0 ? Mathf.Max(IT.catchRadius, GameTuning.I.mercyCatchRadius) : IT.catchRadius;   // 没弹时更容易吸住
+                    if (Vector3.Distance(p.transform.position, h.palm) < rad)
                     {
                         p.Hold();
                         held[s] = new Held { p = p, side = s, from = p.transform.position };

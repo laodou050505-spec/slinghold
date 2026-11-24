@@ -98,6 +98,9 @@ namespace PaperSiege
             return g.transform;
         }
 
+        /// <summary>只设目标、不自动开火（教学关开头）</summary>
+        public void Aim(LevelDef lv, Castle tgt) { level = lv; target = tgt; active = false; windT = -1f; }
+
         public void Begin(LevelDef lv, Castle tgt, AmmoStore ammo)
         {
             level = lv; target = tgt; playerAmmo = ammo; active = true; shotIndex = 0;
@@ -109,7 +112,8 @@ namespace PaperSiege
 
         void Update()
         {
-            if (!active || !target) return;
+            if (!target) return;
+            if (!active && windT < 0f) return;   // 停火时只处理教学指定的那一发
             if (windT < 0f)
             {
                 timer -= Time.deltaTime;
@@ -127,12 +131,31 @@ namespace PaperSiege
             if (k >= 1f) Fire();
         }
 
+        /// <summary>教学用：指定打哪、飞多久、什么弹（照样先蓄力 + 预告弧线）</summary>
+        public void FireAt(Vector3 aim, float flight, Ammo a)
+        {
+            if (windT >= 0f) return;
+            windT = 0f;
+            nextAmmo = a;
+            aimVel = Ballistics.VelocityFor(cup.position, aim, Mathf.Min(flight, MaxFlight(cup.position, aim)));
+            Sfx.Windup(transform.position);
+        }
+
+        /// <summary>弧顶不超过 enemyApexMax 时最长能飞多久（飞得越久弧越高）</summary>
+        float MaxFlight(Vector3 a, Vector3 b)
+        {
+            float g = -Ballistics.G.y;
+            float h = Mathf.Max(0.2f, T.enemyApexMax - Mathf.Max(a.y, b.y));
+            // 两端高度差不大时近似：弧顶比端点高 g·t²/8
+            return Mathf.Sqrt(8f * h / g);
+        }
+
         void StartWindup()
         {
             windT = 0f;
             nextAmmo = level.enemyAmmo[shotIndex % level.enemyAmmo.Length];
             var aim = PickTarget();
-            float flight = Random.Range(T.enemyFlight.x, T.enemyFlight.y) * (flightScale != null ? flightScale() : 1f);
+            float flight = Mathf.Min(Random.Range(T.enemyFlight.x, T.enemyFlight.y), MaxFlight(cup.position, aim));
             aimVel = Ballistics.VelocityFor(cup.position, aim, flight);
             Sfx.Windup(transform.position);
         }
@@ -163,7 +186,7 @@ namespace PaperSiege
             arm.localRotation = Quaternion.Euler(armThrow, 0, 0);
             Projectile.Spawn(nextAmmo, Side.Enemy, cup.position, aimVel);
             Sfx.Launch(cup.position, 1f);
-            timer = Random.Range(level.fireEvery.x, level.fireEvery.y);
+            if (level != null) timer = Random.Range(level.fireEvery.x, level.fireEvery.y) * (flightScale != null ? flightScale() : 1f);   // 玩家没弹时间隔拉长
         }
     }
 
