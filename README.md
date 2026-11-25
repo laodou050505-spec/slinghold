@@ -35,6 +35,15 @@ PaperSiege/
 
 新克隆后如果打包报错，先把 `Library/Bee` 删掉（里面会留旧的绝对路径）。
 
+**换电脑 / 新克隆的完整步骤**（11-25 实测：干净克隆 + 原版 SDK，无界面打开 0 编译错误，资源引用和原工程完全一致）：
+1. 装 Unity **6000.5.5f1**（Hub 里勾 Android Build Support，含 OpenJDK / SDK / NDK）。
+2. `git clone https://github.com/laodou050505-spec/slinghold.git`，把 PICO SDK 6.0.0 的 `XR` 文件夹复制到 `slinghold/PICO-SDK/XR`（**原版不用改**，本工程没改过 SDK）。
+3. 用上面第 3 节的命令打开（一定带 `-buildTarget Android`）。第一次打开要导入资源，约 7 分钟。
+4. 第一次打包要从头编译着色器变体，很慢（这台 Mac 约 2.5 小时）；之后改了再打不到 1 分钟。
+5. 导入时控制台里的 `UAC1001` 序列化提示和 `PxrPlatform` 找不到（Mac 上没有安卓库）都是正常的，不影响。
+
+> 这个仓库是 **Unity 源码**，换电脑后能直接打开、改、打包。以后如果再建 `slinghold-android`（投 PICO Vibe Lab 用的导出工程），那个只是安卓 Gradle 工程，**Unity 打不开**，不能拿它代替源码仓库。
+
 ## 3. 打开、试玩、打包
 
 ```bash
