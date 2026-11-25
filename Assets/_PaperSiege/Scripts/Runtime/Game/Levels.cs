@@ -21,6 +21,7 @@ namespace PaperSiege
         public int timeOfDay;                   // 0 清晨 1 上午 2 午后 3 黄昏 4 入夜 5 烟火夜
         public float aimError = 1.0f;           // 敌人瞄准误差（格）
         public int kingHP = 1;                  // 敌方帅旗耐久：直接打中 -1、炸丸 -2、冻住时挨打多 -1
+        public float kingFocus = 0.1f;          // 敌人专打我方帅旗下方那一列的概率（前期主要拆墙，后期才盯帅旗）
     }
 
     public static class Levels
@@ -255,6 +256,8 @@ namespace PaperSiege
                     d.fireEvery = new Vector2(3.8f, 5f); d.aimError = 0.7f;
                     break;
             }
+            // 敌人盯帅旗的程度：第 3 关 12% → 第 10 关 35%（11-25 难度模拟：原来一律 40%，新手 70% 的败局是帅旗下面的楼被打晃、帅旗连带歪倒，帅旗本身一次没挨打）
+            d.kingFocus = i < 2 ? 0.1f : Mathf.Lerp(0.12f, 0.35f, (i - 2) / 7f);
             return d;
         }
     }

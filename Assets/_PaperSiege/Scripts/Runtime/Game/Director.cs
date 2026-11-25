@@ -82,6 +82,7 @@ namespace PaperSiege
             ammo.Reset(level.start);
             stats = new Stats();
             CastleMarks.Credit(arena.mine);
+            sky.OnLevel(level);   // 掀盒盖 + 切这一关的时段（重开同一关也重新掀）
             if (!catapult) catapult = EnemyCatapult.Build(arena.catapultSpot, T.enemyUnit);
             catapult.transform.SetPositionAndRotation(arena.catapultSpot.position, arena.catapultSpot.rotation);
             catapult.flightScale = () => ammo.Total == 0 ? T.mercySlow : 1f;

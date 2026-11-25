@@ -21,7 +21,7 @@ MonoBehaviour:
   playerBallRadius: 0.014
   enemyBallRadius: 0.02
   playerBallMass: 0.3
-  enemyPower: 3
+  enemyPower: 0.8
   hitImpulse: 1.5
   wakeRadius: 1.4
   freezeSeconds: 8

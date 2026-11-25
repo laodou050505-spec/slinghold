@@ -136,8 +136,9 @@ namespace PaperSiege.EditorTools
                 Vector3 meet = path[path.Count - 1];
                 foreach (var q in path) if (Vector3.Distance(q, mine) < 0.3f) { meet = q; break; }
                 SimHands.Pose(1, meet, false, false, (D.head.transform.position - meet).normalized * -1f);
-                float t = 0;
-                while (p && p.state == Projectile.State.Flying && t < 4f) { t += Time.deltaTime; yield return null; }
+                float t = 0, minD = 9f;
+                while (p && p.state == Projectile.State.Flying && t < 4f) { t += Time.deltaTime; minD = Mathf.Min(minD, Vector3.Distance(p.transform.position, HandInput.Instance.hands[1].palm)); yield return null; }
+                Log($"  诊断：弹离手最近 {minD * 100:0.0}cm、弹状态 {(p ? p.state.ToString() : "已销毁")}、phase={D.phase}、手 tracked={HandInput.Instance.hands[1].tracked} pinch={HandInput.Instance.hands[1].pinch}、迎弹点离城 {Vector3.Distance(meet, mine) * 100:0}cm");
                 if (wantCatch) { yield return new WaitForSeconds(0.2f); SimHands.Pose(1, meet, false, true); SnapPlayer(dir, "2_握拳接住"); }
                 yield return new WaitForSeconds(1.0f);
                 SimHands.Hide(1);
@@ -355,6 +356,8 @@ namespace PaperSiege.EditorTools
             }
             yield return new WaitForSeconds(0.8f);
             SnapPlayer(dir, "4_松手"); L("拉开后");
+            yield return new WaitForSeconds(2.5f);
+            L("松手 2.5 秒后 " + State() + $" 敌旗倒因={D.arena.enemy.kingDownReason} 挨打{D.arena.enemy.kingHits}次 耐久{D.arena.enemy.kingHP}");
             var hold = GameObject.Find("Pouch").transform.position;
             SimHands.Pose(1, hold, false);
             yield return null; SimHands.Hide(1);
@@ -367,7 +370,7 @@ namespace PaperSiege.EditorTools
                 Projectile p = null;
                 wait = 0;
                 while (p == null && wait < 10f) { p = Projectile.Live.Find(x => x && x.from == Side.Enemy && x.state == Projectile.State.Flying); wait += Time.deltaTime; yield return null; }
-                float apex = 0f, ft = 0f; bool snapped = false;
+                float apex = 0f, ft = 0f, minC = 9f, minH = 9f; bool snapped = false; Vector3 lastP = default;
                 while (p && p.state == Projectile.State.Flying)
                 {
                     ft += Time.deltaTime;
@@ -381,10 +384,12 @@ namespace PaperSiege.EditorTools
                     apex = Mathf.Max(apex, p.transform.position.y);
                     // 手在城的正上方等着（像真人一样迎着弹道），弹飞近了再追过去
                     var c = D.arena.mine.transform.position + Vector3.up * 0.18f;
+                    minC = Mathf.Min(minC, Vector3.Distance(p.transform.position, c)); minH = Mathf.Min(minH, Vector3.Distance(p.transform.position, HandInput.Instance.hands[1].palm)); lastP = p.transform.position;
                     var hp = Vector3.Distance(p.transform.position, c) < 0.6f ? p.transform.position + (t.position - p.transform.position).normalized * 0.05f : c;
                     SimHands.Pose(1, hp, false, phase == 6, (t.position - hp).normalized * -1f);
                     yield return null;
                 }
+                L($"  诊断：弹离城上方点最近 {minC * 100:0}cm、离手最近 {minH * 100:0}cm、最后位置 {lastP:F2}、弹状态 {(p ? p.state.ToString() : "已销毁")}、phase={D.phase}、手 tracked={HandInput.Instance.hands[1].tracked} pinch={HandInput.Instance.hands[1].pinch}");
                 yield return new WaitForSeconds(0.8f);
                 SimHands.Hide(1);
                 L($"第{phase}步结果 挡{D.stats.blocked} 接{D.stats.caught} 敌弹最高 {apex:0.00}m（从被看到起）");
@@ -618,19 +623,22 @@ namespace PaperSiege.EditorTools
         static System.Collections.IEnumerator DiffRun(int n, float speed, int from, int to)
         {
             var bot = DifficultyBot.Attach(D);
-            var lines = new System.Collections.Generic.List<string> { "| 关 | 新手胜率 | 熟练胜率 | 熟练平均用时 |", "|---|---|---|---|" };
+            var lines = new System.Collections.Generic.List<string> { "| 关 | 新手胜率 | 新手输因（倒旗/超时） | 熟练胜率 | 熟练输因（倒旗/超时） | 熟练平均用时 | 我方剩余完整度（新手/熟练） |", "|---|---|---|---|---|---|---|" };
             Time.timeScale = speed;
             for (int lv = from; lv <= to; lv++)
             {
-                string a = "", b = "", tb = "";
+                string a = "", ar = "", am = "", b = "", br = "", bm = "", tb = "";
                 yield return bot.Run(lv, DifficultyBot.Novice, n, 100 + lv, r => { Debug.Log("[难度] " + r); });
-                a = $"{bot.wins}/{bot.games}";
+                a = $"{bot.wins}/{bot.games}"; ar = $"{bot.lostFlag}/{bot.lostTime}"; am = $"{System.Linq.Enumerable.Average(bot.mineLeft):0.00}";
                 yield return bot.Run(lv, DifficultyBot.Skilled, n, 200 + lv, r => { Debug.Log("[难度] " + r); });
-                b = $"{bot.wins}/{bot.games}"; tb = bot.times.Count > 0 ? $"{System.Linq.Enumerable.Average(bot.times):0}s" : "-";
-                lines.Add($"| {lv + 1} | {a} | {b} | {tb} |");
+                b = $"{bot.wins}/{bot.games}"; br = $"{bot.lostFlag}/{bot.lostTime}"; bm = $"{System.Linq.Enumerable.Average(bot.mineLeft):0.00}";
+                tb = bot.times.Count > 0 ? $"{System.Linq.Enumerable.Average(bot.times):0}s" : "-";
+                lines.Add($"| {lv + 1} | {a} | {ar} | {b} | {br} | {tb} | {am} / {bm} |");
             }
             Time.timeScale = 1f;
-            var path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), "Docs/难度模拟.md");
+            // 只跑了部分关卡时写到另一个文件，别把完整的 10 关表覆盖掉
+            bool full = from == 0 && to == Levels.Count - 1;
+            var path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), full ? "Docs/难度模拟.md" : "Docs/难度模拟_部分关卡.md");
             System.IO.File.WriteAllText(path, "# 难度模拟（机器人 vs AI，真实物理）\n\n" + string.Join("\n", lines) + "\n");
             Debug.Log("[难度] 完成");
             D.GoTitle();
@@ -656,6 +664,77 @@ namespace PaperSiege.EditorTools
                 Debug.Log($"[敌弹] 第{i + 1}发（{D.level.enemyAmmo[i % D.level.enemyAmmo.Length]}）后：我方离位 {moved}/{mine.blocks.Count - 1} 块 完整 {mine.Integrity:0.00} 帅旗 {mine.kingHP}/{mine.kingMaxHP} 着火 {mine.Burning.Count}");
             }
             Debug.Log("[敌弹] 完成");
+        }
+
+        /// <summary>
+        /// 性能：在最大的那一关量帧时间、绘制批次、三角面、材质数。
+        /// 编辑器里的绝对数字不能当真机结果（编辑器有额外开销），但批次 / 面数 / 材质数这些和真机一致，用来看有没有失控。
+        /// </summary>
+        public static string Perf(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(PerfRun(dir)); return "perf started"; }
+
+        static System.Collections.IEnumerator PerfRun(string dir)
+        {
+            foreach (int lv in new[] { 9, 4 })
+            {
+                Level(lv); Quiet();
+                yield return new WaitForSeconds(3f);
+                // 帧时间：连续 120 帧取中位数（避开第一帧的编译 / 加载尖峰）
+                var frames = new System.Collections.Generic.List<float>();
+                for (int i = 0; i < 120; i++) { yield return null; frames.Add(Time.unscaledDeltaTime * 1000f); }
+                frames.Sort();
+                float mid = frames[frames.Count / 2], p95 = frames[(int)(frames.Count * 0.95f)];
+                // 统计场景里的渲染物
+                int renderers = 0, tris = 0;
+                var mats = new System.Collections.Generic.HashSet<Material>();
+                foreach (var r in Object.FindObjectsByType<MeshRenderer>())
+                {
+                    if (!r.enabled || !r.gameObject.activeInHierarchy) continue;
+                    renderers++;
+                    foreach (var m in r.sharedMaterials) if (m) mats.Add(m);
+                    var mf = r.GetComponent<MeshFilter>();
+                    if (mf && mf.sharedMesh) tris += mf.sharedMesh.triangles.Length / 3;
+                }
+                int blocks = D.arena.mine.blocks.Count + D.arena.enemy.blocks.Count;
+                Debug.Log($"[性能] 第{lv + 1}关：积木 {blocks} 块、渲染物 {renderers} 个、三角面 {tris / 1000f:0.0}k、材质 {mats.Count} 种、帧时间中位 {mid:0.0}ms / 95 分位 {p95:0.0}ms（编辑器，仅作相对参考）");
+                SnapPlayerLook(dir, $"L{lv + 1}_性能", D.arena.enemy.transform.position + Vector3.up * 0.2f);
+            }
+            // 一次大爆炸（炸丸 + 倒塌 + 粒子）时的帧时间
+            Level(9); Quiet();
+            yield return new WaitForSeconds(2f);
+            var e = D.arena.enemy;
+            var tgt = e.blocks.Find(b => b.name == "S_Wall" && b.InPlace) ?? e.blocks[0];
+            D.DebugShoot(Ammo.Bomb, D.arena.tableCenter + Vector3.up * 0.35f, tgt.WorldBounds.center, 6f);
+            float worst = 0;
+            for (int i = 0; i < 180; i++) { yield return null; worst = Mathf.Max(worst, Time.unscaledDeltaTime * 1000f); }
+            Debug.Log($"[性能] 第10关炸丸命中后 3 秒内最差帧 {worst:0.0}ms（编辑器）");
+            Debug.Log("[性能] 完成");
+        }
+
+        /// <summary>弹道核对：从投石机勺子朝我方城发一发，逐帧记录真实位置，和预测弹道比</summary>
+        public static string TrajCheck() { Level(1); Quiet(); SimHands.Hide(0); SimHands.Hide(1); D.StartCoroutine(TrajRun()); return "traj started"; }
+
+        static System.Collections.IEnumerator TrajRun()
+        {
+            yield return new WaitForSeconds(0.5f);
+            var from = D.catapult.CupPosition;
+            var aim = D.arena.mine.transform.position + Vector3.up * 0.1f;
+            var v = Ballistics.VelocityFor(from, aim, 1.35f);
+            var pred = new System.Collections.Generic.List<Vector3>();
+            var land = Ballistics.Predict(from, v, GameTuning.I.enemyBallRadius, pred, 4f);
+            var p = Projectile.Spawn(Ammo.Stone, Side.Enemy, from, v);
+            Debug.Log($"[弹道] 出手 {from:F3} 速度 {v:F2} 目标 {aim:F3} 预测落点 {land:F3} G={Ballistics.G:F2} 刚体重力={p.rb.useGravity} 阻尼={p.rb.linearDamping} 质量={p.rb.mass:0.000} timeScale={Time.timeScale}");
+            float t = 0; int k = 0;
+            while (p && p.state == Projectile.State.Flying && t < 3f)
+            {
+                yield return new WaitForFixedUpdate();
+                t += Time.fixedDeltaTime;
+                if (k++ % 10 == 0)
+                {
+                    var exact = from + v * t + 0.5f * Ballistics.G * t * t;
+                    Debug.Log($"[弹道] t={t:0.00} 实际 {p.rb.position:F3} 理论 {exact:F3} 差 {(p.rb.position - exact).magnitude * 100:0.0}cm 速度 {p.rb.linearVelocity:F2}");
+                }
+            }
+            Debug.Log($"[弹道] 结束 t={t:0.00} 状态 {(p ? p.state.ToString() : "已销毁")} 位置 {(p ? p.transform.position.ToString("F3") : "-")}");
         }
 
         public static string State()

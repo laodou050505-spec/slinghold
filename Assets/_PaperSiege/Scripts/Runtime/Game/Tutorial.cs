@@ -47,6 +47,7 @@ namespace PaperSiege
         IEnumerator Run()
         {
             d.arena.enemy.SetKingHP(99);   // 学完防守之前，敌方帅旗打不倒
+            d.arena.enemy.kingLocked = true;   // 被砸歪 / 掉下去也不算，过一会儿自己立回去
             d.timerPaused = true;
             yield return new WaitForSeconds(1.0f);
 
@@ -90,6 +91,7 @@ namespace PaperSiege
             step = 8; tag.Show("打倒对面\n的帅旗！");
             Ghost(null);
             d.arena.enemy.SetKingHP(1);
+            d.arena.enemy.kingLocked = false;
             if (d.ammo.Total < 3) d.ammo.Add(Ammo.Stone, 3 - d.ammo.Total);
             d.timerPaused = false;
             d.timeLeft = d.level.timeLimit;

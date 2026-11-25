@@ -38,6 +38,7 @@ Shader "PaperSiege/Block"
 
     HLSLINCLUDE
     #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
     TEXTURE2D(_Albedo); SAMPLER(sampler_Albedo);
     TEXTURE2D(_Mask);   SAMPLER(sampler_Mask);
@@ -73,10 +74,23 @@ Shader "PaperSiege/Block"
     }
 
     // 描边色：本色压暗、提一点饱和（外轮廓描边和棱线共用）
+    // - _OutlineDarken 是“人眼看到的亮度比例”；工程是线性色彩空间，直接乘 0.36 看上去只暗到六成多，线就和受光面混在一起了 → 换算成线性值再乘
+    // - 描边不受光，所以再乘一个场景亮度（主光 + 环境光），清晨 / 黄昏 / 夜里都和受光面保持同样的反差，夜里不会反而发亮
+    half LineLight()
+    {
+        const half3 Y = half3(0.299, 0.587, 0.114);
+        half sun = dot(_MainLightColor.rgb, Y);
+        half amb = dot(SampleSH(half3(0, 1, 0)), Y) * _Ambient;
+        return saturate(sun * 0.55h + amb * 0.6h);
+    }
     half3 LineColor(half3 c)
     {
         half l = dot(c, half3(0.299, 0.587, 0.114));
-        return max(0, lerp(l.xxx, c, _OutlineSat)) * _OutlineDarken;
+        half k = _OutlineDarken;
+        #if !defined(UNITY_COLORSPACE_GAMMA)
+        k = PositivePow(k, 2.2h);
+        #endif
+        return max(0, lerp(l.xxx, c, _OutlineSat)) * k * LineLight();
     }
     ENDHLSL
 
@@ -97,7 +111,6 @@ Shader "PaperSiege/Block"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fog
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             struct A { float4 pos : POSITION; float3 n : NORMAL; float4 t : TANGENT; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct V

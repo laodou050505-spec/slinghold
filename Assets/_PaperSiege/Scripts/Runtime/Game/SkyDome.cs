@@ -101,7 +101,6 @@ namespace PaperSiege
                 boardHome.Add(go.transform.position);
                 boardRot.Add(go.transform.rotation);
             }
-            open = 0; openTarget = 0;
             ApplyLid();
             // 天空遮罩：只在这片开口里画天空（头显上四周是真实房间）
             sky.SetVector("_LidCenter", new Vector4(center.x, ceilY, center.z, 0));
@@ -130,6 +129,7 @@ namespace PaperSiege
         public void OnLevel(LevelDef lv)
         {
             todFrom = todTo = tod = Mathf.Clamp(lv.timeOfDay, 0, Times.Length - 1); level = lv.index;
+            open = 0;
             sink = 0; swirl = 0;
             openTarget = 0; open = 0; ApplyLid();
             StopAllCoroutines();
@@ -205,7 +205,7 @@ namespace PaperSiege
         void Update()
         {
             if (!d || d.level == null) return;
-            if (d.phase == Director.Phase.Battle && d.level.index != level) OnLevel(d.level);
+            // 掀盖 / 时段由 Director.StartLevel 显式调 OnLevel（重开同一关也要重新掀一遍）
             float dt = Time.deltaTime;
             // 盒盖展开 / 合上（4 秒展开、3 秒合上）
             open = Mathf.MoveTowards(open, openTarget, dt / (openTarget > open ? 4f : 3f));

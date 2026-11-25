@@ -18,6 +18,19 @@ namespace PaperSiege
         Vector3 aimVel;
         Ammo nextAmmo;
         Transform frame, arm, cup;
+        public Vector3 CupPosition => ReleasePoint();
+        Vector3 releasePt;   // 这一发的出手点（蓄力开始时算好；速度、预告弧线、真正发射都用它）
+
+        /// <summary>出手点 = 投臂甩到“投出”姿势时勺子的位置。
+        /// 以前按蓄力时勺子的位置（贴近地面）算速度、却在投臂甩起来以后从高处发射 → 起点高了一大截，敌弹全部飞过城落到玩家身后。</summary>
+        Vector3 ReleasePoint()
+        {
+            var r = arm.localRotation;
+            arm.localRotation = Quaternion.Euler(armThrow, 0, 0);
+            var p = cup.position;
+            arm.localRotation = r;
+            return p;
+        }
         ArcDots telegraph;
         Material glowMat;
         float armRest = 0f, armBack = 10f, armThrow = -135f;   // 绕本地 X 转；投臂静止时朝 +Z（背对玩家），负角 = 往上、往玩家方向甩
@@ -128,7 +141,7 @@ namespace PaperSiege
             arm.localRotation = Quaternion.Euler(Mathf.Lerp(armRest, armBack, Mathf.SmoothStep(0, 1, k)), 0, 0);
             if (glowMat) glowMat.color = Color.Lerp(new Color(0.55f, 0.38f, 0.24f), new Color(1f, 0.6f, 0.25f), k);
             telegraph.alpha = k;
-            telegraph.Show(cup.position, aimVel, T.enemyBallRadius);
+            telegraph.Show(releasePt, aimVel, T.enemyBallRadius);
             if (k >= 1f) Fire();
         }
 
@@ -138,7 +151,8 @@ namespace PaperSiege
             if (windT >= 0f) return;
             windT = 0f;
             nextAmmo = a;
-            aimVel = Ballistics.VelocityFor(cup.position, aim, Mathf.Min(flight, MaxFlight(cup.position, aim)));
+            releasePt = ReleasePoint();
+            aimVel = Ballistics.VelocityFor(releasePt, aim, Mathf.Min(flight, MaxFlight(releasePt, aim)));
             Sfx.Windup(transform.position);
         }
 
@@ -156,13 +170,14 @@ namespace PaperSiege
             windT = 0f;
             nextAmmo = level.enemyAmmo[shotIndex % level.enemyAmmo.Length];
             var aim = PickTarget();
-            float flight = Mathf.Min(Random.Range(T.enemyFlight.x, T.enemyFlight.y), MaxFlight(cup.position, aim));
-            aimVel = Ballistics.VelocityFor(cup.position, aim, flight);
+            releasePt = ReleasePoint();
+            float flight = Mathf.Min(Random.Range(T.enemyFlight.x, T.enemyFlight.y), MaxFlight(releasePt, aim));
+            aimVel = Ballistics.VelocityFor(releasePt, aim, flight);
             if (Projectile.DebugImpacts)
             {
-                var land = Ballistics.Predict(cup.position, aimVel, T.enemyBallRadius, null, 4f);
+                var land = Ballistics.Predict(releasePt, aimVel, T.enemyBallRadius, null, 4f);
                 var cb = CastleBounds(target);
-                Debug.Log($"[瞄准] 目标 {aim.ToString("F3")} 预测落点 {land.ToString("F3")} 城盒 中心 {cb.center.ToString("F3")} 尺寸 {cb.size.ToString("F3")} 飞行 {flight:0.00}s 出手 {cup.position.ToString("F2")}");
+                Debug.Log($"[瞄准] 目标 {aim.ToString("F3")} 预测落点 {land.ToString("F3")} 城盒 中心 {cb.center.ToString("F3")} 尺寸 {cb.size.ToString("F3")} 飞行 {flight:0.00}s 出手 {releasePt.ToString("F2")}");
             }
             Sfx.Windup(transform.position);
         }
@@ -174,7 +189,7 @@ namespace PaperSiege
             Block pick;
             var kp = target.king ? target.king.transform.position : target.transform.position;
             var underKing = alive.Where(b => { var c = b.WorldBounds.center; return new Vector2(c.x - kp.x, c.z - kp.z).magnitude < 0.8f * target.unit && c.y < kp.y; }).ToList();
-            if (underKing.Count > 0 && Random.value < 0.4f) pick = underKing[Random.Range(0, underKing.Count)];
+            if (underKing.Count > 0 && Random.value < level.kingFocus) pick = underKing[Random.Range(0, underKing.Count)];
             else
             {
                 var top = alive.OrderByDescending(b => b.WorldBounds.max.y).Take(Mathf.Max(3, alive.Count / 2)).ToList();
@@ -203,8 +218,8 @@ namespace PaperSiege
             telegraph.Hide();
             if (glowMat) glowMat.color = new Color(0.55f, 0.38f, 0.24f);
             arm.localRotation = Quaternion.Euler(armThrow, 0, 0);
-            Projectile.Spawn(nextAmmo, Side.Enemy, cup.position, aimVel);
-            Sfx.Throw(cup.position);
+            Projectile.Spawn(nextAmmo, Side.Enemy, releasePt, aimVel);
+            Sfx.Throw(releasePt);
             if (level != null) timer = Random.Range(level.fireEvery.x, level.fireEvery.y) * (flightScale != null ? flightScale() : 1f);   // 玩家没弹时间隔拉长
         }
     }

@@ -37,6 +37,10 @@ namespace PaperSiege
         public CastleLayout layout;
         public event Action<Castle> KingDown;
         public int kingHP = 1, kingMaxHP = 1;
+        public string kingDownReason = "";   // 帅旗怎么倒的（难度统计 / 调试用）
+        public int kingHits;                 // 帅旗挨了几次直接命中
+        public bool kingLocked;              // 教学：帅旗倒了不算输赢，躺一会儿再自己立回去（只锁 HP 的话被砸歪照样判赢，后面的挡 / 接 / 修就全跳过了）
+        bool kingRestoring;
         public event Action<Castle> KingHit;
         public bool IsKingDown { get; private set; }
         public float totalVolume;
@@ -168,7 +172,7 @@ namespace PaperSiege
         {
             burning.Remove(b);
             Fx.DetachFire(b);
-            if (b.isKing) DeclareKingDown();
+            if (b.isKing) DeclareKingDown("烧成灰");
         }
 
         public IReadOnlyCollection<Block> Burning => burning;
@@ -183,7 +187,12 @@ namespace PaperSiege
                 // 倒地：倾斜超过 60°，或者落到了地面（底下的楼塌了但旗还立着、还在楼上，不算）
                 float tilt = Vector3.Angle(king.transform.up, Vector3.up);
                 float above = (king.transform.position.y - transform.position.y) / unit;
-                if (tilt > 60f || (above < 0.6f && king.homePos.y - transform.position.y > 0.6f * unit)) DeclareKingDown();
+                string why = tilt > 60f ? "被碰歪" : (above < 0.6f && king.homePos.y - transform.position.y > 0.6f * unit) ? "楼塌掉到地上" : null;
+                if (why != null)
+                {
+                    if (kingLocked) { if (!kingRestoring) StartCoroutine(RestoreKing()); }
+                    else DeclareKingDown(why);
+                }
             }
             if (burning.Count == 0) return;
             fireTick += Time.deltaTime;
@@ -220,6 +229,7 @@ namespace PaperSiege
         {
             if (IsKingDown || !king || king.Dead) return;
             if (king.Frozen) dmg += 1;
+            kingHits++;
             kingHP = Mathf.Max(0, kingHP - dmg);
             king.Hit(1f);
             Fx.Sparkle(king.WorldBounds.center + Vector3.up * 0.8f * unit, new Color(1f, 0.85f, 0.5f), unit * 0.5f);
@@ -240,13 +250,36 @@ namespace PaperSiege
             var away = Vector3.ProjectOnPlane(king.transform.position - from, Vector3.up).normalized;
             if (away.sqrMagnitude < 0.01f) away = transform.forward;
             king.rb.AddForceAtPosition(away * king.rb.mass * 1.2f, king.WorldBounds.center + Vector3.up * king.WorldBounds.extents.y, ForceMode.Impulse);
-            DeclareKingDown();
+            DeclareKingDown("耐久打光");
         }
 
-        void DeclareKingDown()
+        /// <summary>教学里帅旗被砸倒：先躺 1.2 秒（让玩家看清“打倒了”），再用 0.8 秒慢慢立回原位</summary>
+        System.Collections.IEnumerator RestoreKing()
         {
-            if (IsKingDown) return;
+            kingRestoring = true;
+            yield return new WaitForSeconds(1.2f);
+            if (king && !king.Dead)
+            {
+                king.Freeze();
+                Vector3 p0 = king.transform.position; Quaternion r0 = king.transform.rotation;
+                for (float t = 0; t < 1f; t += Time.deltaTime / 0.8f)
+                {
+                    float k = Mathf.SmoothStep(0, 1, t);
+                    king.rb.MovePosition(Vector3.Lerp(p0, king.homePos, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.6f * unit);   // 稍微抬起来再放下，不贴着地面拖
+                    king.rb.MoveRotation(Quaternion.Slerp(r0, king.homeRot, k));
+                    yield return null;
+                }
+                king.transform.SetPositionAndRotation(king.homePos, king.homeRot);
+                Fx.Dust(king.homePos, 0.6f * unit, 4);
+            }
+            kingRestoring = false;
+        }
+
+        void DeclareKingDown(string why)
+        {
+            if (IsKingDown || kingLocked) return;
             IsKingDown = true;
+            kingDownReason = why;
             KingDown?.Invoke(this);
         }
 

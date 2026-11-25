@@ -118,7 +118,8 @@ namespace PaperSiege
             if (enemy) enemy.Cleanup();
             var rot = Quaternion.LookRotation(forward, Vector3.up);
             // 玩家城：正面（城门）朝向玩家
-            mine = Castle.Build(Levels.PlayerCastle(), Side.Player, tableCenter + forward * 0.02f, rot, T.playerUnit, false, transform);
+            // 自己的城用低模：一块才 5 cm，在画面里很小，LOD0 的细节看不出来（省掉约 1/3 的三角面）
+            mine = Castle.Build(Levels.PlayerCastle(), Side.Player, tableCenter + forward * 0.02f, rot, T.playerUnit, true, transform);
             // 敌城：在对面地上，正面朝玩家
             var ep = new Vector3(tableCenter.x, 0, tableCenter.z) + forward * T.enemyDistance;
             enemy = Castle.Build(level.enemy, Side.Enemy, ep, rot, T.enemyUnit, true, transform);

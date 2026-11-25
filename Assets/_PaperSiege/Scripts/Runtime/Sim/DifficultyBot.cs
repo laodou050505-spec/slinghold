@@ -27,7 +27,9 @@ namespace PaperSiege
         Director d;
         public Skill skill;
         public bool running;
-        public int wins, games;
+        public int wins, games, lostFlag, lostTime;   // 输因：自己帅旗被打倒 / 时间到没打下对方帅旗
+        public readonly List<float> mineLeft = new();
+        public readonly Dictionary<string, int> lossWhy = new();   // 丢旗原因 → 局数   // 每局结束时我方城完整度
         public readonly List<float> times = new();
         System.Random rng;
 
@@ -36,7 +38,7 @@ namespace PaperSiege
         public IEnumerator Run(int level, Skill s, int n, int seed, System.Action<string> report)
         {
             d = Director.I; skill = s; rng = new System.Random(seed);
-            wins = 0; games = 0; times.Clear();
+            wins = 0; games = 0; lostFlag = 0; lostTime = 0; times.Clear(); mineLeft.Clear(); lossWhy.Clear();
             running = true;
             for (int g = 0; g < n; g++)
             {
@@ -45,15 +47,23 @@ namespace PaperSiege
                 yield return null;
                 // 教学关：跳过教学（直接进自由开打）
                 var tut = d.GetComponent<Tutorial>();
-                if (tut) { Destroy(tut); d.arena.enemy.SetKingHP(d.level.kingHP); d.timerPaused = false; d.catapult.Begin(d.level, d.arena.mine, d.ammo); }
+                if (tut) { Destroy(tut); d.arena.enemy.SetKingHP(d.level.kingHP); d.arena.enemy.kingLocked = false; d.timerPaused = false; d.catapult.Begin(d.level, d.arena.mine, d.ammo); }
                 var tips = d.GetComponent<LevelTips>(); if (tips) Destroy(tips);
                 float t0 = Time.time;
                 yield return Play();
                 games++;
                 if (d.phase == Director.Phase.Won) { wins++; times.Add(Time.time - t0); }
+                else if (d.arena.mine.IsKingDown)
+                {
+                    lostFlag++;
+                    var why = d.arena.mine.kingDownReason + $"（挨打{d.arena.mine.kingHits}次）";
+                    lossWhy[why] = lossWhy.TryGetValue(why, out var c) ? c + 1 : 1;
+                }
+                else lostTime++;
+                mineLeft.Add(d.arena.mine.Integrity);
             }
             running = false;
-            report?.Invoke($"第{level + 1}关 {s.name}：{wins}/{games} 胜（{100f * wins / Mathf.Max(1, games):0}%）平均用时 {(times.Count > 0 ? times.Average() : 0):0}s");
+            report?.Invoke($"第{level + 1}关 {s.name}：{wins}/{games} 胜（{100f * wins / Mathf.Max(1, games):0}%）平均用时 {(times.Count > 0 ? times.Average() : 0):0}s；输：帅旗被打倒 {lostFlag}、时间到 {lostTime}；我方剩余完整度均值 {(mineLeft.Count > 0 ? mineLeft.Average() : 1):0.00}；丢旗：{string.Join("、", lossWhy.Select(kv => kv.Key + "×" + kv.Value))}");
         }
 
         IEnumerator Play()
@@ -131,7 +141,10 @@ namespace PaperSiege
                     target = pick ? pick.WorldBounds.center : flagPt;
                     if (pick && pick.def.mat == Mat.Stone && d.ammo.Count(Ammo.Bomb) > 0) a = Ammo.Bomb;
                     else if (pick && pick.Wood && d.ammo.Count(Ammo.Fire) > 0) a = Ammo.Fire;
-                    highArc = false;
+                    // 挡路的那块自己也在别的墙后面（外墙 / 盾墙）→ 高抛越过去打它，否则会一直在拆最外面那道墙
+                    highArc = pick && Physics.SphereCast(from0, 0.006f, (pick.WorldBounds.center - from0).normalized,
+                                                         out var ph, Vector3.Distance(from0, pick.WorldBounds.center) - 0.04f, Layers.BlockMask)
+                              && ph.collider.GetComponent<Block>() != pick;
                 }
                 if (a == Ammo.Stone && d.ammo.Count(Ammo.Stone) == 0) a = d.ammo.AutoSelect();
             }

@@ -42,6 +42,7 @@ Material:
     - _BrushStrength: 0.55
     - _Char: 0
     - _Ember: 0
+    - _EmissionStrength: 0
     - _Flash: 0
     - _Frost: 0
     - _LineStrength: 0.85

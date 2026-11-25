@@ -18,7 +18,9 @@ namespace PaperSiege
             if (!b) return;
             if (!mat)
             {
-                mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                // 受光（Lit）：图标是印在砖上的，夜里跟着砖一起暗，不能像一张自己发光的贴纸
+                mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                mat.SetFloat("_Smoothness", 0.1f); mat.SetFloat("_Blend", 0);
                 mat.SetFloat("_Surface", 1); mat.SetOverrideTag("RenderType", "Transparent");
                 mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha); mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
                 mat.SetInt("_ZWrite", 0); mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); mat.renderQueue = 3000;
