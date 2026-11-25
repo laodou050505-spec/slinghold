@@ -17,7 +17,7 @@ namespace PaperSiege
         readonly List<WoodButton> levelBtns = new();
         readonly List<WoodButton> buttons = new();
         TextMeshPro subtitle, credit;
-        WoodButton startBtn, musicBtn, sfxBtn;
+        WoodButton startBtn, musicBtn, sfxBtn, handBtn;
         LineRenderer cordL, cordR;
         bool english;
 
@@ -234,6 +234,12 @@ namespace PaperSiege
             sfxBtn.transform.localPosition = new Vector3(0.405f, 0.015f, 0f);
             sfxBtn.onPress = () => { Progress.Sfx = !Progress.Sfx; Refresh(); };
             buttons.Add(musicBtn); buttons.Add(sfxBtn);
+            // 单手模式（兜底）：第二排，靠近玩家
+            handBtn = WoodButton.Build("W_Cube", Paint.Ochre, new Vector3(0.11f, 0.022f, 0.035f), "双手弓", desk, 0.3f);
+            handBtn.transform.localPosition = new Vector3(0.375f, 0.011f, -0.085f);
+            handBtn.SetInk(new Color(0.24f, 0.16f, 0.10f));   // 赭黄底上用深褐字，看得清
+            handBtn.onPress = () => { Progress.OneHand = !Progress.OneHand; Refresh(); };
+            buttons.Add(handBtn);
             Refresh();
         }
 
@@ -280,6 +286,7 @@ namespace PaperSiege
             startBtn.SetText(Progress.Unlocked == 0 ? "开始" : "继续");
             musicBtn.SetText(Progress.Music ? "音乐" : "音乐 ×");
             sfxBtn.SetText(Progress.Sfx ? "音效" : "音效 ×");
+            if (handBtn) handBtn.SetText(Progress.OneHand ? "单手弓" : "双手弓");
         }
 
         void ApplyLanguage(bool instant)

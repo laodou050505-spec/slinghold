@@ -45,6 +45,10 @@ open -na /Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app --args \
 - **直接点播放** = 桌面试玩（鼠标键盘模拟双手，从标题页开始）。
 - 菜单 **PaperSiege → 演示：拉弓发射** = 自动演示（左手举弓、右手续力拉开、松手发射）。
 - 菜单 **PaperSiege → Setup Project** = 一键重建工程设置（物理层、调参资源、积木库、主场景）。换机器或改坏了就跑这个。
+- 菜单 **PaperSiege → 打包 APK** = 一键打包（`Editor/PSBuild.cs`）：写 PICO 设置（透视 + 手势 + 眼动）、生成运行时着色器保底材质、填图标和两处启动画面（普通标志列表 + VR Splash Image）、IL2CPP / ARM64 出包到 `Builds/Slinghold_月日_时分.apk`。
+  命令行：`cs.py 'PSBuild.BuildApkLater();'`，结果追加到 `/tmp/papersiege_build.txt`。
+- 应用图标是游戏里自己的城实拍：运行模式下 `cs.py 'PSBuild.MakeIcon();'` 重新生成 `Art/Icon/icon_1024.png`。
+- 英文系统里应用名显示 SLINGHOLD（`Assets/Plugins/Android/AppName.androidlib/res/values-en`），其它语言显示“木垒”。
 
 命令行工具（可选，开发用）：
 
@@ -69,6 +73,9 @@ open -na /Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app --args \
 | 桌上的地球仪（捏）/ 标题页 | 切换语言 |
 | 桌上木牌“音乐”“音效” | 开关 |
 | 桌上 10 块积木 | 选关（未解锁的是裸木） |
+| 桌上积木“双手弓 / 单手弓” | 单手模式：自己城左前方立一根木柱，弓架插在柱顶，只用右手拉；左手专门挡 / 接 |
+
+两只手都跟丢超过 2.5 秒（对战中），视野右前方会挂出木牌“把手抬到眼前”；摘下头显 / 打开系统菜单时对局冻结，回来后 1 秒内从慢到快恢复。
 
 眼动只做辅助：拉弓时看着敌城的块，弹道轻轻吸过去（≤ 4°）；菜单里只高亮眼睛看的按钮。**没有眼动也能玩完。**
 
@@ -78,7 +85,7 @@ open -na /Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app --args \
 |---|---|
 | `Assets/_PaperSiege/Resources/InputTuning.asset` | 捏合阈值、握拳 / 张掌判定、跟丢时间、拉弓距离、吸住半径与悬停时长、拍打速度、眼动吸附角度 |
 | `Assets/_PaperSiege/Resources/GameTuning.asset` | 两座城的大小与距离、弹的重力 / 半径 / 质量、撞击冲量与苏醒半径、冰冻 / 炸丸 / 分裂参数、弹弓初速与装弹时间、敌人开火间隔 / 蓄力 / 弧顶上限、老实（没弹时）照顾、补给节奏 |
-| `Assets/_PaperSiege/Scripts/Runtime/Game/Levels.cs` | 10 关的城布局、开局弹药、敌人打什么弹、帅旗耐久、开火间隔、瞄准误差、时段 |
+| `Assets/_PaperSiege/Scripts/Runtime/Game/Levels.cs` | 10 关的城布局、开局弹药、敌人打什么弹、帅旗耐久、开火间隔、瞄准误差、敌人盯帅旗的概率（`kingFocus`）、时段 |
 
 每次改完 `GameTuning` / `InputTuning` 里的**新字段**，记得在 Inspector 里确认（旧资源文件里新增字段会用代码默认值）。
 
@@ -100,6 +107,7 @@ open -na /Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app --args \
 | `PSTests.Difficulty(n, speed, from, to)` | 难度模拟（机器人 vs AI，真实物理加速跑），含输因（倒旗原因 / 超时）；跑全 10 关写 `Docs/难度模拟.md`，只跑部分关卡写 `Docs/难度模拟_部分关卡.md` |
 | `PSTests.EnemyPower(level, n, stone)` | 投石机朝我方城打 n 发、一发不挡，每发后统计离位块数 / 完整度 / 帅旗耐久 |
 | `PSTests.TrajCheck()` | 投石机出手点发一发，逐帧对比真实位置和理论弹道 |
+| `PSTests.Extras(dir)` | 开局搭城逐帧、模拟小房间（敌城距离缩近）、单手模式打一发 + 左手接、跟丢提示、失焦暂停 |
 | `PSTests.Perf(dir)` | 最大关的渲染物 / 三角面 / 材质数 + 炸丸时最差帧（编辑器数值仅作相对参考） |
 | `ShaderKeep.Build()` / `ShaderKeep.Check()` | 生成打包保底材质（`Resources/ShaderKeep/`）/ 检查运行时 `Shader.Find` 是否都有保底。**新增运行时材质写法后要跑一遍** |
 | `PSTests.ExportAudio()` | 把合成的音效 / 音乐导出成 wav 到 `Docs/音频试听/` |
@@ -148,6 +156,12 @@ open -na /Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app --args \
 - [ ] 第三关起帅旗在围起来的小堡里，平射打不到
 - [ ] 十关难度递增（城的块数 6 → 96），敌方帅旗耐久 1 → 5；敌人前期主要拆墙，后期才盯着帅旗打
 - [ ] 敌弹落在自己城上（不会飞过城落到身后）；预告弧线和实际弹道重合
+- [ ] 开局两座城从下往上一块块落下来搭好（敌城约 2 秒）
+- [ ] 房间小（安全区放不下 3.2 m）时敌城往近摆（最近 1.8 m），整座城和投石机都在安全区里；日志里有 `[木垒] 安全区：敌城距离 …`
+- [ ] 标题页切到“单手弓”：开局弓架就插在木柱上，只用右手能拉能射；左手能挡能接
+- [ ] 两手都放下 3 秒，出现“把手抬到眼前”木牌；抬手后木牌收走
+- [ ] 对战中摘下头显再戴上：对局停住、声音停，回来后慢慢恢复
+- [ ] 英文系统的桌面上应用名是 SLINGHOLD，中文系统是“木垒”；图标是一座积木城
 - [ ] 第 1 关教学：第一发就把对面帅旗砸倒也不会直接判赢，旗躺一下会自己立回去，教学继续到“挡 / 接 / 修”
 
 **界面 / 双语**

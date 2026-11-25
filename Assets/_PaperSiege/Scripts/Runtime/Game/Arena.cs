@@ -48,7 +48,64 @@ namespace PaperSiege
             // 天花板：系统扫描里读到就用它（盒盖 / 字标 / 天空开口都以它为准），否则默认 2.5 m
             float ceil = room ? room.CeilingAbove(hp) : 0f;
             ceilingHeight = ceil > hp.y + 0.6f ? ceil : 2.5f;
+            enemyDistance = FitEnemyDistance();
             BuildEnv();
+        }
+
+        /// <summary>敌城离桌子多远（米）：默认 GameTuning.enemyDistance；房间小、安全区放不下时往近缩（最近 enemyDistanceMin）</summary>
+        public float enemyDistance = 3.2f;
+        /// <summary>测试用：模拟一个安全区多边形（世界坐标 xz）；null = 读系统安全区</summary>
+        public static Vector2[] testBoundary;
+
+        /// <summary>
+        /// 敌城（含右边的投石机）要整块落在系统安全区里：从默认距离往近试，取第一个放得下的距离。
+        /// 读不到安全区（编辑器、没设边界）就用默认距离。城不缩小——缩小会改积木质量，连带改难度。
+        /// </summary>
+        float FitEnemyDistance()
+        {
+            float far = T.enemyDistance, near = Mathf.Min(T.enemyDistanceMin, far);
+            var poly = testBoundary ?? ReadBoundary();
+            if (poly == null || poly.Length < 3) return far;
+            var c = new Vector2(tableCenter.x, tableCenter.z);
+            var f = new Vector2(forward.x, forward.z).normalized;
+            var r = new Vector2(f.y, -f.x);   // 右 = Cross(up, forward)
+            float u = T.enemyUnit;
+            // 敌城占地：左右各约 6 格、前后各约 4 格；投石机在右边 7.2 格、往玩家方向 2 格
+            Vector2[] probe = { Vector2.zero, r * 6f * u, -r * 6f * u, f * 4f * u, -f * 4f * u + r * 6f * u, -f * 4f * u - r * 6f * u, r * 8.4f * u - f * 2f * u };
+            for (float d = far; d >= near - 1e-3f; d -= 0.05f)
+            {
+                bool ok = true;
+                foreach (var p in probe) if (!Inside(poly, c + f * d + p)) { ok = false; break; }
+                if (ok) { Debug.Log($"[木垒] 安全区：敌城距离 {d:0.00} m"); return d; }
+            }
+            Debug.Log($"[木垒] 安全区太小，敌城按最近距离 {near:0.00} m 摆放");
+            return near;
+        }
+
+        static bool Inside(Vector2[] poly, Vector2 p)
+        {
+            bool inside = false;
+            for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
+                if ((poly[i].y > p.y) != (poly[j].y > p.y) && p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x) inside = !inside;
+            return inside;
+        }
+
+        /// <summary>系统安全区：优先矩形游玩区（PlayArea），没有就用外轮廓；坐标从追踪空间换到世界</summary>
+        Vector2[] ReadBoundary()
+        {
+            if (!UnityEngine.XR.XRSettings.isDeviceActive) return null;
+            try
+            {
+                var dim = ByteDance.PICO.XR.PXR_Boundary.GetDimensions(ByteDance.PICO.XR.BoundaryType.PlayArea);
+                var pts = dim.x > .1f && dim.z > .1f ? ByteDance.PICO.XR.PXR_Boundary.GetGeometry(ByteDance.PICO.XR.BoundaryType.PlayArea) : null;
+                if (pts == null || pts.Length < 3) pts = ByteDance.PICO.XR.PXR_Boundary.GetGeometry(ByteDance.PICO.XR.BoundaryType.OuterBoundary);
+                if (pts == null || pts.Length < 3) return null;
+                var space = RoomTable.I ? RoomTable.I.space : null;
+                var poly = new Vector2[pts.Length];
+                for (int i = 0; i < pts.Length; i++) { var w = space ? space.TransformPoint(pts[i]) : pts[i]; poly[i] = new Vector2(w.x, w.z); }
+                return poly;
+            }
+            catch (System.Exception e) { Debug.LogWarning("[木垒] 读不到安全区：" + e.Message); return null; }
         }
 
         /// <summary>这一局用的是不是系统扫描出来的真桌子</summary>
@@ -73,7 +130,7 @@ namespace PaperSiege
             // 编辑器占位房间
             if (HandInput.Sim) EditorRoom(rot);
             // 盒盖：盖在玩家和敌城之间那片天花板上（宽 2.4 m、长 = 敌城距离 + 1.2 m）
-            if (sky) sky.BuildLid(new Vector3(tableCenter.x, 0, tableCenter.z) + forward * (T.enemyDistance * 0.5f + 0.2f), forward, ceilingHeight, 2.4f, T.enemyDistance + 1.2f);
+            if (sky) sky.BuildLid(new Vector3(tableCenter.x, 0, tableCenter.z) + forward * (enemyDistance * 0.5f + 0.2f), forward, ceilingHeight, 2.4f, enemyDistance + 1.2f);
             catapultSpot = new GameObject("CatapultSpot").transform;
             catapultSpot.SetParent(env.transform, false);
         }
@@ -89,7 +146,7 @@ namespace PaperSiege
             var r = Vector3.Cross(Vector3.up, forward);
             Prim("CeilL", cc - r * 2.1f, new Vector3(1.8f, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
             Prim("CeilR", cc + r * 2.1f, new Vector3(1.8f, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
-            float lidL = T.enemyDistance + 1.2f, lidC = T.enemyDistance * 0.5f + 0.2f - 1.5f;
+            float lidL = enemyDistance + 1.2f, lidC = enemyDistance * 0.5f + 0.2f - 1.5f;
             float back = (7.5f / 2) - (lidC + lidL / 2), front = (7.5f / 2) + (lidC - lidL / 2);
             if (back > 0.01f) Prim("CeilB", cc + forward * (7.5f / 2 - back / 2), new Vector3(2.4f, 0.06f, back), rot, new Color(0.9f, 0.89f, 0.86f));
             if (front > 0.01f) Prim("CeilF", cc - forward * (7.5f / 2 - front / 2), new Vector3(2.4f, 0.06f, front), rot, new Color(0.9f, 0.89f, 0.86f));
@@ -121,8 +178,10 @@ namespace PaperSiege
             // 自己的城用低模：一块才 5 cm，在画面里很小，LOD0 的细节看不出来（省掉约 1/3 的三角面）
             mine = Castle.Build(Levels.PlayerCastle(), Side.Player, tableCenter + forward * 0.02f, rot, T.playerUnit, true, transform);
             // 敌城：在对面地上，正面朝玩家
-            var ep = new Vector3(tableCenter.x, 0, tableCenter.z) + forward * T.enemyDistance;
+            var ep = new Vector3(tableCenter.x, 0, tableCenter.z) + forward * enemyDistance;
             enemy = Castle.Build(level.enemy, Side.Enemy, ep, rot, T.enemyUnit, true, transform);
+            // 开局两座城都从下往上一块块落下来搭好（有过程）；测试可以关掉
+            if (!Castle.InstantBuild) { enemy.StartCoroutine(enemy.Assemble(2.0f)); mine.StartCoroutine(mine.Assemble(1.2f)); }
             mine.SetKingHP(3);              // 自己的帅旗 3 点耐久（不会被一发打掉）
             enemy.SetKingHP(level.kingHP);
             catapultSpot.SetPositionAndRotation(enemy.ToWorld(new Vector3(7.2f, 0, -2.0f)), Quaternion.LookRotation(forward, Vector3.up));   // 投石机正面是本地 -Z → 朝玩家

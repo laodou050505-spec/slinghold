@@ -56,6 +56,7 @@ namespace PaperSiege
         public Vector3 Show(Vector3 p, Vector3 v, float radius, float maxT = 2.6f)
         {
             var land = Ballistics.Predict(p, v, radius, path, maxT);
+            if (path.Count < 2) { Hide(); return land; }   // 保护：路径只有起点时不画
             // 沿路径等距放珠子（珠子缓慢往前流动，看得出方向）
             float total = 0;
             for (int i = 1; i < path.Count; i++) total += Vector3.Distance(path[i - 1], path[i]);

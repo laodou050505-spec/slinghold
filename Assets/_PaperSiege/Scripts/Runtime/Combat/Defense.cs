@@ -25,7 +25,7 @@ namespace PaperSiege
             var h = input.hands[s];
             if (!h.tracked || h.pinch) return false;
             if (d.supply && d.supply.Holding(s)) return false;
-            if (s == 0 && d.sling && d.sling.Holding) return false;
+            if (s == 0 && d.sling && d.sling.Holding && !d.sling.OneHand) return false;   // 单手模式下左手不拿弓，专门挡 / 接
             if (s == 1 && d.sling && d.sling.Drawing) return false;
             return held[s] == null;
         }

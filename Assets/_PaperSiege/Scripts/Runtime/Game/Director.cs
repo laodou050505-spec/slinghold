@@ -42,6 +42,8 @@ namespace PaperSiege
         {
             Progress.LoadLanguage();
             Music.Build(this);
+            gameObject.AddComponent<HandLostHint>();   // 两手跟丢 2.5 秒 → 提示把手抬到眼前
+            gameObject.AddComponent<FocusPause>();     // 摘头显 / 系统菜单 → 冻结对局
             if (autoStart) GoTitle();
             // 编辑器里：菜单“演示”→ 自动演示；直接点播放 → 桌面试玩（鼠标键盘模拟双手）
             if (Application.isEditor && HandInput.Sim)
@@ -65,6 +67,9 @@ namespace PaperSiege
             foreach (var c in new MonoBehaviour[] { GetComponent<Tutorial>(), GetComponent<LevelTips>() }) if (c) Destroy(c);
             sky.Close();
             if (title) Destroy(title.gameObject);
+            // 标题页桌上只放按钮：上一局的补给盘、弹盒收起来（开局时各自的 Setup 会重新摆出来）
+            if (supply) supply.HideForTitle();
+            if (sling && sling.Box) sling.Box.Show(false);
             title = TitleMenu.Build(this);
             SetPhase(Phase.Title);
         }
@@ -87,10 +92,9 @@ namespace PaperSiege
             catapult.transform.SetPositionAndRotation(arena.catapultSpot.position, arena.catapultSpot.rotation);
             catapult.flightScale = () => ammo.Total == 0 ? T.mercySlow : 1f;
             timerPaused = false;
-            var oldTut = GetComponent<Tutorial>();
-            if (oldTut) Destroy(oldTut);
-            var oldTips = GetComponent<LevelTips>();
-            if (oldTips) Destroy(oldTips);
+            // 同一帧里连开两次局时，上一次加的组件还没真正销毁 → 全部删掉，别只删第一个
+            foreach (var c in GetComponents<Tutorial>()) Destroy(c);
+            foreach (var c in GetComponents<LevelTips>()) Destroy(c);
             if (level.tutorial) { catapult.Aim(level, arena.mine); gameObject.AddComponent<Tutorial>(); }   // 教学关：投石机由教学控制
             else { catapult.Begin(level, arena.mine, ammo); gameObject.AddComponent<LevelTips>(); }   // 其余关：新弹演示、着火 / 没弹提示
             arena.mine.KingDown += _ => End(false);

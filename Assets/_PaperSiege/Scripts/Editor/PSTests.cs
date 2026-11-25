@@ -8,7 +8,7 @@ namespace PaperSiege.EditorTools
     {
         static Director D => Director.I;
 
-        public static string Level(int i) { D.StartLevel(i); return $"第 {i + 1} 关：敌城 {D.arena.enemy.blocks.Count} 块"; }
+        public static string Level(int i) { Castle.InstantBuild = true; D.StartLevel(i); Castle.InstantBuild = false; return $"第 {i + 1} 关：敌城 {D.arena.enemy.blocks.Count} 块"; }
 
         /// <summary>测试时：模拟手收起来（不自动挡弹）、投石机停火</summary>
         public static string Quiet(bool stopEnemy = true)
@@ -735,6 +735,116 @@ namespace PaperSiege.EditorTools
                 }
             }
             Debug.Log($"[弹道] 结束 t={t:0.00} 状态 {(p ? p.state.ToString() : "已销毁")} 位置 {(p ? p.transform.position.ToString("F3") : "-")}");
+        }
+
+        /// <summary>11-25 补的几项：开局搭城逐帧、小房间敌城距离、单手模式、跟丢提示、失焦暂停</summary>
+        public static string Extras(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1); D.StartCoroutine(ExtrasRun(dir)); return "extras started"; }
+
+        static void X(string s) => Debug.Log("[补全] " + s);
+
+        static System.Collections.IEnumerator ExtrasRun(string dir)
+        {
+            var h = D.head.transform;
+            // 1) 开局搭城：第 10 关，逐帧看敌城和自己的城
+            D.StartLevel(9); Quiet();
+            var e = D.arena.enemy.transform.position;
+            for (int f = 0; f < 6; f++)
+            {
+                Snap(dir, $"1_搭城_敌_{f * 0.4f:0.0}s", D.arena.tableCenter + Vector3.up * 0.45f + D.arena.forward * 1.3f, e + Vector3.up * 0.22f, 42);
+                if (f == 1 || f == 3) SnapPlayerLook(dir, $"1_搭城_我_{f * 0.4f:0.0}s", D.arena.mine.transform.position);
+                yield return new WaitForSeconds(0.4f);
+            }
+            X($"搭城：敌方 {D.arena.enemy.blocks.Count} 块，2.6 秒后 搭建中={D.arena.enemy.Assembling} 完整={D.arena.enemy.Integrity:0.00} 不在原位={D.arena.enemy.blocks.Count(b => !b.InPlace)} 未显示={D.arena.enemy.blocks.Count(b => !b.gameObject.activeSelf)}");
+            yield return new WaitForSeconds(3f);
+            float maxD = 0; foreach (var b in D.arena.enemy.blocks) maxD = Mathf.Max(maxD, Vector3.Distance(b.transform.position, b.homePos));
+            X($"搭好 3 秒后敌城最大位移 {maxD * 1000:0.0}mm 旗倒={D.arena.enemy.IsKingDown}");
+
+            // 2) 小房间：模拟一个 3.0 × 2.6 m 的安全区（玩家站在靠后的位置）
+            var hp = new Vector2(h.position.x, h.position.z); var fw = new Vector2(D.arena.forward.x, D.arena.forward.z).normalized; var rt = new Vector2(fw.y, -fw.x);
+            Arena.testBoundary = new[] { hp - fw * 0.5f - rt * 1.5f, hp - fw * 0.5f + rt * 1.5f, hp + fw * 3.0f + rt * 1.5f, hp + fw * 3.0f - rt * 1.5f };
+            D.arena.Layout();   // 场地只在第一次开局摆一次，测试里手动重摆
+            D.StartLevel(4); Quiet();
+            yield return new WaitForSeconds(2.6f);
+            X($"小房间：敌城距离 {D.arena.enemyDistance:0.00} m（默认 {GameTuning.I.enemyDistance}）");
+            SnapPlayer(dir, "2_小房间_玩家视角");
+            Arena.testBoundary = null;
+            D.arena.Layout();
+            D.StartLevel(4); Quiet();
+            X($"恢复：敌城距离 {D.arena.enemyDistance:0.00} m");
+
+            // 3) 单手模式：不用左手，右手抓皮兜拉开松手；左手迎敌弹握拳接
+            Progress.OneHand = true;
+            Castle.InstantBuild = true; D.StartLevel(1); Castle.InstantBuild = false; Quiet();
+            yield return new WaitForSeconds(0.5f);
+            var sl = D.sling;
+            X($"单手：state={sl.state} 弓架 {sl.ForkCenter:F2}");
+            SnapPlayer(dir, "3_单手_立柱");
+            Snap(dir, "3_单手_侧面", D.arena.tableCenter - D.arena.forward * 0.5f + Vector3.up * 0.25f + Vector3.Cross(Vector3.up, D.arena.forward) * 0.45f, sl.ForkCenter - Vector3.up * 0.12f, 50);
+            var pr = sl.PouchRest;
+            SimHands.Pose(1, pr + Vector3.up * 0.05f, false); yield return null;
+            SimHands.Pose(1, pr, true); yield return null; yield return null;
+            var target = D.arena.enemy.king.WorldBounds.center;
+            float speed = Mathf.Lerp(GameTuning.I.slingSpeedMin, GameTuning.I.slingSpeedMax, Mathf.InverseLerp(InputTuning.I.pullMin, InputTuning.I.pullMax, 0.26f));
+            Ballistics.Solve(sl.ForkCenter, target, speed, out var lo, out _);
+            var pouchAt = sl.ForkCenter - lo.normalized * 0.26f;
+            for (float k = 0; k < 1f; k += Time.deltaTime / 0.5f) { SimHands.Pose(1, Vector3.Lerp(pr, pouchAt, k), true); yield return null; }
+            SimHands.Pose(1, pouchAt, true); yield return new WaitForSeconds(0.2f);
+            SnapPlayer(dir, "3_单手_拉弓");
+            int shots = D.stats.shots;
+            SimHands.Pose(1, pouchAt, false); yield return null; SimHands.Hide(1);
+            X($"单手：拉开 {sl.pull01:0.00} 松手后射 +{D.stats.shots - shots}");
+            yield return new WaitForSeconds(2.5f);
+            X($"单手：发射后 {State()}");
+            // 左手接敌弹（上一发可能已经打赢，换一关重开）
+            Castle.InstantBuild = true; D.StartLevel(2); Castle.InstantBuild = false; Quiet();
+            yield return new WaitForSeconds(0.5f);
+            D.catapult.Begin(D.level, D.arena.mine, D.ammo);
+            Projectile p = null; float w = 0;
+            while (p == null && w < 20f) { p = Projectile.Live.Find(x => x && x.from == Side.Enemy && x.state == Projectile.State.Flying); w += Time.deltaTime; yield return null; }
+            int caught = D.stats.caught;
+            if (p)
+            {
+                var path = new System.Collections.Generic.List<Vector3>();
+                Ballistics.Predict(p.transform.position, p.rb.linearVelocity, p.radius, path);
+                var mine = D.arena.mine.transform.position; Vector3 meet = path[path.Count - 1];
+                foreach (var q in path) if (Vector3.Distance(q, mine) < 0.3f) { meet = q; break; }
+                SimHands.Pose(0, meet, false, false, (D.head.transform.position - meet).normalized * -1f);
+                float t = 0; while (p && p.state == Projectile.State.Flying && t < 4f) { t += Time.deltaTime; yield return null; }
+                yield return new WaitForSeconds(0.2f); SimHands.Pose(0, meet, false, true);
+                yield return new WaitForSeconds(1f);
+            }
+            SimHands.Hide(0); D.catapult.Stop();
+            X($"单手：左手握拳接 +{D.stats.caught - caught} phase={D.phase}");
+            Progress.OneHand = false;
+
+            // 4) 跟丢提示：两手都放下 3 秒
+            HandLostHint.testInEditor = true;
+            D.StartLevel(1); Quiet();
+            SimHands.Hide(0); SimHands.Hide(1);
+            yield return new WaitForSeconds(3.4f);
+            var hint = D.GetComponent<HandLostHint>();
+            X($"跟丢 3.4 秒：提示={hint.Showing}");
+            SnapPlayer(dir, "4_跟丢提示");
+            SimHands.Pose(1, HeadPt(0.35f, 0.1f, -0.2f), false);
+            yield return new WaitForSeconds(0.3f);
+            X($"手回来：提示={hint.Showing}");
+            SimHands.Hide(1);
+            HandLostHint.testInEditor = false;
+
+            // 5) 失焦暂停
+            FocusPause.testInEditor = true;
+            var fp = D.GetComponent<FocusPause>();
+            float left0 = D.timeLeft;
+            fp.Handle(true);
+            yield return new WaitForSecondsRealtime(1.0f);
+            X($"失焦：timeScale={Time.timeScale} 暂停={fp.Paused} 1 秒里倒计时走了 {left0 - D.timeLeft:0.00}s 声音暂停={AudioListener.pause}");
+            fp.Handle(false);
+            yield return new WaitForSecondsRealtime(0.8f);
+            X($"回来 0.8 秒：timeScale={Time.timeScale:0.00}");
+            yield return new WaitForSecondsRealtime(1.0f);
+            X($"回来 1.8 秒：timeScale={Time.timeScale:0.00} 暂停={fp.Paused}");
+            FocusPause.testInEditor = false;
+            X("完成");
         }
 
         public static string State()

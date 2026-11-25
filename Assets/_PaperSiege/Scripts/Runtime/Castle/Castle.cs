@@ -39,6 +39,9 @@ namespace PaperSiege
         public int kingHP = 1, kingMaxHP = 1;
         public string kingDownReason = "";   // 帅旗怎么倒的（难度统计 / 调试用）
         public int kingHits;                 // 帅旗挨了几次直接命中
+        /// <summary>测试用：建城时不播“一块块落下来”的过程</summary>
+        public static bool InstantBuild;
+        public bool Assembling { get; private set; }
         public bool kingLocked;              // 教学：帅旗倒了不算输赢，躺一会儿再自己立回去（只锁 HP 的话被砸歪照样判赢，后面的挡 / 接 / 修就全跳过了）
         bool kingRestoring;
         public event Action<Castle> KingHit;
@@ -289,6 +292,7 @@ namespace PaperSiege
             get
             {
                 if (totalVolume <= 0) return 0;
+                if (Assembling) return 1f;   // 开局搭城时积木还没落到位，不算残缺
                 float v = 0;
                 foreach (var b in blocks) if (!b.isKing && b.InPlace) v += b.def.Volume;
                 return v / totalVolume;
@@ -333,6 +337,52 @@ namespace PaperSiege
             var nb = MakeBlock(layout.items[slot], slot);
             blocks[slot] = nb;
             return nb;
+        }
+
+        /// <summary>
+        /// 开局搭城：先全部藏起来，再从下往上（同一层从中间往外）一块块落下来，落到位轻轻一顿、“嗒”一声。
+        /// 积木在搭的过程中仍是冻结（运动学）的，直接挪位置，不参与物理。
+        /// </summary>
+        public System.Collections.IEnumerator Assemble(float duration)
+        {
+            Assembling = true;
+            var order = blocks.Where(b => b).OrderBy(b => Mathf.Round(b.homePos.y / (unit * 0.5f))).ThenBy(b => (new Vector2(b.homePos.x, b.homePos.z) - new Vector2(transform.position.x, transform.position.z)).sqrMagnitude).ToList();
+            foreach (var b in order) b.gameObject.SetActive(false);
+            float step = duration / Mathf.Max(1, order.Count);
+            float acc = 0f; int n = 0;
+            foreach (var b in order)
+            {
+                StartCoroutine(DropIn(b, n++ % 3 == 0));
+                acc += step;
+                while (acc > 0f) { yield return null; acc -= Time.deltaTime; }
+            }
+            yield return new WaitForSeconds(0.3f);
+            Assembling = false;
+        }
+
+        System.Collections.IEnumerator DropIn(Block b, bool sound)
+        {
+            if (!b) yield break;
+            var to = b.homePos; var rTo = b.homeRot;
+            var from = to + Vector3.up * unit * 1.8f;
+            var rFrom = rTo * Quaternion.Euler(0, UnityEngine.Random.Range(-14f, 14f), 0);
+            // 冻结刚体开着插值：直接改 transform 会被插值拉回上一个物理位置（搭完差几厘米）→ 搭的时候关掉插值，结束时连刚体一起写到位
+            var interp = b.rb ? b.rb.interpolation : RigidbodyInterpolation.None;
+            if (b.rb) b.rb.interpolation = RigidbodyInterpolation.None;
+            b.transform.SetPositionAndRotation(from, rFrom);
+            if (b.rb) { b.rb.position = from; b.rb.rotation = rFrom; }
+            b.gameObject.SetActive(true);
+            for (float t = 0; t < 1f; t += Time.deltaTime / 0.22f)
+            {
+                if (!b) yield break;
+                float k = t * t;   // 加速落下
+                b.transform.SetPositionAndRotation(Vector3.Lerp(from, to, k), Quaternion.Slerp(rFrom, rTo, Mathf.SmoothStep(0, 1, t)));
+                yield return null;
+            }
+            if (!b) yield break;
+            b.transform.SetPositionAndRotation(to, rTo);
+            if (b.rb) { b.rb.position = to; b.rb.rotation = rTo; b.rb.interpolation = interp; }
+            if (sound) Sfx.Place(to);
         }
 
         public void Cleanup()

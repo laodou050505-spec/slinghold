@@ -9,6 +9,8 @@ namespace PaperSiege
         public static int Stars(int lv) => PlayerPrefs.GetInt("ps_stars_" + lv, 0);
         public static void SetStars(int lv, int n) { if (n > Stars(lv)) { PlayerPrefs.SetInt("ps_stars_" + lv, n); PlayerPrefs.Save(); } }
         public static bool Music { get => PlayerPrefs.GetInt("ps_music", 1) == 1; set { PlayerPrefs.SetInt("ps_music", value ? 1 : 0); PlayerPrefs.Save(); } }
+        /// <summary>单手模式（兜底）：自己城边立一个固定弓架，只用右手拉；左手专门挡 / 接</summary>
+        public static bool OneHand { get => PlayerPrefs.GetInt("ps_onehand", 0) == 1; set { PlayerPrefs.SetInt("ps_onehand", value ? 1 : 0); PlayerPrefs.Save(); } }
         public static bool Sfx { get => PlayerPrefs.GetInt("ps_sfx", 1) == 1; set { PlayerPrefs.SetInt("ps_sfx", value ? 1 : 0); PlayerPrefs.Save(); } }
 
         public static void LoadLanguage()

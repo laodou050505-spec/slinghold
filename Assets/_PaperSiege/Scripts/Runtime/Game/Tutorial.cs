@@ -51,9 +51,13 @@ namespace PaperSiege
             d.timerPaused = true;
             yield return new WaitForSeconds(1.0f);
 
-            // 1) 举弓
-            step = 1; tag.Show("左手捏住\n举起弹弓");
-            Ghost(LoopBow());
+            // 1) 举弓（单手模式：弓架已经插在立柱上，跳过这一步）
+            step = 1;
+            if (!d.sling.OneHand)
+            {
+                tag.Show("左手捏住\n举起弹弓");
+                Ghost(LoopBow());
+            }
             yield return new WaitUntil(() => d.sling.Holding);
 
             // 2) 抓皮兜

@@ -36,6 +36,9 @@ namespace PaperSiege
             { "没弹了\n接住敌弹来用", "Out of shots —\ncatch theirs!" },
             // 标题 / 结算
             { "开始", "Start" }, { "继续", "Continue" },
+            { "双手弓", "Two hands" }, { "单手弓", "One hand" },
+            { "把手抬到眼前", "Raise your hands\ninto view" },
+            { "右手捏住皮兜\n往后拉", "Right hand: pinch\nthe pouch, pull back" },
             { "音乐", "Music" }, { "音乐 ×", "Music off" }, { "音效", "SFX" }, { "音效 ×", "SFX off" },
             { "胜利！", "Victory!" }, { "失守……", "Your banner fell…" }, { "时间到……", "Out of time…" },
             { "射 {0}　挡 {1}　接 {2}　修 {3}", "Shots {0}   Blocks {1}   Catches {2}   Repairs {3}" },

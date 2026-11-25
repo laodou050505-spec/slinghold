@@ -36,6 +36,7 @@ namespace PaperSiege
         {
             d = director; input = HandInput.Instance;
             if (!tray) BuildTray();
+            tray.gameObject.SetActive(true);
             foreach (var p in pieces) if (p) Destroy(p.gameObject);
             pieces.Clear();
             for (int s = 0; s < 2; s++) { if (held[s]) Destroy(held[s].gameObject); held[s] = null; }
@@ -44,6 +45,13 @@ namespace PaperSiege
             tray.SetPositionAndRotation(a.tableCenter + right * 0.3f - a.forward * 0.16f, Quaternion.LookRotation(a.forward));
             for (int i = 0; i < T.supplyStart; i++) AddPiece();
             refill = T.supplyEvery;
+        }
+
+        /// <summary>标题页：补给盘和盘里的积木都收起来（不和桌上的按钮挤在一起）</summary>
+        public void HideForTitle()
+        {
+            if (tray) tray.gameObject.SetActive(false);
+            foreach (var p in pieces) if (p) p.gameObject.SetActive(false);
         }
 
         void BuildTray()

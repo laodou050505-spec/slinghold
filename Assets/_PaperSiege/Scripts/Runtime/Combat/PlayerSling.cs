@@ -38,6 +38,11 @@ namespace PaperSiege
         InputTuning IT => InputTuning.I;
         GameTuning T => GameTuning.I;
 
+        /// <summary>单手模式：弓架固定在桌上的木柱顶上，只用右手拉（左手腾出来挡 / 接）</summary>
+        public bool OneHand { get; private set; }
+        Transform post;
+        const int PostBlocks = 3;   // 立柱 = 3 块圆柱积木叠起来（约 30 cm）
+
         public bool Holding => state != State.Hidden;
         public bool Drawing => state == State.Drawing;
         public Vector3 ForkCenter => fork ? fork.TransformPoint((PropAnchors.ForkTipL + PropAnchors.ForkTipR) * (0.5f * BlockLibrary.G)) : forkPos;
@@ -52,8 +57,40 @@ namespace PaperSiege
             box.PlaceOnTable(d.arena);
             state = State.Hidden;
             cooldown = 0;
+            OneHand = Progress.OneHand;
+            PlacePost();
             Show(false);
         }
+
+        /// <summary>单手模式的立柱：桌上自己城的前面偏左，3 块圆柱积木叠起来，弓架插在顶上</summary>
+        void PlacePost()
+        {
+            if (!post)
+            {
+                post = new GameObject("OneHandPost").transform;
+                var lib = BlockLibrary.I;
+                var m = lib ? lib.Meshes("W_Column") : null;
+                for (int i = 0; i < PostBlocks; i++)
+                {
+                    var g = new GameObject("Column" + i);
+                    g.transform.SetParent(post, false);
+                    g.transform.localPosition = Vector3.up * (i * 2f * BlockLibrary.G);
+                    g.transform.localRotation = Quaternion.Euler(0, i * 37f, 0);   // 每块转一点，纹理和磕痕不重样
+                    // 积木网格本身按米建（1 格 = 5 cm 已经在网格里），不用再缩放
+                    if (m != null && m.lod0 && lib)
+                    {
+                        g.AddComponent<MeshFilter>().sharedMesh = m.lod0;
+                        g.AddComponent<MeshRenderer>().sharedMaterial = lib.Paint(i % 2 == 0 ? Paint.Ochre : Paint.Cream);
+                    }
+                }
+            }
+            var a = d.arena;
+            var right = Vector3.Cross(Vector3.up, a.forward);
+            post.SetPositionAndRotation(a.tableCenter - a.forward * 0.17f - right * 0.12f, Quaternion.LookRotation(a.forward));
+            post.gameObject.SetActive(false);
+        }
+
+        Vector3 PostTop => post.position + Vector3.up * (PostBlocks * 2f * BlockLibrary.G + 0.012f);
 
         void BuildLook()
         {
@@ -119,6 +156,7 @@ namespace PaperSiege
         {
             if (!fork) return;
             fork.gameObject.SetActive(on); pouch.gameObject.SetActive(on);
+            if (post) post.gameObject.SetActive(on && OneHand);
             bandL.enabled = bandR.enabled = on;
             if (!on) { preview.Hide(); if (loaded) loaded.gameObject.SetActive(false); }
         }
@@ -133,8 +171,14 @@ namespace PaperSiege
             bool leftFree = !d.supply || !d.supply.Holding(0);
             bool rightFree = !d.supply || !d.supply.Holding(1);
 
+            // ── 单手模式：弓架一直插在立柱上
+            if (OneHand)
+            {
+                if (state == State.Hidden) { state = State.Held; Show(true); aimDir = HeadForward(); }
+                forkPos = PostTop;
+            }
             // ── 左手：架弓
-            if (state == State.Hidden)
+            else if (state == State.Hidden)
             {
                 if (leftFree && L.tracked && L.pinch && !(d.supply && d.supply.ClaimedThisFrame(0))) { state = State.Held; Show(true); leftLostT = 0; aimDir = HeadForward(); }
             }

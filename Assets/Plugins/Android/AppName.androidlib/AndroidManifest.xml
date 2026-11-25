@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 只用来带一份英文应用名：英文系统里应用叫 SLINGHOLD，其它语言用产品名《木垒》（规范第 8 条） -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.tripoxr.papersiege.appname" />
