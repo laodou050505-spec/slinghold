@@ -169,6 +169,14 @@ namespace PaperSiege
             g.GetComponent<Renderer>().sharedMaterial = m;
         }
 
+        /// <summary>标题页：上一局的两座城收掉</summary>
+        public void ClearCastles()
+        {
+            if (mine) mine.Cleanup();
+            if (enemy) enemy.Cleanup();
+            mine = enemy = null;
+        }
+
         public void BuildCastles(LevelDef level)
         {
             if (mine) mine.Cleanup();

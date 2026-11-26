@@ -542,11 +542,12 @@ namespace PaperSiege.EditorTools
             SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
             Progress.Unlocked = 2;
             D.GoTitle();
-            yield return new WaitForSeconds(1.0f);
+            yield return new WaitForSeconds(2.4f);   // 封面出现过程约 2 秒，期间木签不响应
             Debug.Log($"[流程] 标题 phase={D.phase} 按钮={WoodButton.All.Count}");
-            yield return PressButton("继续");
+            yield return PressButton(Progress.Unlocked == 0 ? "开始游戏" : "继续游戏");
             yield return new WaitForSeconds(1.0f);
             Debug.Log($"[流程] 捏“继续”后 phase={D.phase} 关={D.levelIndex + 1}");
+            if (D.phase != Director.Phase.Battle) { Debug.Log("[流程] 失败：没进入对战"); Debug.Log("[流程] 完成"); yield break; }
             Quiet();
             yield return new WaitForSeconds(5f);
             // 直接让敌方帅旗耐久打光（模拟打赢）
@@ -845,6 +846,113 @@ namespace PaperSiege.EditorTools
             X($"回来 1.8 秒：timeScale={Time.timeScale:0.00} 暂停={fp.Paused}");
             FocusPause.testInEditor = false;
             X("完成");
+        }
+
+        /// <summary>封面自查：飘着的积木 / 石弹 / 纸页两两之间的空隙（按包围球 + 漂移幅度算），以及有没有挡到布旗正面</summary>
+        public static string CoverCheck()
+        {
+            var c = Object.FindAnyObjectByType<CoverMenu>();
+            if (!c) return "没有封面";
+            var items = new System.Collections.Generic.List<(string n, Vector3 p, float r)>();
+            foreach (var dr in c.GetComponentsInChildren<Drift>())
+            {
+                var rs = dr.GetComponentsInChildren<Renderer>();
+                if (rs.Length == 0) continue;
+                var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                items.Add((dr.name, b.center, b.extents.magnitude * 0.8f + 0.015f));
+            }
+            var sb = new System.Text.StringBuilder(); int bad = 0;
+            for (int i = 0; i < items.Count; i++)
+                for (int j = i + 1; j < items.Count; j++)
+                {
+                    float gap = Vector3.Distance(items[i].p, items[j].p) - items[i].r - items[j].r;
+                    if (gap < 0) { bad++; sb.AppendLine($"  太近 {items[i].n} × {items[j].n} 差 {gap * 100:0.0} cm"); }
+                }
+            // 挡布旗：从眼睛看布旗上的点，射线有没有先打到飘着的东西
+            var banner = c.GetComponentInChildren<BannerCloth>();
+            int blocked = 0, total = 0;
+            var eye = D.head.transform.position;
+            var mf = banner.GetComponent<MeshFilter>().sharedMesh;
+            foreach (var v in mf.vertices)
+            {
+                var w = banner.transform.TransformPoint(v); total++;
+                foreach (var it in items)
+                {
+                    var dir = (w - eye); float L = dir.magnitude; dir /= L;
+                    float tt = Vector3.Dot(it.p - eye, dir);
+                    if (tt > 0 && tt < L && (eye + dir * tt - it.p).magnitude < it.r * 0.8f) { blocked++; break; }
+                }
+            }
+            return $"飘浮物 {items.Count} 个，太近 {bad} 对；布旗顶点被挡 {blocked}/{total}\n" + sb;
+        }
+
+        /// <summary>封面全流程：悬停 → 设置 → 换语言（布旗卷起换印花）→ 返回 → 选关 → 选第 2 关（封面收起、开局搭城）；每步截图</summary>
+        public static string CoverFlow(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(CoverFlowRun(dir)); return "cover flow started"; }
+
+        static System.Collections.IEnumerator PinchAt(Vector3 p)
+        {
+            SimHands.scripted = true;
+            SimHands.Pose(1, p + Vector3.up * 0.03f, false); yield return null; yield return null;
+            SimHands.Pose(1, p, false); yield return new WaitForSeconds(0.15f);
+            SimHands.Pose(1, p, true); yield return null; yield return null;
+            SimHands.Pose(1, p, false); yield return null;
+        }
+
+        static System.Collections.IEnumerator CoverFlowRun(string dir)
+        {
+            void C(string s) => Debug.Log("[封面流程] " + s);
+            Loc.English = false; Progress.SaveLanguage();
+            D.GoTitle();
+            var h = D.head.transform;
+            System.Func<string> keys = () => { var c = Object.FindAnyObjectByType<CoverMenu>(); return c ? string.Join(" / ", c.Tags.Select(t => t.Key ?? "-")) : "无封面"; };
+            // 出现过程逐帧
+            for (int f = 0; f < 6; f++) { Snap(dir, $"0_出现_{f * 0.35f:0.00}s", h.position, h.position + D.arena.forward, 80); yield return new WaitForSeconds(0.35f); }
+            yield return new WaitForSeconds(0.6f);
+            var cover = Object.FindAnyObjectByType<CoverMenu>();
+            C($"出现完 appear={cover.Appear:0.00} 木签：{keys()}");
+            // 悬停：手停在“开始 / 继续”木签前 4 cm
+            var t0 = cover.Tags[0].button.transform.position;
+            SimHands.scripted = true; SimHands.Pose(1, t0 - D.arena.forward * 0.04f, false);
+            yield return new WaitForSeconds(0.5f);
+            C($"悬停：Hovered={(WoodButton.Hovered ? WoodButton.Hovered.Key : "无")}");
+            Snap(dir, "1_悬停", h.position, t0, 45);
+            Snap(dir, "1b_悬停近看", t0 - D.arena.forward * 0.22f + Vector3.up * 0.03f, t0, 40);
+            SimHands.Hide(1);
+            // 设置
+            yield return PinchAt(cover.Tags[2].button.transform.position);
+            yield return new WaitForSeconds(1.0f);
+            C($"捏“设置”后：{keys()}");
+            Snap(dir, "2_设置页", h.position, h.position + D.arena.forward, 80);
+            // 切换语言
+            yield return PinchAt(cover.Tags[0].button.transform.position);
+            yield return new WaitForSeconds(0.45f);
+            Snap(dir, "3_换语言_中途", h.position, h.position + D.arena.forward, 80);
+            yield return new WaitForSeconds(1.2f);
+            C($"换语言后 English={Loc.English}：{keys()}");
+            Snap(dir, "4_英文", h.position, h.position + D.arena.forward, 80);
+            // 声音
+            yield return PinchAt(cover.Tags[2].button.transform.position);
+            yield return new WaitForSeconds(0.8f);
+            C($"捏声音后 music={Progress.Music} sfx={Progress.Sfx}：{keys()}");
+            yield return PinchAt(cover.Tags[2].button.transform.position); yield return new WaitForSeconds(0.8f);
+            yield return PinchAt(cover.Tags[2].button.transform.position); yield return new WaitForSeconds(0.8f);
+            C($"再捏两次 music={Progress.Music} sfx={Progress.Sfx}");
+            // 切回中文、返回
+            yield return PinchAt(cover.Tags[0].button.transform.position); yield return new WaitForSeconds(1.5f);
+            yield return PinchAt(cover.Tags[3].button.transform.position); yield return new WaitForSeconds(1.0f);
+            C($"返回后 English={Loc.English}：{keys()}");
+            // 选关
+            Progress.Unlocked = Mathf.Max(Progress.Unlocked, 3);
+            yield return PinchAt(cover.Tags[1].button.transform.position); yield return new WaitForSeconds(1.2f);
+            C($"选关页：{keys()}  积木 {cover.LevelButtons.Count} 块，可按 {cover.LevelButtons.Count(b => b.interactable)} 块");
+            Snap(dir, "5_选关", h.position, h.position + D.arena.forward, 80);
+            yield return PinchAt(cover.LevelButtons[1].transform.position);
+            for (int f = 0; f < 4; f++) { yield return new WaitForSeconds(0.3f); Snap(dir, $"6_开局_{f * 0.3f + 0.3f:0.0}s", h.position, h.position + D.arena.forward, 80); }
+            yield return new WaitForSeconds(2.5f);
+            C($"开局后 phase={D.phase} 关={D.levelIndex + 1} 封面还在={(Object.FindAnyObjectByType<CoverMenu>() != null)}");
+            Snap(dir, "7_开局后", h.position, h.position + D.arena.forward, 80);
+            D.GoTitle();
+            C("完成");
         }
 
         public static string State()

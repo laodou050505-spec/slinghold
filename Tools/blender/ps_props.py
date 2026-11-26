@@ -23,7 +23,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.abspath(argv[0] if argv else os.path.join(HERE, '../../ArtSource/Models/props'))
 RES = int(argv[1]) if len(argv) > 1 else 2048
 QUICK = len(argv) > 2 and argv[2] == 'quick'
-SHOTS = os.path.abspath(os.path.join(HERE, '../../Docs/进度截图/1124_道具'))
+COVER = len(argv) > 2 and argv[2] == 'cover'
+PREFIX = 'cover' if COVER else 'props'
+SHOTS = os.path.abspath(os.path.join(HERE, '../../Docs/进度截图/' + ('1125_封面道具' if COVER else '1124_道具')))
 os.makedirs(os.path.join(OUT, 'tex'), exist_ok=True)
 g = G
 
@@ -448,6 +450,68 @@ def h_tag(rng):
     return [tag(finish(o, rng, 0.02 * g, seg=2, jitter=0.006 * g, warp=0.01 * g), 'cream')]
 
 
+# ───────────────────────── 封面（帅旗灯笼小场景）：旗杆、木签横臂、大灯笼、木签 ─────────────────────────
+def cv_pole(rng):
+    """封面旗杆：原点在杆底中心，杆沿 +Z；横杆沿 X（布旗挂在 -X 一侧）；灯笼横臂沿 +X；杆中段一道铁箍（木签横臂从这里伸出）"""
+    parts = []
+    pole = cylinder('pole', 0.3 * g, 18.0 * g, verts=20, c=(0, 0, 0), r_top=0.24 * g)
+    parts.append(tag(finish(pole, rng, 0.05 * g, seg=2, jitter=0.012 * g, warp=0.03 * g), STAIN))
+    parts.append(tag(ico('finial', 0.42 * g, (0, 0, 18.35 * g), subdiv=2), 'ochre'))
+    parts.append(tag(cylinder('neck', 0.2 * g, 0.4 * g, verts=14, c=(0, 0, 18.0 * g)), 'ochre'))
+    bar = cylinder('bar', 0.17 * g, 7.0 * g, verts=14, axis='X', c=(-2.85 * g, 0, 16.9 * g))
+    parts.append(tag(finish(bar, rng, 0.03 * g, seg=2, jitter=0.008 * g, warp=0.02 * g), STAIN))
+    for x in (-6.2, 0.55):
+        parts.append(tag(ico('cap', 0.22 * g, (x * g, 0, 16.9 * g), subdiv=2), 'brick'))
+    for z in (16.75, 17.05):                      # 横杆和旗杆交接处的十字绑绳
+        parts.append(tag(torus('lash', 0.34 * g, 0.07 * g, (0, 0, z * g), maj=20, mn=8), ROPE))
+    parts.append(tag(torus('lashx', 0.22 * g, 0.06 * g, (0.0, 0, 16.9 * g), axis=(1, 0, 0), maj=16, mn=6), ROPE))
+    arm = cylinder('larm', 0.13 * g, 3.6 * g, verts=12, axis='X', c=(1.9 * g, 0, 14.6 * g))
+    parts.append(tag(finish(arm, rng, 0.025 * g, seg=2, jitter=0.006 * g), STAIN))
+    brace = beam('lbrace', (0.15 * g, 0, 12.9 * g), (2.0 * g, 0, 14.55 * g), 0.16 * g)
+    parts.append(tag(finish(brace, rng, 0.02 * g, seg=2), STAIN))
+    parts.append(tag(torus('lband', 0.32 * g, 0.06 * g, (0, 0, 14.6 * g), maj=18, mn=6), IRON))
+    parts.append(tag(torus('hook', 0.2 * g, 0.05 * g, (3.55 * g, 0, 14.42 * g), axis=(0, 1, 0), maj=16, mn=6), IRON))
+    parts.append(tag(torus('collar', 0.33 * g, 0.07 * g, (0, 0, 8.0 * g), maj=18, mn=6), IRON))
+    for z in (2.0, 5.5, 11.5):                    # 几道旧绳圈（杆身不至于光秃）
+        parts.append(tag(torus('wrap', 0.31 * g, 0.05 * g, (0, 0, z * g), maj=18, mn=6), ROPE))
+    tip = cylinder('tip', 0.27 * g, 0.5 * g, verts=14, c=(0, 0, -0.12 * g), r_top=0.3 * g)
+    parts.append(tag(tip, IRON))
+    return parts, (3.55 * g, 0.0, 14.22 * g)   # 灯笼挂点（米）
+
+
+def cv_tagarm(rng):
+    """挂木签的横臂：原点在旗杆轴心，沿 +X；根部绑在铁箍上；四个挂绳缺口"""
+    parts = []
+    arm = cylinder('arm', 0.12 * g, 5.4 * g, verts=12, axis='X', c=(2.9 * g, 0, 0))
+    parts.append(tag(finish(arm, rng, 0.02 * g, seg=2, jitter=0.006 * g, warp=0.015 * g), STAIN))
+    parts.append(tag(torus('root', 0.36 * g, 0.075 * g, (0.32 * g, 0, 0), axis=(1, 0, 0), maj=16, mn=6), ROPE))
+    parts.append(tag(ico('end', 0.18 * g, (5.65 * g, 0, 0), subdiv=2), 'teal'))
+    for x in (1.4, 2.6, 3.8, 5.0):
+        parts.append(tag(torus('knot', 0.14 * g, 0.045 * g, (x * g, 0, 0), axis=(1, 0, 0), maj=12, mn=6), ROPE))
+    return parts
+
+
+def cv_lantern(rng):
+    """大号纸灯笼：游戏里帅旗灯笼的结构放大 4 倍（原点在挂钩）"""
+    parts = k_lantern(rng)
+    S = Matrix.Scale(4.0, 4)
+    for p in parts:
+        p.matrix_world = S @ p.matrix_world
+    return parts
+
+
+def cv_tag(rng):
+    """菜单木签：原点在穿绳孔中心，正面朝 +Y（字在 Unity 里写）；约 13 × 4.5 cm × 7 mm"""
+    pts = [(-1.3, -0.95), (1.3, -0.95), (1.3, -0.12), (1.08, 0.08), (-1.08, 0.08), (-1.3, -0.12)]
+    o = prism('tag', [(x * g, z * g) for x, z in pts], 0.14 * g)
+    boolean(o, [cylinder('hole', 0.07 * g, 0.4 * g, verts=14, axis='Y', c=(0, 0, -0.08 * g))])
+    boolean(o, chip_cutters(o, rng, 4, 0.08 * g))
+    parts = [tag(finish(o, rng, 0.03 * g, seg=2, jitter=0.008 * g, warp=0.015 * g), WOOD)]
+    for sx in (-1.05, 1.05):                      # 两颗小钉（真实木牌的钉补）
+        parts.append(tag(cylinder('nail', 0.05 * g, 0.03 * g, verts=10, axis='Y', c=(sx * g, -0.085 * g, -0.75 * g)), IRON))
+    return parts
+
+
 ITEMS = [
     # 名字, 建模函数, 体素（格）, 磨损强度, 低模面数
     ('K_Pole', k_pole, 0.0045, 0.8, 1600),
@@ -470,6 +534,13 @@ ITEMS = [
 ]
 if QUICK:
     ITEMS = [i for i in ITEMS if i[0] in ('K_Flag', 'B_Fire', 'S_Fork')]
+if COVER:
+    ITEMS = [
+        ('CV_Pole', cv_pole, 0.02, 0.8, 4000),
+        ('CV_TagArm', cv_tagarm, 0.012, 0.8, 1200),
+        ('CV_Lantern', cv_lantern, 0.014, 0.6, 2400),
+        ('CV_Tag', cv_tag, 0.01, 0.9, 900),
+    ]
 
 
 # ───────────────────────── 合并部件 + 高模 + 属性 ─────────────────────────
@@ -867,7 +938,7 @@ def bake(pairs):
     passes = (('cover', 'Non-Color'), ('albedo', 'sRGB'), ('emit', 'Non-Color'), ('mask', 'Non-Color'), ('normal', 'Non-Color'), ('line', 'Non-Color'))
     imgs = {}
     for which, cs in passes:
-        im = bpy.data.images.new(f'props_{which}', RES, RES, alpha=True, float_buffer=False)
+        im = bpy.data.images.new(f'{PREFIX}_{which}', RES, RES, alpha=True, float_buffer=False)
         im.generated_color = (0, 0, 0, 0)
         im.colorspace_settings.name = cs
         imgs[which] = im
@@ -904,11 +975,11 @@ def bake(pairs):
     px['mask'][..., 3] = px['line'][..., 0]
     px['normal'][..., 3] = 1.0
     for w in ('albedo', 'mask', 'normal'):
-        out = bpy.data.images.new(f'props_{w}_out', RES, RES, alpha=True, float_buffer=False)
+        out = bpy.data.images.new(f'{PREFIX}_{w}_out', RES, RES, alpha=True, float_buffer=False)
         out.colorspace_settings.name = 'sRGB' if w == 'albedo' else 'Non-Color'
         out.alpha_mode = 'CHANNEL_PACKED'
         out.pixels[:] = px[w].ravel()
-        pth = os.path.join(OUT, 'tex', f'props_{w}.png')
+        pth = os.path.join(OUT, 'tex', f'{PREFIX}_{w}.png')
         out.filepath_raw = pth
         out.file_format = 'PNG'
         out.save()
@@ -933,9 +1004,9 @@ def preview_material():
         n.image = im
         b.link(uv.outputs['UV'], n.inputs['Vector'])
         return n
-    a = img('props_albedo.png', 'sRGB')
-    mk = img('props_mask.png', 'Non-Color')
-    nm = img('props_normal.png', 'Non-Color')
+    a = img(f'{PREFIX}_albedo.png', 'sRGB')
+    mk = img(f'{PREFIX}_mask.png', 'Non-Color')
+    nm = img(f'{PREFIX}_normal.png', 'Non-Color')
     sep = b.node('ShaderNodeSeparateColor')
     b.link(mk.outputs['Color'], sep.inputs['Color'])
     aoMix = b.mix(0.75, (1, 1, 1, 1), (1, 1, 1, 1))
@@ -1041,7 +1112,7 @@ def export(objs):
     for o in objs:
         o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
-    p = os.path.join(OUT, 'props.fbx')
+    p = os.path.join(OUT, PREFIX + '.fbx')
     bpy.ops.export_scene.fbx(filepath=p, use_selection=True, apply_scale_options='FBX_SCALE_UNITS',
                              axis_forward='-Z', axis_up='Y', bake_space_transform=True,
                              mesh_smooth_type='OFF', use_tspace=True, add_leaf_bones=False,
@@ -1111,7 +1182,7 @@ def main():
         bpy.data.objects.remove(h, do_unlink=True)
     for k, v in extra.items():
         report.append(f'{k} 额外锚点（米）: {tuple(round(x, 5) for x in v)}')
-    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'props.blend'))
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, PREFIX + '.blend'))
     export(lows + lods)
     open(os.path.join(OUT, 'report.txt'), 'w').write('\n'.join(report) + '\n')
     render_tiles(lows)

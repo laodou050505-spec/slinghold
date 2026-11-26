@@ -154,7 +154,7 @@ namespace PaperSiege
             var help =
                 $"《木垒》桌面试玩　{d.level.title}　剩 {Mathf.Max(0, d.timeLeft):0} 秒\n" +
                 $"弹：{am}\n" +
-                $"我方帅旗 {Pips(d.arena.mine)}　敌方帅旗 {Pips(d.arena.enemy)}　我方完整 {d.arena.mine.Integrity:P0}　敌方完整 {d.arena.enemy.Integrity:P0}\n" +
+                (d.arena.mine && d.arena.enemy ? $"我方帅旗 {Pips(d.arena.mine)}　敌方帅旗 {Pips(d.arena.enemy)}　我方完整 {d.arena.mine.Integrity:P0}　敌方完整 {d.arena.enemy.Integrity:P0}\n" : "（标题页：左键点木签）\n") +
                 $"射 {d.stats.shots}　挡 {d.stats.blocked}　接 {d.stats.caught}　修 {d.stats.repaired}\n\n" +
                 "左键按住往后拖：拉弓（往下拖=往上瞄，往左拖=往右瞄，越远越满）　松开：发射\n" +
                 "鼠标移到飞来的敌弹上：挡　按住 G：握拳接住\n" +

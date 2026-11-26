@@ -32,6 +32,19 @@ namespace PaperSiege
             }
         }
 
+        static TMP_FontAsset type;
+        /// <summary>Courier Prime（封面木签、打字机字），中文回退思源黑体</summary>
+        public static TMP_FontAsset Type
+        {
+            get
+            {
+                if (type) return type;
+                type = Make("Fonts/CourierPrime-Bold", "CourierPrime (dynamic)");
+                if (type && Sans) type.fallbackFontAssetTable = new System.Collections.Generic.List<TMP_FontAsset> { Sans };
+                return type;
+            }
+        }
+
         static TMP_FontAsset hand;
         public static TMP_FontAsset Hand
         {

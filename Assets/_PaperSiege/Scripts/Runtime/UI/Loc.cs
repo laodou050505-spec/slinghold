@@ -36,7 +36,10 @@ namespace PaperSiege
             { "没弹了\n接住敌弹来用", "Out of shots —\ncatch theirs!" },
             // 标题 / 结算
             { "开始", "Start" }, { "继续", "Continue" },
-            { "双手弓", "Two hands" }, { "单手弓", "One hand" },
+            { "开始游戏", "PLAY" }, { "继续游戏", "CONTINUE" }, { "选择关卡", "LEVELS" }, { "设置", "SETTINGS" }, { "退出游戏", "QUIT" }, { "返回", "BACK" },
+            { "切换语言\nLanguage", "切换语言\nLanguage" },
+            { "声音：开", "SOUND: ON" }, { "声音：只留音效", "SOUND: SFX ONLY" }, { "声音：关", "SOUND: OFF" },
+            { "双手弓", "BOW: TWO HANDS" }, { "单手弓", "BOW: ONE HAND" },
             { "把手抬到眼前", "Raise your hands\ninto view" },
             { "右手捏住皮兜\n往后拉", "Right hand: pinch\nthe pouch, pull back" },
             { "音乐", "Music" }, { "音乐 ×", "Music off" }, { "音效", "SFX" }, { "音效 ×", "SFX off" },

@@ -57,6 +57,86 @@ namespace PaperSiege.EditorTools
 
         public static Material Mat(string name) => AssetDatabase.LoadAssetAtPath<Material>($"{MatDir}/{name}.mat");
 
+        /// <summary>封面道具（旗杆、木签横臂、大灯笼、木签）：ArtSource/Models/cover → Resources/Cover，建材质 M_Cover（同一个积木着色器，颜色全烘在 albedo 里）</summary>
+        public static void SyncCover()
+        {
+            string src = Path.Combine(Proj, "ArtSource/Models/cover");
+            string dst = Path.Combine(Proj, "Assets/_PaperSiege/Resources/Cover");
+            Directory.CreateDirectory(dst);
+            File.Copy(Path.Combine(src, "cover.fbx"), Path.Combine(dst, "cover.fbx"), true);
+            foreach (var n in new[] { "cover_albedo", "cover_mask", "cover_normal" }) File.Copy(Path.Combine(src, "tex", n + ".png"), Path.Combine(dst, n + ".png"), true);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            const string path = "Assets/_PaperSiege/Resources/Cover/M_Cover.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (!m) { m = new Material(Shader.Find("PaperSiege/Block")); AssetDatabase.CreateAsset(m, path); }
+            Texture T(string n) => AssetDatabase.LoadAssetAtPath<Texture>($"Assets/_PaperSiege/Resources/Cover/{n}.png");
+            m.SetTexture("_Albedo", T("cover_albedo"));
+            m.SetTexture("_Mask", T("cover_mask"));
+            m.SetTexture("_Normal", T("cover_normal"));
+            m.SetFloat("_PaintCover", 0f);
+            m.SetFloat("_EmissionStrength", 1.4f);      // 纸灯笼的纸面（albedo.A）
+            m.SetColor("_ShadowTint", new Color(0.72f, 0.66f, 0.76f));
+            m.SetFloat("_Ambient", 1.1f);
+            m.enableInstancing = true;
+            EditorUtility.SetDirty(m);
+            AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>
+        /// 封面材质（资源放在 Resources/Cover，打包时着色器变体跟着材质保留）：
+        ///   布旗（中 / 英）、三张纸页 = URP Lit 双面 + 透明度裁切 + 不反光；点线 / 叉号 = Unlit 透明（颜色在运行时用实例改）
+        /// </summary>
+        public static string BuildCoverMaterials()
+        {
+            const string dir = "Assets/_PaperSiege/Resources/Cover/";
+            var log = new List<string>();
+            Material Get(string name, string shader)
+            {
+                var m = AssetDatabase.LoadAssetAtPath<Material>(dir + name + ".mat");
+                if (!m) { m = new Material(Shader.Find(shader)); AssetDatabase.CreateAsset(m, dir + name + ".mat"); }
+                m.shader = Shader.Find(shader);
+                return m;
+            }
+            void Cloth(string name, string tex, float smooth)
+            {
+                var m = Get(name, "Universal Render Pipeline/Lit");
+                m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + tex + ".png"));
+                m.SetColor("_BaseColor", Color.white);
+                m.SetFloat("_Cull", 0f);                 // 双面
+                m.SetFloat("_AlphaClip", 1f); m.SetFloat("_Cutoff", 0.5f); m.EnableKeyword("_ALPHATEST_ON");
+                m.SetFloat("_Smoothness", smooth); m.SetFloat("_Metallic", 0f);
+                m.SetFloat("_SpecularHighlights", 0f); m.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+                m.SetFloat("_EnvironmentReflections", 0f); m.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+                m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                m.doubleSidedGI = true; m.enableInstancing = true;
+                EditorUtility.SetDirty(m); log.Add(name);
+            }
+            Cloth("M_Banner_zh", "banner_zh", 0.05f);
+            Cloth("M_Banner_en", "banner_en", 0.05f);
+            foreach (var n in new[] { "M_Banner_zh", "M_Banner_en" })   // 布旗不接影子：盒盖 / 横杆的影子会横着切过标题（URP 看材质开关，不看 renderer.receiveShadows）
+            {
+                var m = AssetDatabase.LoadAssetAtPath<Material>(dir + n + ".mat");
+                m.SetFloat("_ReceiveShadows", 0f); m.EnableKeyword("_RECEIVE_SHADOWS_OFF"); EditorUtility.SetDirty(m);
+            }
+            for (int i = 1; i <= 3; i++) Cloth("M_Scrap_" + i, "scrap_" + i, 0.08f);
+            void Mark(string name, string tex)
+            {
+                var m = Get(name, "Universal Render Pipeline/Unlit");
+                m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + tex + ".png"));
+                m.SetFloat("_Surface", 1); m.SetFloat("_Blend", 0); m.SetOverrideTag("RenderType", "Transparent");
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 0); m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); m.renderQueue = 3000;
+                m.SetColor("_BaseColor", new Color(0.66f, 0.29f, 0.23f, 0.9f));   // 砖红
+                EditorUtility.SetDirty(m); log.Add(name);
+            }
+            Mark("M_Dots", "mark_dot");
+            Mark("M_Cross", "mark_cross");
+            var cord = Get("M_Cord", "Universal Render Pipeline/Unlit");
+            cord.SetColor("_BaseColor", new Color(0.52f, 0.42f, 0.3f)); EditorUtility.SetDirty(cord); log.Add("M_Cord");
+            AssetDatabase.SaveAssets();
+            return string.Join(", ", log);
+        }
+
         public static void BuildMaterials()
         {
             Directory.CreateDirectory(Path.Combine(Proj, MatDir));

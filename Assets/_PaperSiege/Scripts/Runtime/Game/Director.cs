@@ -27,7 +27,7 @@ namespace PaperSiege
         public SupplyTray supply;
         public Stats stats = new();
         public event Action<Phase> PhaseChanged;
-        TitleMenu title;
+        CoverMenu title;
         ResultBoard result;
         bool laidOut;
         GameTuning T => GameTuning.I;
@@ -53,7 +53,7 @@ namespace PaperSiege
             }
         }
 
-        /// <summary>标题页：自己的城和要打的那一关的敌城照样摆着（对峙），盒盖合着，桌上是开始 / 选关 / 语言 / 声音按钮，头顶吊着字标</summary>
+        /// <summary>标题页（封面 D：帅旗灯笼小场景）：盒盖合着，房间里只浮着封面那组实物；城和投石机都不摆（封面不出现游戏场景），开局时城一块块搭起来</summary>
         public void GoTitle()
         {
             if (result) { result.Close(); result = null; }
@@ -62,15 +62,15 @@ namespace PaperSiege
             if (!laidOut) { arena.Layout(); laidOut = true; }
             levelIndex = Progress.Unlocked;
             level = Levels.Get(levelIndex);
-            arena.BuildCastles(level);
-            if (catapult) catapult.Stop();
+            arena.ClearCastles();
+            if (catapult) { catapult.Stop(); catapult.gameObject.SetActive(false); }
             foreach (var c in new MonoBehaviour[] { GetComponent<Tutorial>(), GetComponent<LevelTips>() }) if (c) Destroy(c);
             sky.Close();
             if (title) Destroy(title.gameObject);
             // 标题页桌上只放按钮：上一局的补给盘、弹盒收起来（开局时各自的 Setup 会重新摆出来）
             if (supply) supply.HideForTitle();
             if (sling && sling.Box) sling.Box.Show(false);
-            title = TitleMenu.Build(this);
+            title = CoverMenu.Build(this);
             SetPhase(Phase.Title);
         }
 
@@ -89,6 +89,7 @@ namespace PaperSiege
             CastleMarks.Credit(arena.mine);
             sky.OnLevel(level);   // 掀盒盖 + 切这一关的时段（重开同一关也重新掀）
             if (!catapult) catapult = EnemyCatapult.Build(arena.catapultSpot, T.enemyUnit);
+            catapult.gameObject.SetActive(true);
             catapult.transform.SetPositionAndRotation(arena.catapultSpot.position, arena.catapultSpot.rotation);
             catapult.flightScale = () => ammo.Total == 0 ? T.mercySlow : 1f;
             timerPaused = false;

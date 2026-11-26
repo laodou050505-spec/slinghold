@@ -12,7 +12,9 @@ namespace PaperSiege.EditorTools
     {
         const string ArtRoot = "Assets/_PaperSiege/Art/";
 
-        static bool IsArt(string p) => p.Replace('\\', '/').StartsWith(ArtRoot);
+        const string CoverRoot = "Assets/_PaperSiege/Resources/Cover/";
+        static bool IsArt(string p) { p = p.Replace('\\', '/'); return p.StartsWith(ArtRoot) || p.StartsWith(CoverRoot); }
+        static bool IsCoverPrint(string p) { var f = System.IO.Path.GetFileName(p); return p.Replace('\\', '/').StartsWith(CoverRoot) && (f.StartsWith("banner_") || f.StartsWith("scrap_") || f.StartsWith("mark_")); }
 
         void OnPreprocessModel()
         {
@@ -68,6 +70,7 @@ namespace PaperSiege.EditorTools
             else ti.sRGBTexture = true;
             ti.mipmapEnabled = true;
             ti.anisoLevel = 4;
+            if (IsCoverPrint(assetPath)) { ti.alphaIsTransparency = true; ti.wrapMode = f.StartsWith("mark_dot") ? TextureWrapMode.Repeat : TextureWrapMode.Clamp; ti.npotScale = TextureImporterNPOTScale.None; }   // 点线沿线平铺
             ti.maxTextureSize = 2048;
             ti.textureCompression = TextureImporterCompression.CompressedHQ;
             var android = ti.GetPlatformTextureSettings("Android");
