@@ -26,8 +26,8 @@ namespace PaperSiege
             new() { zenith = H("6f9fd8"), horizon = H("d9e6ee"), sun = H("fffaf0"), cloud = H("ffffff"), cloudShade = H("c7cfdc"), light = H("fff6e8"), ambient = H("cfd6e2"), sunElev = 42, sunAz = -20, sunSize = 0.045f, cover = 0.42f, stars = 0, moon = 0, lightI = 1.25f },  // 上午
             new() { zenith = H("7aa3d1"), horizon = H("f0dcbc"), sun = H("fff1d8"), cloud = H("fff6e6"), cloudShade = H("d6c3b6"), light = H("ffeed6"), ambient = H("d2cfcc"), sunElev = 34, sunAz = 25, sunSize = 0.045f, cover = 0.55f, stars = 0, moon = 0, lightI = 1.2f },    // 午后
             new() { zenith = H("5a6fa8"), horizon = H("f0a874"), sun = H("ffcf8a"), cloud = H("f7c9a8"), cloudShade = H("8f6f86"), light = H("ffc89a"), ambient = H("a8a0b4"), sunElev = 6, sunAz = 30, sunSize = 0.07f, cover = 0.45f, stars = 0.05f, moon = 0, lightI = 0.95f },  // 黄昏
-            new() { zenith = H("1f2a4a"), horizon = H("4b4f78"), sun = H("e8ecff"), cloud = H("5a6188"), cloudShade = H("2b3050"), light = H("b9c6ff"), ambient = H("6e7596"), sunElev = 38, sunAz = -30, sunSize = 0.04f, cover = 0.3f, stars = 1, moon = 1, lightI = 0.55f },     // 入夜（月亮）
-            new() { zenith = H("17203f"), horizon = H("3c3a66"), sun = H("f2eeff"), cloud = H("4b507a"), cloudShade = H("242845"), light = H("c4c8ff"), ambient = H("6a6f94"), sunElev = 44, sunAz = 20, sunSize = 0.035f, cover = 0.2f, stars = 1, moon = 1, lightI = 0.5f },        // 烟火夜
+            new() { zenith = H("1f2a4a"), horizon = H("4b4f78"), sun = H("e8ecff"), cloud = H("5a6188"), cloudShade = H("2b3050"), light = H("cdd5ff"), ambient = H("9ca3c4"), sunElev = 38, sunAz = -30, sunSize = 0.04f, cover = 0.3f, stars = 1, moon = 1, lightI = 0.85f },     // 入夜（月亮）。11-26：真实房间里灯照常亮着，原来 0.55 + 偏蓝的光让积木比房间暗一大截、像没打光 → 调亮、少一点蓝
+            new() { zenith = H("17203f"), horizon = H("3c3a66"), sun = H("f2eeff"), cloud = H("4b507a"), cloudShade = H("242845"), light = H("d2d5ff"), ambient = H("989ec2"), sunElev = 44, sunAz = 20, sunSize = 0.035f, cover = 0.2f, stars = 1, moon = 1, lightI = 0.8f },        // 烟火夜（同上调亮；烟花炸开时再亮一下，见 Flash）
         };
 
         static Color H(string h) => Palette.Hex(h);
@@ -108,12 +108,32 @@ namespace PaperSiege
             sky.SetVector("_LidFwd", fwd);
             sky.SetVector("_LidHalf", new Vector4(w * 0.5f, l * 0.5f, 0, 0));
             lidCenter = center; lidFwd = fwd; lidRight = right; lidCeil = ceilY; lidHalf = new Vector2(w * 0.5f, l * 0.5f);
+            if (rim) Destroy(rim);
+            rim = LidRim.Build(transform, center, fwd, ceilY, w, l);
+            if (!shafts) { shafts = gameObject.AddComponent<LightShafts>(); shafts.sky = this; }
             // 烟花粒子（PaperSiege/SkyParticle）用同一个开口遮罩
             Shader.SetGlobalVector("_SkyLidCenter", new Vector4(center.x, ceilY, center.z, 0));
             Shader.SetGlobalVector("_SkyLidRight", right);
             Shader.SetGlobalVector("_SkyLidFwd", fwd);
             Shader.SetGlobalVector("_SkyLidHalf", new Vector4(w * 0.5f, l * 0.5f, 0, 0));
         }
+
+        GameObject rim;
+        LightShafts shafts;
+
+        /// <summary>把一个天花板上的点挪进开口里（离边至少 margin 米）</summary>
+        public Vector3 ClampToLid(Vector3 p, float margin)
+        {
+            var o = new Vector3(lidCenter.x, lidCeil, lidCenter.z);
+            var v = p - o;
+            float x = Mathf.Clamp(Vector3.Dot(v, lidRight), -lidHalf.x + margin, lidHalf.x - margin);
+            float z = Mathf.Clamp(Vector3.Dot(v, lidFwd), -lidHalf.y + margin, lidHalf.y - margin);
+            return o + lidRight * x + lidFwd * z;
+        }
+
+        // 烟花炸开时照亮一下积木（炸开比升空晚 0.4 秒）
+        static Color flashColor; static float flashAt = -99f;
+        public static void Flash(Color c) { flashColor = c; flashAt = Time.time + 0.4f; }
 
         Vector3 lidCenter, lidFwd = Vector3.forward, lidRight = Vector3.right; float lidCeil = 2.5f; Vector2 lidHalf = Vector2.one;
         float idleFw;
@@ -333,6 +353,22 @@ namespace PaperSiege
                 var amb = L(A.ambient, B.ambient) * (1 - dim * 0.4f);
                 RenderSettings.ambientSkyColor = Color.Lerp(new Color(0.80f, 0.82f, 0.88f), amb, lo);
                 RenderSettings.ambientEquatorColor = Color.Lerp(new Color(0.72f, 0.70f, 0.68f), amb * 0.9f, lo);
+                // 结局光柱：太阳光方向对齐光柱、偏暖、稍亮（倒塌的王城被这几道光照着）
+                if (shafts && shafts.K > 0f)
+                {
+                    sun.transform.rotation = Quaternion.Slerp(sun.transform.rotation, Quaternion.LookRotation(shafts.Dir), shafts.K);
+                    sun.color = Color.Lerp(sun.color, new Color(1f, 0.86f, 0.66f), shafts.K * 0.6f);
+                    sun.intensity *= 1f + 0.25f * shafts.K;
+                }
+                // 烟花闪光：炸开那一下积木被照亮（0.35 秒衰减）
+                float ft = Time.time - flashAt;
+                if (ft >= 0f && ft < 1.5f)
+                {
+                    float e = Mathf.Exp(-ft / 0.35f) * lo;
+                    sun.intensity += 0.5f * e;
+                    sun.color = Color.Lerp(sun.color, Color.Lerp(flashColor, Color.white, 0.5f), 0.35f * e);
+                    RenderSettings.ambientSkyColor += flashColor * 0.18f * e;
+                }
             }
         }
 

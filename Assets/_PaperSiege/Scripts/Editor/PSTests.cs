@@ -569,6 +569,7 @@ namespace PaperSiege.EditorTools
         {
             SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
             Progress.Unlocked = 2;
+            bool cleared0 = Progress.Cleared; Progress.Cleared = false;   // 通关后主按钮是“从头再来”，这里测“继续游戏”
             D.GoTitle();
             yield return new WaitForSeconds(2.4f);   // 封面出现过程约 2 秒，期间木签不响应
             Debug.Log($"[流程] 标题 phase={D.phase} 按钮={WoodButton.All.Count}");
@@ -597,6 +598,7 @@ namespace PaperSiege.EditorTools
             yield return PressButton("回标题");
             yield return new WaitForSeconds(1.0f);
             Debug.Log($"[流程] 捏“回标题”后 phase={D.phase}");
+            Progress.Cleared = cleared0;
             Debug.Log("[流程] 完成");
         }
 

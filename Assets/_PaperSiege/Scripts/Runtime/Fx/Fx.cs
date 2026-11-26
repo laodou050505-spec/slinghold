@@ -373,6 +373,27 @@ namespace PaperSiege
             col.color = g;
             Burst(ps, 70, 2.2f);
             Sfx.Firework(p);
+            SkyDome.Flash(c);
+        }
+
+        /// <summary>浮尘：一块空间（中心 center、大小 size）里慢慢飘的小亮点，持续发射（发射率由调用方控制）</summary>
+        public static ParticleSystem Motes(Vector3 center, Vector3 size, Color c)
+        {
+            var ps = Make("Motes", center);
+            var m = ps.main;
+            m.loop = true; m.duration = 5f;
+            m.startLifetime = new ParticleSystem.MinMaxCurve(3f, 5f);
+            m.startSpeed = 0.01f;
+            m.startSize = new ParticleSystem.MinMaxCurve(0.006f, 0.012f);
+            m.startColor = c;
+            m.maxParticles = 150;
+            var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Box; sh.scale = size;
+            var em = ps.emission; em.rateOverTime = 0;
+            var no = ps.noise; no.enabled = true; no.strength = 0.03f; no.frequency = 0.4f;
+            var vel = ps.velocityOverLifetime; vel.enabled = true; vel.y = new ParticleSystem.MinMaxCurve(-0.01f, 0.015f);
+            Fade(ps);
+            ps.Play();
+            return ps;
         }
 
         static void Fade(ParticleSystem ps)
