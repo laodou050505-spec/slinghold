@@ -234,7 +234,7 @@ namespace PaperSiege
         // 弹弓：皮筋起点（叉尖绕绳中心）
         public static Vector3 ForkTipL = new(-0.814f, 1.988f, 0), ForkTipR = new(0.79f, 1.968f, -0.02f);
         // 帅旗：布旗挂点、灯笼挂钩（米，按 1 格 = 0.05 m 的模型尺寸）
-        public static Vector3 FlagAttach = new(0, 0.12125f, 0), LanternHook = new(-0.023f, 0.0965f, 0);
+        public static Vector3 FlagAttach = new(0, 0.12125f, 0), LanternHook = new(0.0233f, 0.0968f, 0);   // 挂臂铁钩（FBX 导入后 X 反向：Blender 里 -0.46 格 → Unity +X；11-26 用户截图：原来写成 -X，灯笼悬在旗面下）
         // 皮兜两个穿孔（米）
         public static Vector3 PouchHoleL = new(-0.015f, 0, -0.0045f), PouchHoleR = new(0.015f, 0, -0.0045f);
     }

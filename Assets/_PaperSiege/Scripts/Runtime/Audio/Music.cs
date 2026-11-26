@@ -102,6 +102,7 @@ namespace PaperSiege
             if (!d) return;
             int tod = d.level != null ? d.level.timeOfDay : 0;
             if (d.phase == Director.Phase.Title) tod = 0;
+            if (d.ending && d.sky && d.sky.dawn > 0.15f) tod = 0;   // 结局：天一亮就换回清晨那首
             if (tod != current)
             {
                 current = tod;
@@ -110,7 +111,7 @@ namespace PaperSiege
             }
             float target = Progress.Music ? baseVol : 0f;
             if (d.phase == Director.Phase.Title) target *= 0.7f;
-            if (d.phase == Director.Phase.Won || d.phase == Director.Phase.Lost) target *= 0.35f;
+            if (d.phase == Director.Phase.Won || d.phase == Director.Phase.Lost) target *= d.ending ? 0.8f : 0.35f;
             a.volume = Mathf.MoveTowards(a.volume, target, Time.deltaTime * 0.3f);
             b.volume = Mathf.MoveTowards(b.volume, 0f, Time.deltaTime * 0.3f);
             if (b.volume <= 0f && b.isPlaying) b.Stop();

@@ -49,6 +49,13 @@ namespace PaperSiege
             Play(Synth.Clatter(), p, 0.45f, Random.Range(0.9f, 1.15f));
         }
 
+        /// <summary>整座城塌下来（结局）：一声闷响 + 几串音高不同的积木散落声叠在一起</summary>
+        public static void Collapse(Vector3 p)
+        {
+            Play(Synth.Boom(), p, 0.75f, 0.8f);
+            for (int i = 0; i < 4; i++) Play(Synth.Clatter(), p + Random.insideUnitSphere * 0.15f, 0.8f - i * 0.12f, 0.85f + i * 0.08f);
+        }
+
         public static void Launch(Vector3 p, float power) => Play(Synth.Snap(), p, 0.5f + power * 0.5f, 1f + power * 0.15f);
         public static void Throw(Vector3 p) => Play(Synth.Throw(), p, 0.9f);
         public static void Catch(Vector3 p) => Play(Synth.Ding(), p, 0.8f);

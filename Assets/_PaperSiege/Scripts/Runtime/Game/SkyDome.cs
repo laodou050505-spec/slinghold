@@ -129,6 +129,7 @@ namespace PaperSiege
         public void OnLevel(LevelDef lv)
         {
             todFrom = todTo = tod = Mathf.Clamp(lv.timeOfDay, 0, Times.Length - 1); level = lv.index;
+            dawn = 0;
             open = 0;
             sink = 0; swirl = 0;
             openTarget = 0; open = 0; ApplyLid();
@@ -150,6 +151,7 @@ namespace PaperSiege
         {
             StopAllCoroutines();
             openTarget = 0f; crack = 0f;
+            dawn = 0;
             level = -2;   // 下次开局一定重新掀盖
         }
 
@@ -165,6 +167,41 @@ namespace PaperSiege
         }
 
         float crack;
+
+        /// <summary>天亮进度（结局用）：0 = 当前时段，1 = 清晨、太阳升到清晨的高度</summary>
+        public float dawn;
+
+        /// <summary>
+        /// 结局（第十关打下王城）：先一阵比平时密的烟花（约 7 秒，越放越稀），烟花还没放完天就开始泛白，
+        /// 约 9 秒里星星、月亮淡掉，天边转暖，太阳从地平线下面升到清晨的高度。打了一整天，又是新的一天。
+        /// </summary>
+        public void Ending()
+        {
+            StopAllCoroutines();
+            openTarget = 1f;
+            StartCoroutine(EndingRun());
+        }
+
+        IEnumerator EndingRun()
+        {
+            float t = 0;
+            StartCoroutine(DawnRun(4.5f, 9f));
+            while (t < 7.5f)
+            {
+                Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.45f, 1f));
+                if (t < 3f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.4f, 1f));   // 头三秒一次两朵
+                float w = Mathf.Lerp(0.25f, 1.1f, t / 7.5f);                                     // 越放越稀
+                t += w;
+                yield return new WaitForSeconds(w);
+            }
+        }
+
+        IEnumerator DawnRun(float delay, float dur)
+        {
+            yield return new WaitForSeconds(delay);
+            for (float t = 0; t < dur; t += Time.deltaTime) { dawn = Mathf.SmoothStep(0, 1, t / dur); yield return null; }
+            dawn = 1f;
+        }
 
         void ApplyLid()
         {
@@ -219,7 +256,7 @@ namespace PaperSiege
             swirl = Mathf.MoveTowards(swirl, sw, dt * 0.4f);
             tod = Mathf.MoveTowards(tod, todTo, dt * 0.08f);
             // 烟火夜：整关都有零星烟花（每 2～4 秒一朵）
-            if (tod > 4.6f && open > 0.9f && d.phase == Director.Phase.Battle && (idleFw -= dt) <= 0f)
+            if (tod > 4.6f && dawn <= 0f && open > 0.9f && d.phase == Director.Phase.Battle && (idleFw -= dt) <= 0f)
             {
                 idleFw = Random.Range(2f, 4f);
                 Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.4f, 1f));
@@ -230,11 +267,36 @@ namespace PaperSiege
             if (dome && d.head) dome.position = d.head.transform.position;
         }
 
+        static Look Mix(Look A, Look B, float k)
+        {
+            Color L(Color x, Color y) => Color.Lerp(x, y, k);
+            float F(float x, float y) => Mathf.Lerp(x, y, k);
+            return new Look
+            {
+                zenith = L(A.zenith, B.zenith), horizon = L(A.horizon, B.horizon), sun = L(A.sun, B.sun), cloud = L(A.cloud, B.cloud), cloudShade = L(A.cloudShade, B.cloudShade),
+                light = L(A.light, B.light), ambient = L(A.ambient, B.ambient),
+                sunElev = F(A.sunElev, B.sunElev), sunAz = F(A.sunAz, B.sunAz), sunSize = F(A.sunSize, B.sunSize), cover = F(A.cover, B.cover),
+                stars = F(A.stars, B.stars), moon = F(A.moon, B.moon), lightI = F(A.lightI, B.lightI),
+            };
+        }
+
         void Apply(float t, float sinkK, float swirlK, float dim)
         {
-            int a = Mathf.FloorToInt(t), b = Mathf.Min(Times.Length - 1, a + 1);
-            float k = t - a;
-            var A = Times[a]; var B = Times[b];
+            int a0 = Mathf.FloorToInt(t), b0 = Mathf.Min(Times.Length - 1, a0 + 1);
+            var cur = Mix(Times[a0], Times[b0], t - a0);
+            if (dawn > 0f)
+            {
+                // 天亮：月亮 / 星星先淡（前 40%），天色和光随后转到清晨；太阳在东边从地平线下 8° 升到清晨的高度
+                var morning = Times[0];
+                float moonOff = Mathf.Clamp01(dawn / 0.4f);
+                cur = Mix(cur, morning, dawn);
+                cur.moon = Mathf.Lerp(Times[a0].moon, 0f, moonOff); cur.stars = Mathf.Lerp(Times[a0].stars, 0f, moonOff);
+                cur.sunAz = morning.sunAz;
+                cur.sunElev = Mathf.Lerp(-8f, morning.sunElev, Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.3f, 1f, dawn)));
+                cur.sun = dawn < 0.4f ? Color.Lerp(Times[a0].sun, morning.sun, dawn / 0.4f) : morning.sun;
+            }
+            var A = cur; var B = cur;
+            float k = 0f;
             Color L(Color x, Color y) => Color.Lerp(x, y, k);
             float F(float x, float y) => Mathf.Lerp(x, y, k);
             var zen = L(A.zenith, B.zenith); var hor = L(A.horizon, B.horizon); var sunC = L(A.sun, B.sun);

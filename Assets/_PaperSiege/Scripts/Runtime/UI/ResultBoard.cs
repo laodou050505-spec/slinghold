@@ -24,6 +24,7 @@ namespace PaperSiege
         readonly List<HangTag> tags = new();
         public int earned;
         bool[] got = new bool[3];
+        bool finale;
         const float StickHalf = 0.15f;      // 吊绳绑在横木两端的绑绳处（CV_Stick ±3 格）
         const float FlagX = -0.07f, BtnX = 0.075f;   // 横木上两道绳圈（FBX 导入后 X 反向）
         const float LinkScale = 1.1f;       // 战报木签相对按钮木签（0.82）再放大 → 约 0.9，13 cm 宽的牌子上一行字
@@ -39,12 +40,16 @@ namespace PaperSiege
             return s;
         }
 
-        public static ResultBoard Build(Director d, bool win)
+        public static ResultBoard Build(Director d, bool win) => Build(d, win, false);
+
+        /// <summary>finale = 终章（第十关打下王城、天亮之后）：“全胜”布旗 + “十城尽破” + 十关总星数，只留“回标题”</summary>
+        public static ResultBoard Build(Director d, bool win, bool finale)
         {
             var r = new GameObject("ResultBoard").AddComponent<ResultBoard>();
             r.d = d;
             r.earned = Score(d, win);
-            r.got = new[] { win, win && d.stats.caught >= 3, win && d.arena.mine.kingHP >= d.arena.mine.kingMaxHP };
+            r.got = finale ? new[] { true } : new[] { win, win && d.stats.caught >= 3, win && d.arena.mine.kingHP >= d.arena.mine.kingMaxHP };
+            r.finale = finale;
             r.BuildLook(win);
             r.StartCoroutine(r.Open());
             return r;
@@ -86,7 +91,7 @@ namespace PaperSiege
             cordL = Cord(); cordR = Cord();
 
             // 小布旗
-            string key = win ? "win" : d.timeUp ? "time" : "lost";
+            string key = finale ? "end" : win ? "win" : d.timeUp ? "time" : "lost";
             var fg = new GameObject("Flag"); fg.transform.SetParent(root, false);
             fg.transform.localPosition = new Vector3(FlagX, -0.012f, 0);
             flag = fg.AddComponent<BannerCloth>();
@@ -95,7 +100,7 @@ namespace PaperSiege
             // 按钮木签：从右边绳圈往下首尾相连挂成一串
             var btns = new List<(string zh, System.Action act)>();
             if (win && d.levelIndex < Levels.Count - 1) btns.Add(("下一关", () => d.StartLevel(d.levelIndex + 1)));
-            btns.Add(("重来", () => d.StartLevel(d.levelIndex)));
+            if (!finale) btns.Add(("重来", () => d.StartLevel(d.levelIndex)));
             btns.Add(("回标题", () => d.GoTitle()));
             Transform parent = root; Vector3 knot = new Vector3(BtnX, -0.004f, 0);
             for (int i = 0; i < btns.Count; i++)
@@ -114,6 +119,19 @@ namespace PaperSiege
             var ink = new Color(0.13f, 0.08f, 0.05f);
             var s = d.stats;
             // 正面能写字的带：两个穿绳孔之间，y -0.008 ～ -0.036（模型坐标）
+            if (finale)
+            {
+                // 终章：“十城尽破” → 一颗金星 + 十关总星数
+                var f0 = ReportLink.Build(hole, LinkGap + 0.016f, cover, 0, LinkScale);
+                f0.Text(new Vector3(0, -0.022f, 0), new Vector2(0.118f, 0.03f), 0.5f, ink).text = Loc.T("十城尽破");   // 四个字，字号放到和“回标题”差不多
+                links.Add(f0);
+                var f1 = ReportLink.Build(f0.BottomHole, LinkGap, cover, 1, 1.15f);
+                var st = Star(f1.look, new Vector3(-0.03f, -0.022f, -0.0058f), true);
+                st.localScale = Vector3.zero; stars.Add(st);
+                f1.Text(new Vector3(0.012f, -0.022f, 0), new Vector2(0.07f, 0.026f), 0.32f, ink).text = $"{N(Progress.TotalStars)} / {N(Levels.Count * 3)}";
+                links.Add(f1);
+                return;
+            }
             var l0 = ReportLink.Build(hole, LinkGap + 0.016f, cover, 0, LinkScale);   // 和按钮组之间的绳长一点，两组分得开
             l0.Text(new Vector3(0, -0.022f, 0), new Vector2(0.112f, 0.028f), 0.32f, ink).text = Loc.T(d.level.title);
             links.Add(l0);
@@ -216,7 +234,7 @@ namespace PaperSiege
                 lk.drop = 1; lk.kick = 1f;
             }
             // 4) 星一颗颗钉上
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < stars.Count; i++)
             {
                 yield return new WaitForSeconds(0.08f);
                 for (float k = 0; k < 1f; k += Time.deltaTime / 0.16f) { float o = 1 + Mathf.Sin(k * Mathf.PI) * 0.4f; stars[i].localScale = Vector3.one * 1.25f * k * o; yield return null; }

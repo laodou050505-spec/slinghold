@@ -120,7 +120,7 @@ namespace PaperSiege.EditorTools
             }
             for (int i = 1; i <= 3; i++) Cloth("M_Scrap_" + i, "scrap_" + i, 0.08f);
             Cloth("M_FlagMine", "flag_mine", 0.05f);
-            foreach (var k in new[] { "win", "lost", "time" }) foreach (var l in new[] { "zh", "en" }) Cloth($"M_Result_{k}_{l}", $"result_{k}_{l}", 0.05f);   // 结算小布旗
+            foreach (var k in new[] { "win", "lost", "time", "end" }) foreach (var l in new[] { "zh", "en" }) Cloth($"M_Result_{k}_{l}", $"result_{k}_{l}", 0.05f);   // 结算小布旗
             Cloth("M_Note", "note_paper", 0.08f);                                                                                             // 战报纸条
             { var fm = AssetDatabase.LoadAssetAtPath<Material>(dir + "M_FlagMine.mat"); fm.SetFloat("_Cull", 2f); EditorUtility.SetDirty(fm); }   // 我方帅旗：正反两片各自单面（两面的图标都不镜像）
             void Mark(string name, string tex)

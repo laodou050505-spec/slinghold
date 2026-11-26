@@ -111,6 +111,9 @@ namespace PaperSiege
             d.arena.enemy.SetKingHP(1);
             d.arena.enemy.kingLocked = false;
             d.arena.mine.kingLocked = false;
+            // 11-26：教挡 / 接 / 修时敌弹会砸到自己的帅旗，锁只让它立回去、耐久照扣 → 开打时只剩 2/3，第三颗星“无伤”也没了。开打前补满
+            d.arena.mine.SetKingHP(d.arena.mine.kingMaxHP);
+            KingLook.SetGlow(d.arena.mine.king, 1f);
             if (d.ammo.Total < 3) d.ammo.Add(Ammo.Stone, 3 - d.ammo.Total);
             d.timerPaused = false;
             d.timeLeft = d.level.timeLimit;

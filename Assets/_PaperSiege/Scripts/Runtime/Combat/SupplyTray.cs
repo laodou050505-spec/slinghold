@@ -42,7 +42,9 @@ namespace PaperSiege
             for (int s = 0; s < 2; s++) { if (held[s]) Destroy(held[s].gameObject); held[s] = null; }
             var a = d.arena;
             var right = Vector3.Cross(Vector3.up, a.forward);
-            tray.SetPositionAndRotation(a.tableCenter + right * 0.3f - a.forward * 0.16f, Quaternion.LookRotation(a.forward));
+            // 11-26 巡检：原来在右 0.30 / 前 0.34，要往右转 41° 才看得到 → 绕着头往前转到约 28°（离头的水平距离不变，手照样够得着），
+            // 盘的后沿离自己城的前墙还隔约 2 cm
+            tray.SetPositionAndRotation(a.tableCenter + right * 0.21f - a.forward * 0.10f, Quaternion.LookRotation(a.forward));
             for (int i = 0; i < T.supplyStart; i++) AddPiece();
             refill = T.supplyEvery;
         }

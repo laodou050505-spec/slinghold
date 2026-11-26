@@ -12,7 +12,9 @@ import scraps as S
 OUT = os.path.join(B.ROOT, 'Assets/_PaperSiege/Resources/Cover')
 W, H, FR = 512, 640, 110
 ZH = os.path.join(T.FONTS, 'ZCOOLQingKeHuangYou-Regular.ttf'); EN = os.path.join(T.FONTS, 'Bungee-Regular.ttf')
-WORDS = {'win': ('胜利', ['VICTORY']), 'lost': ('失守', ['FALLEN']), 'time': ('时间到', ['TIME', 'UP'])}
+WORDS = {'win': ('胜利', ['VICTORY']), 'lost': ('失守', ['FALLEN']), 'time': ('时间到', ['TIME', 'UP']), 'end': ('全胜', ['THE', 'END'])}
+# 只重画指定的几面：python3 result_flags.py end（不带参数 = 全部；注意 rng 种子用了 hash()，每次运行都会变，已定稿的别重画）
+ONLY = set(sys.argv[1:])
 
 def cloth(rng):
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
@@ -53,8 +55,9 @@ def scorch(img, a, rng):
     img[rim] = burnt * 0.8            # 最外沿一道炭黑
 
 for key, (zh, en) in WORDS.items():
+    if ONLY and key not in ONLY: continue
     for lang in ('zh', 'en'):
-        rng = np.random.default_rng(hash((key, lang)) % 1000)
+        rng = np.random.default_rng(sum(map(ord, key + lang)))
         img = cloth(rng)
         if lang == 'zh':
             m = T.glyph_mask(zh, ZH, 520, True)
@@ -67,9 +70,10 @@ for key, (zh, en) in WORDS.items():
         t = t.resize((int(t.width * k), int(t.height * k)), Image.LANCZOS)
         B.paste(img, t, W / 2, 40 + (H - FR - 40) / 2)
         a = edges(rng)
-        if key != 'win': scorch(img, a, rng)
+        if key in ('lost', 'time'): scorch(img, a, rng)
         out = np.dstack([np.clip(img, 0, 255), a * 255]).astype(np.uint8)
         Image.fromarray(out).save(os.path.join(OUT, f'result_{key}_{lang}.png'))
-S.finish('note_paper.png', lambda d, rng, w, h: None, 560, 640, 9)
-import shutil; shutil.move(os.path.join(S.OUT, 'note_paper.png'), os.path.join(OUT, 'note_paper.png')) if S.OUT != OUT else None
+if not ONLY: S.finish('note_paper.png', lambda d, rng, w, h: None, 560, 640, 9)
+if not ONLY:
+    import shutil; shutil.move(os.path.join(S.OUT, 'note_paper.png'), os.path.join(OUT, 'note_paper.png')) if S.OUT != OUT else None
 print('ok')

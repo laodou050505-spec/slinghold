@@ -572,6 +572,50 @@ namespace PaperSiege.EditorTools
             Debug.Log("[流程] 完成");
         }
 
+        /// <summary>
+        /// 结局走查：第十关打倒王城帅旗 → 按时间点连拍（塌城 / 满天烟花 / 天亮 / 终章横木，含头显像素密度）→ 捏“回标题”→ 拍封面，
+        /// 查主按钮是不是“从头再来”。跑完把存档里的通关标记 / 解锁进度还原。
+        /// </summary>
+        public static string EndingCheck(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(EndingRun(dir)); return "ending started"; }
+
+        static System.Collections.IEnumerator EndingRun(string dir)
+        {
+            bool cleared0 = Progress.Cleared; int unlocked0 = Progress.Unlocked;
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            Level(Levels.Count - 1); Quiet();
+            var t = D.head.transform;
+            t.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(4, 0, 0);
+            yield return new WaitForSeconds(3f);
+            SnapPlayer(dir, "E0_开打前");
+            D.arena.enemy.DamageKing(99, D.arena.enemy.transform.position - D.arena.forward);
+            Debug.Log($"[结局] 打倒王城 phase={D.phase} ending={D.ending}");
+            float t0 = Time.time;
+            foreach (var (at, name) in new[] { (1.6f, "E1_塌城"), (3.5f, "E2_烟花"), (6.5f, "E3_烟花渐稀"), (9.5f, "E4_天发白"), (12.5f, "E5_日出") })
+            {
+                while (Time.time - t0 < at) yield return null;
+                SnapPlayer(dir, name);
+                Debug.Log($"[结局] {at:0.0}s {name} dawn={D.sky.dawn:0.00} 敌城完整={D.arena.enemy.Integrity:0.00}");
+            }
+            while (Time.time - t0 < 14.5f) yield return null;
+            var rb = GameObject.Find("ResultBoard");
+            Debug.Log($"[结局] 终章横木={(rb != null)} 通关={Progress.Cleared} 总星={Progress.TotalStars} 按钮={string.Join("/", WoodButton.All.Where(b => b).Select(b => b.Key))}");
+            if (rb)
+            {
+                var rr = rb.transform.Find("Result");
+                var at2 = rr ? rr.position + Vector3.down * 0.12f : rb.transform.position;
+                SnapPlayerLook(dir, "E6_终章", at2);
+                Snap(dir, "E6_终章_近看", t.position, at2, 38);
+                Snap(dir, "E6_终章_头显像素", t.position, at2, 50.5f);
+            }
+            yield return PressButton("回标题");
+            yield return new WaitForSeconds(3f);
+            Debug.Log($"[结局] 回标题后 phase={D.phase} 封面按钮={string.Join("/", WoodButton.All.Where(b => b).Select(b => b.Key))} dawn={D.sky.dawn:0.00} ending={D.ending}");
+            t.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(10, 0, 0);
+            SnapPlayer(dir, "E7_封面");
+            Progress.Cleared = cleared0; Progress.Unlocked = unlocked0;
+            Debug.Log("[结局] 完成");
+        }
+
         /// <summary>从玩家眼睛的位置看向某处（模拟低头看），视场角和头显接近</summary>
         public static string SnapPlayerLook(string dir, string name, Vector3 at) => Snap(dir, name, D.head.transform.position, at, 80);
 
@@ -1035,6 +1079,45 @@ namespace PaperSiege.EditorTools
             Debug.Log($"[Overlap] ③判负后 挂着的木牌={ActiveTags()}");
             SnapPlayer(dir, "3_着火提示时判负");
             Debug.Log("[Overlap] 完成");
+        }
+
+        /// <summary>
+        /// 逐关巡检（表现 + 舒适度）：每关①玩家视角（头显视场 ~96°）②敌城近景 ③投石机打 4 发、我方打 3 发后的战况；
+        /// 量：敌城 / 己城 / 补给盘相对头部的水平角、俯仰角、距离，敌城在视野里占多大，盒盖开口仰角。
+        /// </summary>
+        public static string Audit(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(AuditRun(dir)); return "audit started"; }
+        static string Ang(Vector3 p)
+        {
+            var h = D.head.transform.position; var f = D.arena.forward; var v = p - h;
+            float yaw = Vector3.SignedAngle(f, Vector3.ProjectOnPlane(v, Vector3.up), Vector3.up);
+            float pitch = Mathf.Asin(Mathf.Clamp(v.normalized.y, -1, 1)) * Mathf.Rad2Deg;
+            return $"水平{yaw:0}° 俯仰{pitch:0}° 距{v.magnitude:0.00}m";
+        }
+        static System.Collections.IEnumerator AuditRun(string dir)
+        {
+            D.head.transform.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(12, 0, 0);
+            for (int i = 0; i < Levels.Count; i++)
+            {
+                Level(i); Quiet();
+                if (i == 0) { var tut = D.GetComponent<Tutorial>(); if (tut) Object.Destroy(tut); D.arena.enemy.kingLocked = false; D.arena.mine.kingLocked = false; }
+                yield return new WaitForSeconds(2.5f);
+                var A = D.arena; var e = A.enemy; var m = A.mine;
+                var eb = new Bounds(e.transform.position, Vector3.zero); foreach (var b in e.blocks) if (b) eb.Encapsulate(b.WorldBounds);
+                float eAng = 2 * Mathf.Atan2(eb.extents.x, Vector3.Distance(D.head.transform.position, eb.center)) * Mathf.Rad2Deg;
+                float eTall = 2 * Mathf.Atan2(eb.extents.y, Vector3.Distance(D.head.transform.position, eb.center)) * Mathf.Rad2Deg;
+                var tray = GameObject.Find("SupplyTray");
+                Debug.Log($"[巡检] 第{i + 1}关 {D.level.title} 时段{D.level.timeOfDay} 敌城{e.blocks.Count}块 宽{eb.size.x:0.00}m 高{eb.size.y:0.00}m 视角宽{eAng:0.0}° 高{eTall:0.0}° | 敌城 {Ang(eb.center)} | 己城 {Ang(m.transform.position)} | 补给盘 {(tray ? Ang(tray.transform.position) : "无")} | 帅旗 {Ang(e.king.transform.position)} | 天花板 {A.ceilingHeight:0.00}m");
+                SnapPlayer(dir, $"L{i + 1:00}_a_玩家视角");
+                SnapEnemy(dir, $"L{i + 1:00}_b_敌城");
+                // 对轰几发看战况
+                for (int k = 0; k < 3; k++) { Shoot(D.level.enemyAmmo[k % D.level.enemyAmmo.Length] == Ammo.Stone ? Ammo.Stone : (Ammo)Mathf.Min(k, (int)Ammo.Split), Random.Range(0, e.blocks.Count), 5.5f, k == 2); yield return new WaitForSeconds(0.6f); }
+                D.catapult.Begin(D.level, m, D.ammo);
+                yield return new WaitForSeconds(9f);
+                D.catapult.Stop();
+                SnapPlayer(dir, $"L{i + 1:00}_c_战况");
+                Debug.Log($"[巡检] 第{i + 1}关 战后 {State()}");
+            }
+            Debug.Log("[巡检] 完成");
         }
 
         public static string State()

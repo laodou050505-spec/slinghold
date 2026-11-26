@@ -20,6 +20,8 @@ namespace PaperSiege
         /// <summary>这一局是时间到了结束的（结算板上写“时间到”而不是“失守”）</summary>
         public bool timeUp;
         public readonly AmmoStore ammo = new();
+        /// <summary>正在播结局（第十关打下王城之后）</summary>
+        public bool ending;
         public EnemyCatapult catapult;
         public PlayerSling sling;
         public SkyDome sky;
@@ -56,6 +58,7 @@ namespace PaperSiege
         /// <summary>标题页（封面 D：帅旗灯笼小场景）：盒盖合着，房间里只浮着封面那组实物；城和投石机都不摆（封面不出现游戏场景），开局时城一块块搭起来</summary>
         public void GoTitle()
         {
+            ending = false;
             if (result) { result.Close(); result = null; }
             foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
             if (!sky) { sky = SkyDome.Build(this, FindAnyObjectByType<Light>()); arena.sky = sky; }
@@ -76,6 +79,7 @@ namespace PaperSiege
 
         public void StartLevel(int i)
         {
+            ending = false;
             if (title) { title.Close(); title = null; }
             if (result) { result.Close(); result = null; }
             levelIndex = Mathf.Clamp(i, 0, Levels.Count - 1);
@@ -126,11 +130,51 @@ namespace PaperSiege
             if (phase != Phase.Battle) return;
             catapult.Stop();
             SetPhase(win ? Phase.Won : Phase.Lost);
-            if (sky) sky.OnEnd(win);
+            if (sky && !(win && levelIndex == Levels.Count - 1)) sky.OnEnd(win);
             HintTag.HideAll();
             if (win) { Progress.SetStars(levelIndex, ResultBoard.Score(this, true)); if (levelIndex + 1 > Progress.Unlocked) Progress.Unlocked = levelIndex + 1; }
+            if (win && levelIndex == Levels.Count - 1) { StartCoroutine(Ending()); return; }
             StartCoroutine(ShowResult(win));
             Debug.Log($"[PaperSiege] 第 {levelIndex + 1} 关 {(win ? "胜" : "负")}  我方完整度 {arena.mine.Integrity:0.00} 敌方 {arena.enemy.Integrity:0.00}  射 {stats.shots} 挡 {stats.blocked} 接 {stats.caught}");
+        }
+
+        /// <summary>
+        /// 结局（简单版）：王城帅旗倒下 → 剩下的王城整座塌下来（每块轻轻一推，有先后）→ 满天烟花 →
+        /// 烟花渐稀、天慢慢亮回清晨（音乐换回清晨那首）→ 终章横木垂下：“全胜”布旗 + “十城尽破”+ 总星数 + 回标题。
+        /// </summary>
+        System.Collections.IEnumerator Ending()
+        {
+            ending = true;
+            Progress.Cleared = true;
+            if (sky) sky.Ending();
+            yield return new WaitForSeconds(0.8f);
+            var e = arena.enemy;
+            if (e)
+            {
+                var c = e.transform.position;
+                var bl = new System.Collections.Generic.List<Block>(e.blocks);
+                bl.Sort((x, y) => (y ? y.transform.position.y : 0).CompareTo(x ? x.transform.position.y : 0));   // 从高处先塌
+                Sfx.Collapse(c);
+                for (int i = 0; i < bl.Count; i++)
+                {
+                    var b = bl[i];
+                    if (!b || b.Dead) continue;
+                    b.Wake();
+                    if (b.rb)
+                    {
+                        // 往外散开 + 往上掀一点；正中间的块“往外”几乎为零 → 随机往前或往后倒（11-26 第一版只倒了几座尖塔，城墙还立着）
+                        var away = Vector3.ProjectOnPlane(b.transform.position - c, Vector3.up);
+                        if (away.magnitude < e.unit * 1.5f) away = arena.forward * (UnityEngine.Random.value < 0.5f ? 1f : -1f);
+                        away.Normalize();
+                        float up = 0.35f + 0.25f * Mathf.Clamp01((b.transform.position.y - c.y) / (e.unit * 8f));   // 越高的块掀得越起
+                        b.rb.AddForce((away * 1.1f + Vector3.up * up + UnityEngine.Random.insideUnitSphere * 0.35f) * b.rb.mass * 1.5f, ForceMode.Impulse);
+                        b.rb.AddTorque(UnityEngine.Random.insideUnitSphere * b.rb.mass * 0.05f, ForceMode.Impulse);
+                    }
+                    if (i % 6 == 0) yield return new WaitForSeconds(0.05f);
+                }
+            }
+            yield return new WaitForSeconds(9.5f);
+            if (phase == Phase.Won) result = ResultBoard.Build(this, true, true);
         }
 
         System.Collections.IEnumerator ShowResult(bool win)

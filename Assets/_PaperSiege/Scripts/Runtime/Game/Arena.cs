@@ -192,7 +192,16 @@ namespace PaperSiege
             if (!Castle.InstantBuild) { enemy.StartCoroutine(enemy.Assemble(2.0f)); mine.StartCoroutine(mine.Assemble(1.2f)); }
             mine.SetKingHP(3);              // 自己的帅旗 3 点耐久（不会被一发打掉）
             enemy.SetKingHP(level.kingHP);
-            catapultSpot.SetPositionAndRotation(enemy.ToWorld(new Vector3(7.2f, 0, -2.0f)), Quaternion.LookRotation(forward, Vector3.up));   // 投石机正面是本地 -Z → 朝玩家
+            // 投石机放在敌城右前方的城外：按布局里最靠右那块积木的外沿再留 2.9 格（1 米宽的城时就是原来的 7.2 格）。
+            // 11-26 巡检：原来固定 7.2 格，第 8～10 关城变宽后投石机被城墙挡住、第十关插进了石墙。
+            float edge = 0f;
+            foreach (var it in level.enemy.items)
+            {
+                var def = BlockLibrary.Def(it.piece);
+                float half = def != null ? Mathf.Max(def.size.x, def.size.z) * 0.5f : 1f;   // 转过角度的块按长边算，宁可多留
+                edge = Mathf.Max(edge, it.pos.x + half);
+            }
+            catapultSpot.SetPositionAndRotation(enemy.ToWorld(new Vector3(Mathf.Max(7.2f, edge + 2.9f), 0, -2.0f)), Quaternion.LookRotation(forward, Vector3.up));   // 投石机正面是本地 -Z → 朝玩家
         }
     }
 }

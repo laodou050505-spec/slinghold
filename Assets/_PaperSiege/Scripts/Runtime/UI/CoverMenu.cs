@@ -259,13 +259,13 @@ namespace PaperSiege
             page = p;
             string[] keys = p switch
             {
-                Page.Main => new[] { Progress.Unlocked == 0 ? "开始游戏" : "继续游戏", "选择关卡", "设置", "退出游戏" },
+                Page.Main => new[] { Progress.Cleared ? "从头再来" : Progress.Unlocked == 0 ? "开始游戏" : "继续游戏", "选择关卡", "设置", "退出游戏" },   // 通关后：从第一关重新打（选关仍全开）
                 Page.Settings => new[] { "切换语言\nLanguage", Progress.OneHand ? "单手弓" : "双手弓", SoundKey(), "返回" },
                 _ => new[] { "返回", null, null, null },
             };
             System.Action[] acts = p switch
             {
-                Page.Main => new System.Action[] { () => Begin(Progress.Unlocked), () => Go(Page.Levels), () => Go(Page.Settings), Quit },
+                Page.Main => new System.Action[] { () => Begin(Progress.Cleared ? 0 : Progress.Unlocked), () => Go(Page.Levels), () => Go(Page.Settings), Quit },
                 Page.Settings => new System.Action[] { ToggleLanguage, () => { Progress.OneHand = !Progress.OneHand; tags[1].Retext(Progress.OneHand ? "单手弓" : "双手弓"); }, CycleSound, () => Go(Page.Main) },
                 _ => new System.Action[] { () => Go(Page.Main), null, null, null },
             };

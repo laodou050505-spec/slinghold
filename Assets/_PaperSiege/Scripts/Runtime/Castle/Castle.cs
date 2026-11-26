@@ -192,6 +192,9 @@ namespace PaperSiege
                 float tilt = Vector3.Angle(king.transform.up, Vector3.up);
                 float above = (king.transform.position.y - transform.position.y) / unit;
                 string why = tilt > 60f ? "被碰歪" : (above < 0.6f && king.homePos.y - transform.position.y > 0.6f * unit) ? "楼塌掉到地上" : null;
+                // 教学锁着时：只要被碰歪 / 挪了位就立回去。11-26：原来也要歪过 60° 才立，斜靠在城墙上（不到 60°）就一直不立，
+                // 还压着教学要补的缺口 → 补不上、教学卡死
+                if (kingLocked && !Assembling && why == null && (tilt > 15f || Vector3.Distance(king.transform.position, king.homePos) > 0.5f * unit)) why = "教学中被碰歪";
                 if (why != null)
                 {
                     if (kingLocked) { if (!kingRestoring) StartCoroutine(RestoreKing()); }

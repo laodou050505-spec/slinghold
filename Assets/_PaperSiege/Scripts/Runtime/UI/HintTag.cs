@@ -86,7 +86,10 @@ namespace PaperSiege
         {
             if (pin.HasValue) return pin.Value;
             var f = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized; var r = Vector3.Cross(Vector3.up, f);
-            return head.position + f * 0.55f + r * 0.17f + Vector3.up * 0.05f + jitter;
+            // 11-26 巡检：原来在眼前偏右 17°、比眼睛略高，正好挡住投石机出手后弹道往上走的那段（第十关还挂在敌城上空）
+            // → 挪到投石机（右 12～15°、低 15°）的右下方：约右 25°、低 23°。弹道从投石机往左上走，挡不着；
+            //   比补给盘（低 53°）高得多，也不挡自己城。（第一次试低 12°：加上随机偏移，第十关还是盖住了投石机）
+            return head.position + f * 0.5f + r * 0.24f - Vector3.up * 0.24f + jitter;
         }
 
         /// <summary>换一句提示（中文原文，内部走 Loc）。空串 = 收起</summary>

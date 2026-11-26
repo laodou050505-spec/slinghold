@@ -7,6 +7,9 @@ namespace PaperSiege
     {
         public static int Unlocked { get => Mathf.Clamp(PlayerPrefs.GetInt("ps_unlocked", 0), 0, Levels.Count - 1); set { PlayerPrefs.SetInt("ps_unlocked", Mathf.Clamp(value, 0, Levels.Count - 1)); PlayerPrefs.Save(); } }
         public static int Stars(int lv) => PlayerPrefs.GetInt("ps_stars_" + lv, 0);
+        /// <summary>十关全部打过（看过结局）：封面主按钮变“从头再来”，选关全开</summary>
+        public static bool Cleared { get => PlayerPrefs.GetInt("ps_cleared", 0) == 1; set { PlayerPrefs.SetInt("ps_cleared", value ? 1 : 0); PlayerPrefs.Save(); } }
+        public static int TotalStars { get { int n = 0; for (int i = 0; i < Levels.Count; i++) n += Stars(i); return n; } }
         public static void SetStars(int lv, int n) { if (n > Stars(lv)) { PlayerPrefs.SetInt("ps_stars_" + lv, n); PlayerPrefs.Save(); } }
         public static bool Music { get => PlayerPrefs.GetInt("ps_music", 1) == 1; set { PlayerPrefs.SetInt("ps_music", value ? 1 : 0); PlayerPrefs.Save(); } }
         /// <summary>单手模式（兜底）：自己城边立一个固定弓架，只用右手拉；左手专门挡 / 接</summary>
