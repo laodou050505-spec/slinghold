@@ -46,7 +46,9 @@ namespace PaperSiege
             { "胜利！", "Victory!" }, { "失守……", "Your banner fell…" }, { "时间到……", "Out of time…" },
             { "射 {0}　挡 {1}　接 {2}　修 {3}", "Shots {0}   Blocks {1}   Catches {2}   Repairs {3}" },
             { "赢　·　接住 3 发　·　帅旗没挨打", "Win  ·  Catch 3  ·  Banner untouched" },
-            { "下一关", "Next" }, { "重来", "Retry" }, { "回标题", "Title" },
+            { "下一关", "NEXT" }, { "重来", "RETRY" }, { "回标题", "TITLE" },
+            { "射 {0}　挡 {1}", "Shots {0}   Blocks {1}" }, { "接 {0}　修 {1}", "Catches {0}   Repairs {1}" },
+            { "打下对方帅旗", "Banner taken" }, { "接住 3 发", "3 catches" }, { "帅旗没挨打", "Banner untouched" },
             // 关卡名
             { "第一关 · 矮墙", "1 · The Low Wall" },
             { "第二关 · 小城", "2 · Little Keep" },

@@ -48,7 +48,7 @@ namespace PaperSiege
 
         // ───────────────────── 资源
         static Dictionary<string, Mesh> meshes;
-        static Mesh M(string id)
+        public static Mesh M(string id)
         {
             if (meshes == null)
             {
@@ -57,7 +57,7 @@ namespace PaperSiege
             }
             return meshes.TryGetValue(id, out var r) ? r : null;
         }
-        static Material Mat(string n) => Resources.Load<Material>("Cover/" + n);
+        public static Material Mat(string n) => Resources.Load<Material>("Cover/" + n);
 
         static GameObject Part(string name, Transform parent, Mesh mesh, Material mat)
         {
@@ -200,7 +200,7 @@ namespace PaperSiege
         }
 
         /// <summary>微微卷起的纸：沿宽度方向弯一点（中间凹、两边翘），正面朝 -Z</summary>
-        static Mesh CurledQuad(float w, float h, float curl)
+        public static Mesh CurledQuad(float w, float h, float curl)
         {
             const int nx = 10, ny = 6;
             var v = new List<Vector3>(); var uv = new List<Vector2>(); var tri = new List<int>();

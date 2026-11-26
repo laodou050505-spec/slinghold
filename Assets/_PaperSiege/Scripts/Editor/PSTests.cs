@@ -555,7 +555,7 @@ namespace PaperSiege.EditorTools
             yield return new WaitForSeconds(5.5f);
             Debug.Log($"[流程] 赢后 phase={D.phase} 结算板={(GameObject.Find("ResultBoard") != null)} 星={Progress.Stars(D.levelIndex)} 解锁到={Progress.Unlocked + 1}");
             var rb = GameObject.Find("ResultBoard");
-            if (rb) SnapPlayerLook(dir, "结算_胜利", rb.transform.position);
+            if (rb) { var rr = rb.transform.Find("Result"); SnapPlayerLook(dir, "结算_胜利", rr ? rr.position + Vector3.down * 0.08f : rb.transform.position); if (rr) Snap(dir, "结算_胜利_近看", D.head.transform.position, rr.position + Vector3.down * 0.1f, 38); }
             yield return PressButton("下一关");
             yield return new WaitForSeconds(1.0f);
             Debug.Log($"[流程] 捏“下一关”后 phase={D.phase} 关={D.levelIndex + 1}");
@@ -564,7 +564,7 @@ namespace PaperSiege.EditorTools
             D.arena.mine.DamageKing(99, D.arena.mine.transform.position + D.arena.forward);
             yield return new WaitForSeconds(5.0f);
             rb = GameObject.Find("ResultBoard");
-            if (rb) SnapPlayerLook(dir, "结算_失守", rb.transform.position);
+            if (rb) { var rr = rb.transform.Find("Result"); SnapPlayerLook(dir, "结算_失守", rr ? rr.position + Vector3.down * 0.08f : rb.transform.position); if (rr) Snap(dir, "结算_失守_近看", D.head.transform.position, rr.position + Vector3.down * 0.1f, 38); }
             Debug.Log($"[流程] 输后 phase={D.phase} 结算板={(rb != null)}");
             yield return PressButton("回标题");
             yield return new WaitForSeconds(1.0f);

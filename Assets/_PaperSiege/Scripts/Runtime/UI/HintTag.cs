@@ -16,6 +16,7 @@ namespace PaperSiege
         LineRenderer cord;
         Vector3 anchor, anchorGoal;
         float swing, swingVel, drop = 1f;
+        float lean, yaw; Vector3 jitter;   // 每次换牌随机一点：歪一点、转一点、挂的位置错开几厘米（不死板）
         string current = "";
         Coroutine co;
         const float Scale = 3.2f;          // 模型 6×4 cm → 约 19×13 cm
@@ -62,7 +63,7 @@ namespace PaperSiege
             text.textWrappingMode = TextWrappingModes.NoWrap;   // 只在写好的换行处换行（自动换行会把短句再拆碎、字被缩得很小）
             text.enableAutoSizing = true; text.fontSizeMin = 0.05f; text.fontSizeMax = 0.6f;
             text.alignment = TextAlignmentOptions.Center;
-            text.color = new Color(0.22f, 0.14f, 0.09f);   // 墨色（深褐）
+            text.color = new Color(0.13f, 0.08f, 0.05f);   // 墨色（深褐，压得住木纹）
             text.lineSpacing = -10f;
             // 绳
             cord = gameObject.AddComponent<LineRenderer>();
@@ -75,7 +76,7 @@ namespace PaperSiege
         {
             if (pin.HasValue) return pin.Value;
             var f = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized; var r = Vector3.Cross(Vector3.up, f);
-            return head.position + f * 0.55f + r * 0.17f + Vector3.up * 0.05f;
+            return head.position + f * 0.55f + r * 0.17f + Vector3.up * 0.05f + jitter;
         }
 
         /// <summary>换一句提示（中文原文，内部走 Loc）。空串 = 收起</summary>
@@ -95,6 +96,8 @@ namespace PaperSiege
             drop = 1f;
             if (string.IsNullOrEmpty(zh)) { gameObject.SetActive(false); yield break; }
             text.text = Loc.T(zh);
+            lean = Random.Range(-5f, 5f); yaw = Random.Range(-7f, 7f);
+            jitter = new Vector3(Random.Range(-0.03f, 0.03f), Random.Range(-0.02f, 0.025f), 0);
             anchor = anchorGoal = Goal();
             // 新牌从上面落下来，落定后晃几下
             for (float k = 1f; k > 0f; k -= Time.deltaTime / 0.35f) { drop = k; yield return null; }
@@ -117,8 +120,8 @@ namespace PaperSiege
             var lift = Vector3.up * (drop * drop * 0.25f);
             transform.position = anchor + lift;
             var toHead = Vector3.ProjectOnPlane(head.position - transform.position, Vector3.up);
-            transform.rotation = Quaternion.LookRotation(-toHead.normalized, Vector3.up);
-            hang.localRotation = Quaternion.Euler(0, 0, swing * Mathf.Rad2Deg * 0.35f);
+            transform.rotation = Quaternion.LookRotation(-toHead.normalized, Vector3.up) * Quaternion.Euler(0, yaw, 0);
+            hang.localRotation = Quaternion.Euler(0, 0, lean + swing * Mathf.Rad2Deg * 0.35f);
             float a = 1f - drop;
             text.alpha = a;
             tag.localScale = Vector3.one * Scale * Mathf.Lerp(0.85f, 1f, a);

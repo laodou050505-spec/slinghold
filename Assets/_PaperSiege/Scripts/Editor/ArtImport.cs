@@ -14,7 +14,7 @@ namespace PaperSiege.EditorTools
 
         const string CoverRoot = "Assets/_PaperSiege/Resources/Cover/";
         static bool IsArt(string p) { p = p.Replace('\\', '/'); return p.StartsWith(ArtRoot) || p.StartsWith(CoverRoot); }
-        static bool IsCoverPrint(string p) { var f = System.IO.Path.GetFileName(p); return p.Replace('\\', '/').StartsWith(CoverRoot) && (f.StartsWith("banner_") || f.StartsWith("scrap_") || f.StartsWith("mark_") || f.StartsWith("flag_")); }
+        static bool IsCoverPrint(string p) { var f = System.IO.Path.GetFileName(p); return p.Replace('\\', '/').StartsWith(CoverRoot) && (f.StartsWith("banner_") || f.StartsWith("scrap_") || f.StartsWith("mark_") || f.StartsWith("flag_") || f.StartsWith("result_") || f.StartsWith("note_")); }
 
         void OnPreprocessModel()
         {
