@@ -60,6 +60,22 @@ namespace PaperSiege.EditorTools
             m.SetUVs(3, outN);
         }
 
+        /// <summary>音频（11-26 离线合成）：音效解压进内存、单声道、预加载（播放零延迟）；音乐 Vorbis 压缩、流式读取</summary>
+        void OnPreprocessAudio()
+        {
+            if (!assetPath.Contains("/Resources/Audio/")) return;
+            var ai = (AudioImporter)assetImporter;
+            bool music = assetPath.Contains("/Audio/Music/");
+            ai.forceToMono = !music;
+            ai.loadInBackground = music;
+            var st = ai.defaultSampleSettings;
+            st.preloadAudioData = true;
+            st.loadType = music ? AudioClipLoadType.Streaming : AudioClipLoadType.DecompressOnLoad;
+            st.compressionFormat = music ? AudioCompressionFormat.Vorbis : AudioCompressionFormat.ADPCM;
+            st.quality = music ? 0.55f : 1f;
+            ai.defaultSampleSettings = st;
+        }
+
         void OnPreprocessTexture()
         {
             if (!IsArt(assetPath)) return;

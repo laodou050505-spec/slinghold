@@ -33,6 +33,7 @@ namespace PaperSiege
         IEnumerator Resume()
         {
             AudioListener.pause = false;
+            if (Director.I && Director.I.paused) { Paused = false; resume = null; yield break; }   // 菜单暂停着：保持冻住，等玩家按“继续”
             yield return new WaitForSecondsRealtime(0.4f);
             for (float t = 0; t < 1f; t += Time.unscaledDeltaTime) { Time.timeScale = Mathf.SmoothStep(0.05f, 1f, t); yield return null; }
             Time.timeScale = 1f;

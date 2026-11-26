@@ -32,6 +32,7 @@ namespace PaperSiege
 
         void Update()
         {
+            if (Director.I && Director.I.paused) return;   // 暂停：手上的操作一律不响应
             if (!d || d.phase != Director.Phase.Battle) return;
             input ??= HandInput.Instance;
             if (!input) return;

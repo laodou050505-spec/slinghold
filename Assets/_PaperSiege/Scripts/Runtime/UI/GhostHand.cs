@@ -130,7 +130,9 @@ namespace PaperSiege
             root.position += at - anchor;
         }
 
-        public void SetAlpha(float a) { if (mat) mat.color = new Color(1f, 0.93f, 0.82f, 0.42f * Mathf.Clamp01(a)); }
+        /// <summary>整只手换个颜色 / 不透明度（暂停板上的小手要实一点，在木牌上看得清）</summary>
+        public void Tint(Color c) { if (mat) mat.color = c; }
+                public void SetAlpha(float a) { if (mat) mat.color = new Color(1f, 0.93f, 0.82f, 0.42f * Mathf.Clamp01(a)); }
         public void Show(bool on) => gameObject.SetActive(on);
     }
 }

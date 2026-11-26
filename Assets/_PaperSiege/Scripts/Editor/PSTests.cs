@@ -361,9 +361,18 @@ namespace PaperSiege.EditorTools
             var hold = GameObject.Find("Pouch").transform.position;
             SimHands.Pose(1, hold, false);
             yield return null; SimHands.Hide(1);
+            // 换弹：右手去弹盒里捏火丸那一格（左手还举着弓）
+            { float w = 0; while (tut.step < 5 && w < 10f) { w += Time.deltaTime; yield return null; } }
+            yield return new WaitForSeconds(2.2f);
+            SnapPlayer(dir, "5a_换弹"); L("换弹提示");
+            var fslot = D.sling.Box.SlotPos(Ammo.Fire);
+            SimHands.Pose(1, fslot + Vector3.up * 0.03f, false); yield return null; yield return null;
+            SimHands.Pose(1, fslot, true); yield return null; yield return null;
+            SimHands.Pose(1, fslot, false); yield return new WaitForSeconds(0.3f); SimHands.Hide(1);
+            L($"换弹后 选中={D.ammo.selected}");
             SimHands.Pose(0, bow(), false); yield return null; SimHands.Hide(0);   // 放下弓，免得左手挡弹
             // 挡、接：右手追着敌弹（张手 / 握拳）
-            for (int phase = 5; phase <= 6; phase++)
+            for (int phase = 6; phase <= 7; phase++)
             {
                 float wait = 0;
                 while (tut.step < phase && wait < 15f) { wait += Time.deltaTime; yield return null; }
@@ -377,7 +386,7 @@ namespace PaperSiege.EditorTools
                     if (!snapped && ft > 0.7f)
                     {
                         snapped = true;
-                        SnapPlayer(dir, phase == 5 ? "5_挡" : "6_接"); L(phase == 5 ? "敌弹飞来（挡）" : "敌弹飞来（接）");
+                        SnapPlayer(dir, phase == 6 ? "6_挡" : "7_接"); L(phase == 6 ? "敌弹飞来（挡）" : "敌弹飞来（接）");
                         var gh = GameObject.Find("GhostHand_R");
                         L($"示范右手 active={(gh ? gh.activeInHierarchy : false)} pos={(gh ? gh.GetComponentInChildren<SkinnedMeshRenderer>().bounds.center.ToString("F2") : "-")} 弹={p.transform.position.ToString("F2")}");
                     }
@@ -386,7 +395,7 @@ namespace PaperSiege.EditorTools
                     var c = D.arena.mine.transform.position + Vector3.up * 0.18f;
                     minC = Mathf.Min(minC, Vector3.Distance(p.transform.position, c)); minH = Mathf.Min(minH, Vector3.Distance(p.transform.position, HandInput.Instance.hands[1].palm)); lastP = p.transform.position;
                     var hp = Vector3.Distance(p.transform.position, c) < 0.6f ? p.transform.position + (t.position - p.transform.position).normalized * 0.05f : c;
-                    SimHands.Pose(1, hp, false, phase == 6, (t.position - hp).normalized * -1f);
+                    SimHands.Pose(1, hp, false, phase == 7, (t.position - hp).normalized * -1f);
                     yield return null;
                 }
                 L($"  诊断：弹离城上方点最近 {minC * 100:0}cm、离手最近 {minH * 100:0}cm、最后位置 {lastP:F2}、弹状态 {(p ? p.state.ToString() : "已销毁")}、phase={D.phase}、手 tracked={HandInput.Instance.hands[1].tracked} pinch={HandInput.Instance.hands[1].pinch}");
@@ -395,9 +404,9 @@ namespace PaperSiege.EditorTools
                 L($"第{phase}步结果 挡{D.stats.blocked} 接{D.stats.caught} 敌弹最高 {apex:0.00}m（从被看到起）");
             }
             // 修城
-            { float w = 0; while (tut.step < 7 && w < 15f) { w += Time.deltaTime; yield return null; } }
+            { float w = 0; while (tut.step < 8 && w < 15f) { w += Time.deltaTime; yield return null; } }
             yield return new WaitForSeconds(4.5f);
-            SnapPlayer(dir, "7_修城"); L("缺口出现后");
+            SnapPlayer(dir, "8_修城"); L("缺口出现后");
             var piece = GameObject.Find("Patch").transform.position + Vector3.up * 0.017f;
             SimHands.Pose(1, piece, true); yield return null; yield return null;
             int slot = D.arena.mine.layout.items.FindIndex(x => x.piece == "W_Battlement");
@@ -406,9 +415,28 @@ namespace PaperSiege.EditorTools
             SimHands.Pose(1, to, false); yield return null; SimHands.Hide(1);
             yield return new WaitForSeconds(3f);
             L($"修城后 补={D.stats.repaired}");
-            { float w = 0; while (tut.step < 8 && w < 10f) { w += Time.deltaTime; yield return null; } }
+            // 灭火：找到着火的块，往下拍两下
+            { float w = 0; while (tut.step < 9 && w < 10f) { w += Time.deltaTime; yield return null; } }
+            yield return new WaitForSeconds(2.0f);
+            SnapPlayer(dir, "9_灭火"); L("着火提示");
+            var fb = D.arena.mine.blocks.Find(b => b && b.burning);
+            if (fb)
+            {
+                var top = fb.WorldBounds.center + Vector3.up * (fb.WorldBounds.extents.y + 0.06f);
+                for (int i = 0; i < 2; i++)
+                {
+                    for (float k = 0; k < 1f; k += Time.deltaTime / 0.25f) { SimHands.Pose(1, top + Vector3.up * 0.08f, false); yield return null; }
+                    for (float k = 0; k < 1f; k += Time.deltaTime / 0.07f) { SimHands.Pose(1, Vector3.Lerp(top + Vector3.up * 0.08f, top - Vector3.up * 0.03f, k), false); yield return null; }
+                    yield return new WaitForSeconds(0.25f);
+                }
+                SimHands.Hide(1);
+            }
+            L($"灭火后 还在烧={(fb ? fb.burning : false)} 灭火数={D.stats.extinguished}");
+            yield return new WaitForSeconds(1.6f);
+            SnapPlayer(dir, "9b_学会啦"); L("学会啦");
+            { float w = 0; while (tut.step < 10 && w < 10f) { w += Time.deltaTime; yield return null; } }
             yield return new WaitForSeconds(1.0f);
-            SnapPlayer(dir, "8_开打"); L($"开打 敌方帅旗耐久={D.arena.enemy.kingHP} 计时暂停={D.timerPaused} 剩{D.timeLeft:0}s");
+            SnapPlayer(dir, "10_开打"); L($"开打 敌方帅旗耐久={D.arena.enemy.kingHP} 计时暂停={D.timerPaused} 剩{D.timeLeft:0}s");
         }
 
         /// <summary>新弹演示台 + 着火提示：各关拍演示台近景</summary>
@@ -614,6 +642,117 @@ namespace PaperSiege.EditorTools
             SnapPlayer(dir, "E7_封面");
             Progress.Cleared = cleared0; Progress.Unlocked = unlocked0;
             Debug.Log("[结局] 完成");
+        }
+
+        /// <summary>暂停走查：开第 3 关 → 捏左边的“暂停”木签 → 时间冻住、在飞的弹不动 → 拍暂停板 → 捏“继续”→ 恢复；再暂停 → “回标题”</summary>
+        public static string PauseCheck(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(PauseRun(dir)); return "pause started"; }
+
+        static System.Collections.IEnumerator PressRT(string zh)
+        {
+            WoodButton b = null;
+            foreach (var x in WoodButton.All) if (x && x.Key == zh && x.interactable) b = x;
+            if (!b) { Debug.Log("[暂停] 找不到可按的按钮 " + zh); yield break; }
+            var p = b.ClosestPoint(b.transform.position - D.arena.forward * 0.1f);
+            SimHands.scripted = true;
+            SimHands.Pose(1, p - D.arena.forward * 0.02f, false); yield return null; yield return null;
+            SimHands.Pose(1, p, true); yield return null; yield return null;
+            SimHands.Pose(1, p, false); yield return new WaitForSecondsRealtime(0.4f);
+            SimHands.Hide(1);
+        }
+
+        static System.Collections.IEnumerator PauseRun(string dir)
+        {
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            Level(2);
+            var t = D.head.transform;
+            t.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(14, 0, 0);
+            yield return new WaitForSecondsRealtime(4f);
+            SnapPlayer(dir, "P1_对局中_左边暂停木签");
+            Shoot(Ammo.Stone, 3, 5.5f, false);
+            yield return new WaitForSecondsRealtime(0.35f);
+            var pr = Projectile.Live.Find(x => x);
+            yield return PressRT("暂停");
+            yield return new WaitForSecondsRealtime(0.3f);
+            var p0 = pr ? pr.transform.position : Vector3.zero; float left0 = D.timeLeft;
+            yield return new WaitForSecondsRealtime(2.5f);
+            Debug.Log($"[暂停] 按下后 paused={D.paused} timeScale={Time.timeScale} 弹移动={(pr ? Vector3.Distance(p0, pr.transform.position) : -1):0.0000}m 计时变化={left0 - D.timeLeft:0.00}s 暂停板={(GameObject.Find("PauseBoard") != null)}");
+            var pb = GameObject.Find("PauseBoard/Root");
+            if (pb)
+            {
+                var at = pb.transform.position + Vector3.down * 0.09f;
+                SnapPlayerLook(dir, "P2_暂停板", at);
+                Snap(dir, "P2_暂停板_头显像素", t.position, at, 50.5f);
+                var g = GameObject.Find("Gesture_Catch");
+                if (g) for (int k = 0; k < 4; k++) { Snap(dir, $"P3_手势近看_{k}", t.position, pb.transform.position + Vector3.down * 0.07f + Vector3.Cross(Vector3.up, D.arena.forward) * -0.1f, 24); yield return new WaitForSecondsRealtime(0.55f); }
+            }
+            yield return PressRT("继续");
+            yield return new WaitForSecondsRealtime(0.5f);
+            Debug.Log($"[暂停] 继续 0.5 秒后 paused={D.paused} timeScale={Time.timeScale:0.00}");
+            yield return new WaitForSecondsRealtime(1.5f);
+            Debug.Log($"[暂停] 继续 2 秒后 paused={D.paused} timeScale={Time.timeScale:0.00} 暂停板={(GameObject.Find("PauseBoard") != null)} phase={D.phase}");
+            yield return PressRT("暂停");
+            yield return new WaitForSecondsRealtime(1.8f);
+            yield return PressRT("回标题");
+            yield return new WaitForSecondsRealtime(1.5f);
+            Debug.Log($"[暂停] 回标题后 phase={D.phase} paused={D.paused} timeScale={Time.timeScale} 暂停板={(GameObject.Find("PauseBoard") != null)}");
+            Debug.Log("[暂停] 完成");
+        }
+
+        /// <summary>
+        /// 真实房间合成用：藏掉编辑器的占位房间（墙 / 地板 / 天花板 / 桌子），相机清成全透明，按头显视场截带透明通道的 PNG。
+        /// 头显上透视画面就是背景，所以这张图叠到房间照片上 ≈ 头显里看到的样子（天空只在盒盖开口里出现）。
+        /// 依次：清晨（第 1 关）/ 上午（第 4 关）/ 午后（第 6 关）/ 黄昏（第 7 关）/ 入夜（第 9 关）/ 烟火夜（第 10 关）/ 结局日出。
+        /// </summary>
+        public static string RealRoom(string dir, float pitch = 8f, float vfov = 68f) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(RealRun(dir, pitch, vfov)); return "realroom started"; }
+
+        static string SnapAlpha(string dir, string name, float pitch, float vfov)
+        {
+            var hidden = new System.Collections.Generic.List<GameObject>();
+            foreach (var r in Object.FindObjectsByType<Renderer>())
+            {
+                var n = r.name;
+                if (n.StartsWith("Room") || n.StartsWith("Ceil") || n == "TableTopLook" || n == "Leg") { r.gameObject.SetActive(false); hidden.Add(r.gameObject); }
+            }
+            var cam = D.head;
+            var bg = cam.backgroundColor; var cf = cam.clearFlags; var fov = cam.fieldOfView; var r0 = cam.transform.rotation;
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0, 0, 0, 0);
+            cam.fieldOfView = vfov;
+            cam.transform.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(pitch, 0, 0);
+            int w = 1920, h = 1080;
+            var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
+            cam.targetTexture = rt; cam.Render(); cam.targetTexture = null;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false); tex.ReadPixels(new Rect(0, 0, w, h), 0, 0); tex.Apply();
+            RenderTexture.active = null;
+            System.IO.Directory.CreateDirectory(dir);
+            var path = System.IO.Path.Combine(dir, name + ".png");
+            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex); rt.Release();
+            cam.clearFlags = cf; cam.backgroundColor = bg; cam.fieldOfView = fov; cam.transform.rotation = r0;
+            foreach (var g in hidden) if (g) g.SetActive(true);
+            return path;
+        }
+
+        static System.Collections.IEnumerator RealRun(string dir, float pitch, float vfov)
+        {
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            var shots = new (int lv, string name)[] { (0, "R1_清晨_第1关"), (3, "R2_上午_第4关"), (5, "R3_午后_第6关"), (6, "R4_黄昏_第7关"), (8, "R5_入夜_第9关"), (9, "R6_烟火夜_第10关") };
+            foreach (var (lv, name) in shots)
+            {
+                D.StartLevel(lv); Quiet();
+                foreach (var c in D.GetComponents<Tutorial>()) Object.Destroy(c);
+                D.arena.enemy.kingLocked = false; D.arena.mine.kingLocked = false;
+                yield return new WaitForSeconds(lv == 9 ? 6.5f : 5f);   // 城搭好、盒盖掀开；第十关等烟花放起来
+                Debug.Log("[真实房间] " + SnapAlpha(dir, name, pitch, vfov));
+            }
+            // 结局：打倒王城 → 等天亮
+            D.arena.enemy.DamageKing(99, D.arena.enemy.transform.position - D.arena.forward);
+            yield return new WaitForSeconds(3.0f);
+            Debug.Log("[真实房间] " + SnapAlpha(dir, "R7_结局_烟花", pitch, vfov));
+            yield return new WaitForSeconds(10.0f);
+            Debug.Log("[真实房间] " + SnapAlpha(dir, "R8_结局_天亮", pitch, vfov));
+            Progress.Cleared = false;
+            Debug.Log("[真实房间] 完成");
         }
 
         /// <summary>从玩家眼睛的位置看向某处（模拟低头看），视场角和头显接近</summary>

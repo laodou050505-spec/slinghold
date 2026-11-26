@@ -1,5 +1,8 @@
 // 第 1 关边玩边学（方案第 6 节）：每一步挂一块提示木牌 + 半透明示范手循环演示，玩家真的做到了才进下一步。
-//   举弓 → 抓皮兜 → 往右肩斜着拉 → 松手发射 → 张手挡开敌弹 → 握拳接住（弹归你）→ 拿积木补缺口 → 自由开打。
+//   举弓 → 抓皮兜 → 往右肩斜着拉 → 松手发射 → 捏弹盒换弹 → 张手挡开敌弹 → 握拳接住（弹归你）→ 拿积木补缺口 → 拍两下灭火 → 学会啦 → 自由开打。
+// 11-26 用户：开头要有玩中学，手势提示参考《梦境玩具战》（会动的手势图 + 一句短话 + 进度点）→
+//   提示木牌下面挂一块手势小木牌（缩小的示范手循环做这一步的动作 + 两个字），牌上一排圆钉 = 7 个手势学到第几个；
+//   补上原来没教的“换弹”“灭火”；全部做完钉上最后一颗、木牌写“学会啦！”再开打。暂停板上的速查表是同一套小木牌。
 // 教学期间：敌方帅旗打不倒、计时暂停、投石机只在要教挡 / 接 / 修的时候由教学来发一颗慢弹。
 using System.Collections;
 using UnityEngine;
@@ -14,6 +17,14 @@ namespace PaperSiege
         public int step;
         public bool done;
         Coroutine ghostCo;
+        const int Lessons = 7;   // 举弓 / 拉放 / 换弹 / 挡 / 接 / 补城 / 灭火
+
+        /// <summary>一步：木牌短话 + 手势卡（第 idx 个手势，圆钉亮到这里）</summary>
+        void Lesson(string text, GestureCard.Kind k, int idx)
+        {
+            tag.Show(text);
+            tag.Card(k, idx, Lessons);
+        }
 
         void Start()
         {
@@ -69,44 +80,59 @@ namespace PaperSiege
             step = 1;
             if (!d.sling.OneHand)
             {
-                tag.Show("左手捏住\n举起弹弓");
+                Lesson("左手捏住\n举起弹弓", GestureCard.Kind.Raise, 0);
                 Ghost(LoopBow());
             }
             yield return new WaitUntil(() => d.sling.Holding);
 
             // 2) 抓皮兜
-            step = 2; tag.Show("右手\n捏住皮兜");
+            step = 2; Lesson("右手\n捏住皮兜", GestureCard.Kind.Draw, 1);
             Ghost(LoopGrab());
             yield return new WaitUntil(() => d.sling.Drawing);
 
             // 3) 拉开
-            step = 3; tag.Show("往右肩\n斜着拉开");
+            step = 3; Lesson("往右肩\n斜着拉开", GestureCard.Kind.Draw, 1);
             Ghost(LoopPull());
             yield return new WaitUntil(() => d.sling.Drawing && d.sling.pull01 > 0.45f);
 
             // 4) 松手
-            step = 4; tag.Show("瞄准对面\n松手！");
+            step = 4; Lesson("瞄准对面\n松手！", GestureCard.Kind.Draw, 1);
             Ghost(null);
             int shots = d.stats.shots;
             yield return new WaitUntil(() => d.stats.shots > shots);
             yield return new WaitForSeconds(2.0f);
 
-            // 5) 挡
+            // 5) 换弹：弹盒里放两颗火丸，右手捏那一格换上
             step = 5;
+            yield return Swap();
+
+            // 6) 挡
+            step = 6;
             yield return Defend(false);
 
-            // 6) 接
-            step = 6;
+            // 7) 接
+            step = 7;
             yield return Defend(true);
             tag.Show("接住的弹\n归你了");
             yield return new WaitForSeconds(3.0f);
 
-            // 7) 修城：敌弹打碎自己城上一块 → 从补给盘拿积木补上
-            step = 7;
+            // 8) 修城：敌弹打碎自己城上一块 → 从补给盘拿积木补上
+            step = 8;
             yield return Repair();
 
-            // 8) 自由开打
-            step = 8; tag.Show("打倒对面\n的帅旗！");
+            // 9) 灭火：自己城一块木头着火 → 往下拍两下
+            step = 9;
+            yield return PatOut();
+
+            // 学会啦：最后一颗圆钉钉上，再开打
+            tag.Card(GestureCard.Kind.PatOut, Lessons, Lessons);
+            tag.Show("学会啦！");
+            Sfx.Star(tag.transform.position);
+            yield return new WaitForSeconds(2.2f);
+            tag.Card(null);
+
+            // 10) 自由开打
+            step = 10; tag.Show("打倒对面\n的帅旗！");
             Ghost(null);
             d.arena.enemy.SetKingHP(1);
             d.arena.enemy.kingLocked = false;
@@ -130,6 +156,7 @@ namespace PaperSiege
             for (int attempt = 0; ; attempt++)
             {
                 tag.Show(attempt == 0 ? (catchIt ? "再来一发\n握拳接住" : "敌弹来了\n张手去挡") : "再试一次");
+                tag.Card(catchIt ? GestureCard.Kind.Catch : GestureCard.Kind.Block, catchIt ? 4 : 3, Lessons);
                 var aim = GateTop();
                 d.catapult.FireAt(aim, 2.2f, Ammo.Stone);   // 尽量慢（会被弧顶上限截短）
                 // 等弹飞出来，示范手摆到弹道上（离城门约 18 cm 的地方）
@@ -177,12 +204,73 @@ namespace PaperSiege
             if (target && !target.Dead) target.Shatter();
             yield return new WaitForSeconds(0.8f);
             int rep0 = d.stats.repaired;
-            tag.Show("城墙破了\n拿积木补上");
+            Lesson("城墙破了\n拿积木补上", GestureCard.Kind.Repair, 5);
             Ghost(LoopRepair(slot));
             yield return new WaitUntil(() => d.stats.repaired > rep0);
             Ghost(null);
             tag.Show("补好了！");
             yield return new WaitForSeconds(1.8f);
+        }
+
+        IEnumerator Swap()
+        {
+            d.ammo.Add(Ammo.Fire, 2);
+            yield return new WaitForSeconds(0.4f);
+            Lesson("右手捏弹盒\n换上火丸", GestureCard.Kind.Swap, 2);
+            Ghost(LoopSwap(Ammo.Fire));
+            yield return new WaitUntil(() => d.ammo.selected == Ammo.Fire || d.ammo.Count(Ammo.Fire) == 0);
+            Ghost(null);
+            tag.Show("换好了！\n下一发是火丸");
+            yield return new WaitForSeconds(1.8f);
+        }
+
+        IEnumerator PatOut()
+        {
+            var mine = d.arena.mine;
+            var burn = mine.blocks.Find(b => b && b.Wood && !b.Dead && !b.isKing && !b.burning && b.name == "W_Cube")
+                    ?? mine.blocks.Find(b => b && b.Wood && !b.Dead && !b.isKing && !b.burning);
+            if (!burn) yield break;
+            float bs = mine.BurnSeconds, sc = mine.SpreadChance;
+            mine.BurnSeconds = 600f; mine.SpreadChance = 0f;   // 教学：火不往外烧、也烧不透，等玩家来拍
+            burn.Ignite();
+            yield return new WaitForSeconds(0.8f);
+            int e0 = d.stats.extinguished;
+            Lesson("着火了\n往下拍两下", GestureCard.Kind.PatOut, 6);
+            Ghost(LoopPat(burn));
+            yield return new WaitUntil(() => d.stats.extinguished > e0 || !burn || burn.Dead || !burn.burning);
+            Ghost(null);
+            mine.BurnSeconds = bs; mine.SpreadChance = sc;
+            tag.Show("灭掉了！");
+            yield return new WaitForSeconds(1.4f);
+        }
+
+        IEnumerator LoopSwap(Ammo a)
+        {
+            gr.Show(true);
+            var box = d.sling.Box;
+            while (true)
+            {
+                var slot = box.SlotPos(a);
+                var f = Fwd;
+                for (float k = 0; k < 1f; k += Time.deltaTime / 0.5f) { PoseR(slot + Vector3.up * (0.06f * (1 - k) + 0.004f), GhostHand.Pose.Pinch, 0f, (-Vector3.up - f * 0.3f).normalized, (-Vector3.up * 0.6f + f * 0.6f).normalized); yield return null; }
+                for (float k = 0; k < 1f; k += Time.deltaTime / 0.25f) { PoseR(slot + Vector3.up * 0.004f, GhostHand.Pose.Pinch, k, (-Vector3.up - f * 0.3f).normalized, (-Vector3.up * 0.6f + f * 0.6f).normalized); yield return null; }
+                for (float t = 0; t < 0.6f; t += Time.deltaTime) yield return null;
+            }
+        }
+
+        IEnumerator LoopPat(Block b)
+        {
+            gr.Show(true);
+            while (b && !b.Dead)
+            {
+                var top = b.WorldBounds.center + Vector3.up * (b.WorldBounds.extents.y + 0.02f);
+                for (int i = 0; i < 2; i++)
+                {
+                    for (float k = 0; k < 1f; k += Time.deltaTime / 0.3f) { PoseR(top + Vector3.up * 0.09f * k, GhostHand.Pose.Open, 0f, Vector3.down, Fwd); yield return null; }
+                    for (float k = 0; k < 1f; k += Time.deltaTime / 0.09f) { PoseR(top + Vector3.up * 0.09f * (1 - k), GhostHand.Pose.Open, 0f, Vector3.down, Fwd); yield return null; }
+                }
+                for (float t = 0; t < 0.7f; t += Time.deltaTime) yield return null;
+            }
         }
 
         // ── 示范手动作（循环）

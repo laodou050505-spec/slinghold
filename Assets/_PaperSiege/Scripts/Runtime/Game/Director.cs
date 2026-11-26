@@ -22,6 +22,8 @@ namespace PaperSiege
         public readonly AmmoStore ammo = new();
         /// <summary>正在播结局（第十关打下王城之后）</summary>
         public bool ending;
+        /// <summary>对局中按了暂停（时间冻住，暂停板挂着）</summary>
+        public bool paused;
         public EnemyCatapult catapult;
         public PlayerSling sling;
         public SkyDome sky;
@@ -46,12 +48,14 @@ namespace PaperSiege
             Music.Build(this);
             gameObject.AddComponent<HandLostHint>();   // 两手跟丢 2.5 秒 → 提示把手抬到眼前
             gameObject.AddComponent<FocusPause>();     // 摘头显 / 系统菜单 → 冻结对局
+            gameObject.AddComponent<PauseMenu>();      // 对局中的“暂停”木签 + 暂停板（继续 / 重来 / 回标题 + 手势速查小木牌）
             if (autoStart) GoTitle();
             // 编辑器里：菜单“演示”→ 自动演示；直接点播放 → 桌面试玩（鼠标键盘模拟双手）
             if (Application.isEditor && HandInput.Sim)
             {
                 if (DemoDriver.Requested) gameObject.AddComponent<DemoDriver>();
                 else gameObject.AddComponent<DesktopPlay>();
+                if (EndingPreview.Requested) { EndingPreview.Requested = false; gameObject.AddComponent<EndingPreview>(); }
             }
         }
 
@@ -59,6 +63,7 @@ namespace PaperSiege
         public void GoTitle()
         {
             ending = false;
+            paused = false; Time.timeScale = 1f;
             if (result) { result.Close(); result = null; }
             foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
             if (!sky) { sky = SkyDome.Build(this, FindAnyObjectByType<Light>()); arena.sky = sky; }
@@ -80,6 +85,7 @@ namespace PaperSiege
         public void StartLevel(int i)
         {
             ending = false;
+            paused = false; Time.timeScale = 1f;
             if (title) { title.Close(); title = null; }
             if (result) { result.Close(); result = null; }
             levelIndex = Mathf.Clamp(i, 0, Levels.Count - 1);

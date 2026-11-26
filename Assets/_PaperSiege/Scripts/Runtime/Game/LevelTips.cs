@@ -65,6 +65,7 @@ namespace PaperSiege
             tag.pin = stage.position + Vector3.up * 0.3f;
             yield return new WaitForSeconds(1.2f);
             tag.Show(Effect(a));
+            StartCoroutine(SwapGhost(a));
             float shown = 0f;
             while (shown < 16f && d.phase == Director.Phase.Battle)
             {
@@ -74,6 +75,32 @@ namespace PaperSiege
             tag.Show("");
             yield return new WaitForSeconds(0.6f);
             Clear();
+        }
+
+        /// <summary>
+        /// 换弹示范（11-26 补：以前新弹出现只说效果、没教怎么换上）：半透明示范手去弹盒里新弹那格捏一下，循环，
+        /// 玩家自己换上这种弹（或这种弹用完 / 14 秒）就收起。
+        /// </summary>
+        IEnumerator SwapGhost(Ammo a)
+        {
+            yield return new WaitForSeconds(2.5f);
+            var box = d.sling ? d.sling.Box : null;
+            if (!box || d.ammo.selected == a) yield break;
+            var g = GhostHand.Build(true);
+            var f = d.arena.forward;
+            float t = 0;
+            while (t < 14f && g && d.phase == Director.Phase.Battle && d.ammo.selected != a && d.ammo.Count(a) > 0)
+            {
+                float u = (t % 1.6f) / 1.6f;
+                float k = Mathf.Sin(Mathf.Clamp01((u - 0.2f) / 0.55f) * Mathf.PI);
+                var slot = box.SlotPos(a);
+                g.SetAlpha(Mathf.Clamp01(t / 0.4f));
+                g.SetPose(GhostHand.Pose.Pinch, k);
+                g.Place(slot + Vector3.up * (0.035f * (1 - k) + 0.004f), (-Vector3.up * 0.6f + f * 0.6f).normalized, (-Vector3.up - f * 0.3f).normalized, true);
+                t += Time.deltaTime;
+                yield return null;
+            }
+            if (g) Destroy(g.gameObject);
         }
 
         void Clear() { foreach (var g in samples) if (g) Destroy(g); samples.Clear(); }

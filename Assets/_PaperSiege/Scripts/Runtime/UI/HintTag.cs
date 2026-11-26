@@ -92,6 +92,37 @@ namespace PaperSiege
             return head.position + f * 0.5f + r * 0.24f - Vector3.up * 0.24f + jitter;
         }
 
+        GestureCard card;
+        /// <summary>
+        /// 教学用：木牌下面再挂一块手势小木牌（缩小的示范手循环做这一步的动作 + 两个字 + 进度圆钉），
+        /// 参考《梦境玩具战》的教学卡：一个会动的手势图 + 一句短话 + 进度点。传 null = 摘掉。
+        /// </summary>
+        public GestureCard Card(GestureCard.Kind? k, int done = -1, int total = 0)
+        {
+            if (k == null) { if (card) Destroy(card.gameObject); card = null; return null; }
+            if (!card)
+            {
+                // 木牌下沿：按 H_Tag 网格的包围盒算（模型原点在穿绳孔）
+                var lib = BlockLibrary.I;
+                var m = lib ? lib.Meshes("H_Tag") : null;
+                float bottom = m != null && m.lod0 ? -m.lod0.bounds.min.y * Scale : 0.13f;
+                card = GestureCard.Build(hang, Vector3.down * (Cord + bottom + 0.004f), 0.012f, k.Value, 0, GestureCard.H + 0.024f);   // 比速查卡高 2.4 cm：字上面一排进度圆钉
+                card.transform.localScale = Vector3.one * 1.6f;   // 约 10×14 cm，和木牌（19×13 cm）配
+                card.drop = 0; card.kick = 1;
+                StartCoroutine(CardIn());
+            }
+            else card.SetKind(k.Value);
+            if (total > 0) card.SetProgress(done, total);
+            return card;
+        }
+
+        IEnumerator CardIn()
+        {
+            yield return new WaitForSeconds(0.25f);
+            for (float k = 0; card && k < 1f; k += Time.deltaTime / 0.3f) { card.drop = k; yield return null; }
+            if (card) { card.drop = 1; card.kick = 1; }
+        }
+
         /// <summary>换一句提示（中文原文，内部走 Loc）。空串 = 收起</summary>
         public void Show(string zh)
         {

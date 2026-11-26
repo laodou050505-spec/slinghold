@@ -216,7 +216,7 @@ namespace PaperSiege
             flag.reveal = 0;
             foreach (var lk in links) lk.drop = 0;
             // 1) 横木从上面落下来，轻轻一弹
-            for (float k = 0; k < 1f; k += Time.deltaTime / 0.42f)
+            for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.42f)
             {
                 float e = 1 + 2.2f * Mathf.Pow(k - 1, 3) + 1.2f * Mathf.Pow(k - 1, 2);   // 带一点回弹
                 root.localPosition = end + Vector3.up * 0.45f * (1 - e);
@@ -224,22 +224,22 @@ namespace PaperSiege
             }
             root.localPosition = end;
             // 2) 布旗放下来
-            for (float k = 0; k < 1f; k += Time.deltaTime / 0.38f) { flag.reveal = Mathf.SmoothStep(0, 1, k); yield return null; }
+            for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.38f) { flag.reveal = Mathf.SmoothStep(0, 1, k); yield return null; }
             flag.reveal = 1;
             // 3) 按钮木签一块块落下，接着战报木签一块接一块荡下来
             yield return DropTags();
             foreach (var lk in links)
             {
-                for (float k = 0; k < 1f; k += Time.deltaTime / 0.2f) { lk.drop = k; yield return null; }
+                for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.2f) { lk.drop = k; yield return null; }
                 lk.drop = 1; lk.kick = 1f;
             }
             // 4) 星一颗颗钉上
             for (int i = 0; i < stars.Count; i++)
             {
-                yield return new WaitForSeconds(0.08f);
-                for (float k = 0; k < 1f; k += Time.deltaTime / 0.16f) { float o = 1 + Mathf.Sin(k * Mathf.PI) * 0.4f; stars[i].localScale = Vector3.one * 1.25f * k * o; yield return null; }
+                yield return new WaitForSecondsRealtime(0.08f);
+                for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.16f) { float o = 1 + Mathf.Sin(k * Mathf.PI) * 0.4f; stars[i].localScale = Vector3.one * 1.25f * k * o; yield return null; }
                 stars[i].localScale = Vector3.one * 1.25f;
-                if (got[i]) { Fx.Sparkle(stars[i].position, new Color(1f, 0.85f, 0.45f), 0.02f); Sfx.Place(stars[i].position); }
+                if (got[i]) { Fx.Sparkle(stars[i].position, new Color(1f, 0.85f, 0.45f), 0.02f); Sfx.Star(stars[i].position); }
             }
         }
 
@@ -249,7 +249,7 @@ namespace PaperSiege
             for (int i = 0; i < tags.Count; i++)
             {
                 var t = tags[i];
-                for (float k = 0; k < 1f; k += Time.deltaTime / 0.22f) { t.drop = 1 - (1 - k) * (1 - k); yield return null; }
+                for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.22f) { t.drop = 1 - (1 - k) * (1 - k); yield return null; }
                 t.drop = 1; t.Hold(false);
             }
         }
@@ -259,7 +259,7 @@ namespace PaperSiege
         IEnumerator CloseRun()
         {
             var p0 = root.localPosition;
-            for (float k = 0; k < 1f; k += Time.deltaTime / 0.45f)
+            for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.45f)
             {
                 foreach (var t in tags) t.drop = 1 - Mathf.Clamp01(k * 2.5f);
                 flag.reveal = 1 - Mathf.SmoothStep(0, 1, Mathf.Clamp01(k * 2f));
@@ -321,8 +321,8 @@ namespace PaperSiege
 
         void LateUpdate()
         {
-            float t = Time.time;
-            kick = Mathf.MoveTowards(kick, 0, Time.deltaTime * 1.2f);
+            float t = Time.unscaledTime;
+            kick = Mathf.MoveTowards(kick, 0, Time.unscaledDeltaTime * 1.2f);
             float e = Mathf.Clamp01(drop);
             // 收起时侧着（绕挂绳转 80°）、缩小；荡下来时转正，落定后被 kick 带着晃两下
             float sway = Mathf.Sin(t * 1.15f + seed) * 1.8f + Mathf.Sin(t * 6f + seed) * kick * 7f;

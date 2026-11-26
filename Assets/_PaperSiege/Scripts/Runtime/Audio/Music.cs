@@ -10,7 +10,6 @@ namespace PaperSiege
     {
         static readonly Dictionary<int, AudioClip> clips = new();
         AudioSource a, b;         // 两个声道交叉淡入淡出（换曲时不硬切）
-        int current = -1;
         float baseVol = 0.32f;
         Director d;
 
@@ -97,26 +96,41 @@ namespace PaperSiege
             return c;
         }
 
+        string currentKey;
+
+        /// <summary>
+        /// 11-26 起用离线合成的曲子（Tools/audio/make_audio.py → Resources/Audio/Music/*.ogg）：
+        /// 封面 title、六个时段 tod0～tod5、结局 ending；缺文件时退回上面的运行时合成。
+        /// </summary>
+        static readonly Dictionary<string, AudioClip> loaded = new();
+        public static AudioClip Clip(string key, int fallbackTod)
+        {
+            if (!loaded.TryGetValue(key, out var c)) loaded[key] = c = Resources.Load<AudioClip>("Audio/Music/" + key);
+            return c ? c : Track(fallbackTod);
+        }
+
         void Update()
         {
             if (!d) return;
             int tod = d.level != null ? d.level.timeOfDay : 0;
-            if (d.phase == Director.Phase.Title) tod = 0;
-            if (d.ending && d.sky && d.sky.dawn > 0.15f) tod = 0;   // 结局：天一亮就换回清晨那首
-            if (tod != current)
+            string key = "tod" + tod;
+            if (d.phase == Director.Phase.Title) { key = "title"; tod = 0; }
+            if (d.ending && d.sky && d.sky.dawn > 0.15f) { key = "ending"; tod = 0; }   // 结局：天一亮就换成结局那首
+            if (key != currentKey)
             {
-                current = tod;
+                currentKey = key;
                 var t = a; a = b; b = t;   // a = 新的
-                a.clip = Track(tod); a.time = 0; a.Play();
+                a.clip = Clip(key, tod); a.time = 0; a.Play();
             }
             float target = Progress.Music ? baseVol : 0f;
-            if (d.phase == Director.Phase.Title) target *= 0.7f;
-            if (d.phase == Director.Phase.Won || d.phase == Director.Phase.Lost) target *= d.ending ? 0.8f : 0.35f;
-            a.volume = Mathf.MoveTowards(a.volume, target, Time.deltaTime * 0.3f);
-            b.volume = Mathf.MoveTowards(b.volume, 0f, Time.deltaTime * 0.3f);
+            if (d.phase == Director.Phase.Title) target *= 0.8f;
+            if (d.phase == Director.Phase.Won || d.phase == Director.Phase.Lost) target *= d.ending ? 0.9f : 0.35f;
+            if (d.paused) target *= 0.4f;   // 暂停时音乐压低（不停，免得一片死寂）
+            a.volume = Mathf.MoveTowards(a.volume, target, Time.unscaledDeltaTime * 0.3f);
+            b.volume = Mathf.MoveTowards(b.volume, 0f, Time.unscaledDeltaTime * 0.3f);
             if (b.volume <= 0f && b.isPlaying) b.Stop();
-            // 最后 30 秒：音乐稍微加快一点点（不改调）
-            a.pitch = d.phase == Director.Phase.Battle && !d.timerPaused && d.timeLeft < 30f ? 1.06f : 1f;
+            // 11-26：去掉“最后 30 秒音乐加速 6%”——AudioSource.pitch 会连音高一起抬（约一个半音），听着像跑调
+            a.pitch = 1f;
         }
     }
 }

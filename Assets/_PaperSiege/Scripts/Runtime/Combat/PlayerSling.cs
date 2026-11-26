@@ -163,6 +163,7 @@ namespace PaperSiege
 
         void Update()
         {
+            if (Director.I && Director.I.paused) return;   // 暂停：手上的操作一律不响应
             if (!d || d.phase != Director.Phase.Battle) { if (state != State.Hidden) { state = State.Hidden; Show(false); } return; }
             input ??= HandInput.Instance;
             if (!input) return;
@@ -202,7 +203,7 @@ namespace PaperSiege
                 if (springT >= 0.45f) aimDir = Vector3.Slerp(aimDir, HeadForward(), Time.deltaTime * 4f);   // 刚松手、皮兜还在回弹时锁住方向（否则皮兜会斜着蹭进飞出的弹）
                 if (rightFree && input.pinchDown[1])
                 {
-                    if (!box.Pick(R.pinchPoint, 0.03f).HasValue && Vector3.Distance(R.pinchPoint, PouchRest) < IT.pouchGrab && cooldown <= 0f) { state = State.Drawing; rightLostT = 0; }
+                    if (!box.Pick(R.pinchPoint, 0.03f).HasValue && Vector3.Distance(R.pinchPoint, PouchRest) < IT.pouchGrab && cooldown <= 0f) { state = State.Drawing; rightLostT = 0; Sfx.Grab(PouchRest); }
                 }
             }
             else if (state == State.Drawing)

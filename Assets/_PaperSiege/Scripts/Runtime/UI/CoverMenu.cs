@@ -295,9 +295,9 @@ namespace PaperSiege
         /// <summary>换语言：布旗卷上去 → 换印花 → 再放下来</summary>
         IEnumerator SwapBanner()
         {
-            for (float t = 1; t > 0; t -= Time.deltaTime / 0.35f) { cloth.reveal = Mathf.SmoothStep(0, 1, t); yield return null; }
+            for (float t = 1; t > 0; t -= Time.unscaledDeltaTime / 0.35f) { cloth.reveal = Mathf.SmoothStep(0, 1, t); yield return null; }
             cloth.reveal = 0; cloth.SetMaterial(Mat(Loc.English ? "M_Banner_en" : "M_Banner_zh"));
-            for (float t = 0; t < 1; t += Time.deltaTime / 0.6f) { cloth.reveal = Mathf.SmoothStep(0, 1, t); yield return null; }
+            for (float t = 0; t < 1; t += Time.unscaledDeltaTime / 0.6f) { cloth.reveal = Mathf.SmoothStep(0, 1, t); yield return null; }
             cloth.reveal = 1;
         }
 
@@ -351,9 +351,9 @@ namespace PaperSiege
 
         static IEnumerator Pop(Transform t, bool on, float delay)
         {
-            if (delay > 0) yield return new WaitForSeconds(delay);
+            if (delay > 0) yield return new WaitForSecondsRealtime(delay);
             float from = t.localScale.x, to = on ? 1f : 0f;
-            for (float k = 0; k < 1f; k += Time.deltaTime / 0.25f)
+            for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.25f)
             {
                 float e = on ? 1f + Mathf.Sin(k * Mathf.PI) * 0.18f : 1f;
                 t.localScale = Vector3.one * Mathf.Lerp(from, to, Mathf.SmoothStep(0, 1, k)) * e;
@@ -372,7 +372,7 @@ namespace PaperSiege
             foreach (var t in tags) { t.drop = 0; t.Hold(true); }   // 出现过程中木签不高亮、不能按（看得见却捏不动会让人以为坏了）
             foreach (var a in arcs) a.enabled = false;
             pole.gameObject.SetActive(true);
-            for (float t = 0; t < 2.0f; t += Time.deltaTime)
+            for (float t = 0; t < 2.0f; t += Time.unscaledDeltaTime)
             {
                 Appear = t / 2.0f;
                 float k = Mathf.Clamp01(t / 0.6f);
@@ -405,7 +405,7 @@ namespace PaperSiege
             foreach (var t in tags) t.button.interactable = false;
             foreach (var b in levelBtns) b.interactable = false;
             float l0 = lamp.intensity;
-            for (float t = 0; t < 0.9f; t += Time.deltaTime)
+            for (float t = 0; t < 0.9f; t += Time.unscaledDeltaTime)
             {
                 float k = t / 0.9f;
                 foreach (var tg in tags) tg.drop = 1 - Mathf.Clamp01(k * 2.2f);                   // 木签收回横臂
@@ -426,7 +426,7 @@ namespace PaperSiege
         void Update()
         {
             if (!root) return;
-            float t = Time.time;
+            float t = Time.unscaledTime;
             // 灯笼轻轻摆、灯光微微跳
             lanternPivot.localRotation = Quaternion.Euler(Mathf.Sin(t * 1.1f) * 2.5f, 0, Mathf.Sin(t * 0.83f + 1f) * 3.5f);
             if (!busy) lamp.intensity = 0.9f * (0.94f + 0.06f * Mathf.PerlinNoise(t * 3f, 0.3f));
@@ -520,16 +520,18 @@ namespace PaperSiege
         public void Retext(string zh) { key = zh; StartCoroutine(Flip(zh, button.onPress, 0)); }
         public void Relocalize() { button.Relocalize(); }
         public string Key => key;
+        /// <summary>挂绳长度（木签中心到绳结）</summary>
+        public float CordLen { get => cordLen; set => cordLen = value; }
 
         /// <summary>换字：木签绕挂绳转一圈，转到侧面（看不见字）时换</summary>
         IEnumerator Flip(string zh, System.Action act, float delay)
         {
-            if (delay > 0) yield return new WaitForSeconds(delay);
-            if (zh != null && key == null) { drop = 0; Apply(zh, act); for (float k = 0; k < 1; k += Time.deltaTime / 0.35f) { drop = 1 - (1 - k) * (1 - k); yield return null; } drop = 1; yield break; }
-            if (zh == null) { button.interactable = false; for (float k = 0; k < 1; k += Time.deltaTime / 0.3f) { drop = 1 - k; yield return null; } Apply(null, null); drop = 1; yield break; }
+            if (delay > 0) yield return new WaitForSecondsRealtime(delay);
+            if (zh != null && key == null) { drop = 0; Apply(zh, act); for (float k = 0; k < 1; k += Time.unscaledDeltaTime / 0.35f) { drop = 1 - (1 - k) * (1 - k); yield return null; } drop = 1; yield break; }
+            if (zh == null) { button.interactable = false; for (float k = 0; k < 1; k += Time.unscaledDeltaTime / 0.3f) { drop = 1 - k; yield return null; } Apply(null, null); drop = 1; yield break; }
             bool swapped = false;
             button.interactable = false;
-            for (float k = 0; k < 1f; k += Time.deltaTime / 0.5f)
+            for (float k = 0; k < 1f; k += Time.unscaledDeltaTime / 0.5f)
             {
                 swing.localRotation = Quaternion.Euler(0, Mathf.SmoothStep(0, 360, k), 0);
                 if (!swapped && k > 0.25f) { swapped = true; Apply(zh, act); button.interactable = false; }
@@ -542,8 +544,8 @@ namespace PaperSiege
 
         void LateUpdate()
         {
-            float t = Time.time;
-            kick = Mathf.MoveTowards(kick, 0, Time.deltaTime * 0.9f);
+            float t = Time.unscaledTime;
+            kick = Mathf.MoveTowards(kick, 0, Time.unscaledDeltaTime * 0.9f);
             float sway = Mathf.Sin(t * 1.3f + seed) * 2.0f + Mathf.Sin(t * 7f) * kick * 6f;
             float len = cordLen * drop;
             var tagT = swing.GetChild(0);
@@ -555,7 +557,7 @@ namespace PaperSiege
             cord.SetPosition(0, transform.position);
             cord.SetPosition(1, tagT.TransformPoint(new Vector3(0, 0.022f, 0)));
             bool hov = WoodButton.Hovered == button && button.interactable;
-            tickA = Mathf.MoveTowards(tickA, hov ? 1 : 0, Time.deltaTime * 5f);
+            tickA = Mathf.MoveTowards(tickA, hov ? 1 : 0, Time.unscaledDeltaTime * 5f);
             tick.enabled = tickA > 0.01f;
             if (tick.enabled) { tick.widthMultiplier = 0.0022f * tickA; }
         }
@@ -603,7 +605,7 @@ namespace PaperSiege
         void Update()
         {
             if (mesh == null) return;
-            float t = Time.time, r = Mathf.Clamp01(reveal);
+            float t = Time.unscaledTime, r = Mathf.Clamp01(reveal);
             for (int y = 0; y <= NY; y++)
             {
                 float v = y / (float)NY;
@@ -651,7 +653,7 @@ namespace PaperSiege
 
         void Update()
         {
-            float t = Time.time;
+            float t = Time.unscaledTime;
             var dir = (home - from);
             var p = from + dir * spread + Vector3.up * Mathf.Sin(t * 0.5f + phase) * amp + dir.normalized * Mathf.Sin(t * 0.31f + phase) * amp;
             transform.localPosition = p;

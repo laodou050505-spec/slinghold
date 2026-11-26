@@ -14,6 +14,22 @@ namespace PaperSiege
         static Mesh shardMesh;
         static readonly Dictionary<Block, ParticleSystem> fires = new();
 
+        static Material skyMat;
+        /// <summary>天上的粒子（烟花）：只在天花板开口里看得到（PaperSiege/SkyParticle），圆形柔点、叠加发光</summary>
+        static Material SkyMat
+        {
+            get
+            {
+                if (skyMat) return skyMat;
+                var sh = Shader.Find("PaperSiege/SkyParticle");
+                if (!sh) return Soft;
+                _ = Soft;   // 确保圆形柔点贴图已生成
+                skyMat = new Material(sh);
+                skyMat.SetTexture("_BaseMap", soft);
+                return skyMat;
+            }
+        }
+
         static Material Soft
         {
             get
@@ -334,7 +350,8 @@ namespace PaperSiege
             var rs = rise.shape; rs.shapeType = ParticleSystemShapeType.Cone; rs.angle = 2; rs.radius = 0.001f;
             rise.transform.rotation = Quaternion.LookRotation(Vector3.up);
             var tr = rise.trails; tr.enabled = true; tr.lifetime = 0.3f; tr.widthOverTrail = 0.5f;
-            rise.GetComponent<ParticleSystemRenderer>().trailMaterial = Soft;
+            rise.GetComponent<ParticleSystemRenderer>().sharedMaterial = SkyMat;
+            rise.GetComponent<ParticleSystemRenderer>().trailMaterial = SkyMat;
             Burst(rise, 1, 0.5f);
             var ps = Make("Firework", p);
             var m = ps.main;
@@ -347,7 +364,8 @@ namespace PaperSiege
             var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Sphere; sh.radius = 0.02f;
             ps.transform.position = p;   // 升空那道光在下面 0.6 m 处起步，到这里炸开
             var ptr = ps.trails; ptr.enabled = true; ptr.lifetime = 0.25f; ptr.widthOverTrail = 0.4f;
-            ps.GetComponent<ParticleSystemRenderer>().trailMaterial = Soft;
+            ps.GetComponent<ParticleSystemRenderer>().sharedMaterial = SkyMat;
+            ps.GetComponent<ParticleSystemRenderer>().trailMaterial = SkyMat;
             var col = ps.colorOverLifetime; col.enabled = true;
             var g = new Gradient();
             g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(c, 0.3f), new GradientColorKey(c * 0.6f, 1) },

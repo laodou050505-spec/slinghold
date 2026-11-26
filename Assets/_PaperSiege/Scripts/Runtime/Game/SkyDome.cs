@@ -108,6 +108,11 @@ namespace PaperSiege
             sky.SetVector("_LidFwd", fwd);
             sky.SetVector("_LidHalf", new Vector4(w * 0.5f, l * 0.5f, 0, 0));
             lidCenter = center; lidFwd = fwd; lidRight = right; lidCeil = ceilY; lidHalf = new Vector2(w * 0.5f, l * 0.5f);
+            // 烟花粒子（PaperSiege/SkyParticle）用同一个开口遮罩
+            Shader.SetGlobalVector("_SkyLidCenter", new Vector4(center.x, ceilY, center.z, 0));
+            Shader.SetGlobalVector("_SkyLidRight", right);
+            Shader.SetGlobalVector("_SkyLidFwd", fwd);
+            Shader.SetGlobalVector("_SkyLidHalf", new Vector4(w * 0.5f, l * 0.5f, 0, 0));
         }
 
         Vector3 lidCenter, lidFwd = Vector3.forward, lidRight = Vector3.right; float lidCeil = 2.5f; Vector2 lidHalf = Vector2.one;

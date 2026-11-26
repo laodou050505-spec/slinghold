@@ -171,13 +171,13 @@ namespace PaperSiege
         {
             if (!interactable || pressT >= 0f) return;
             pressT = 0f;
-            Sfx.Place(transform.position);
+            Sfx.Button(transform.position);
         }
 
         void Update()
         {
             Tick();
-            float dt = Time.deltaTime;
+            float dt = Time.unscaledDeltaTime;
             bool hov = Hovered == this && interactable;
             lift = Mathf.MoveTowards(lift, hov ? 1f : 0f, dt * 6f);
             float sink = 0f;

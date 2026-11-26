@@ -26,6 +26,7 @@ namespace PaperSiege.EditorTools
             ("ParticlesUnlit_Transparent", "Universal Render Pipeline/Particles/Unlit", Kind.Transparent), // 烟、火星、拖尾
             ("ParticlesSimpleLit_Opaque",  "Universal Render Pipeline/Particles/Simple Lit", Kind.Opaque), // 碎木块粒子
             ("Sky",                     "PaperSiege/Sky", Kind.Opaque),                              // 盒盖开口里的天空
+            ("SkyParticle",             "PaperSiege/SkyParticle", Kind.Opaque),                      // 烟花（只在开口里看得到）
         };
 
         public static string Build()
