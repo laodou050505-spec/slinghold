@@ -1,8 +1,10 @@
 // 结算（11-26 重做，和封面同一套实物语言，不用一整块木板）：
 //   从天花板开口垂下一根横木（两根吊绳）→ 横木左边挂一面小布旗：积木拼字的“胜利”（奶白旗）/“失守”“时间到”（火燎焦边旗）
-//   → 一张打字机战报纸条斜着别在布旗下摆上：关名、射挡接修、三条星的条件（每条前面一颗星，拿到的是金星）
-//   → 横木右边挂几块木签（下一关 / 重来 / 回标题），高低错开，看着 / 指着 + 捏 = 按（和封面木签一样）。
-// 整组放在自己城的右前上方，不挡城。出现：横木落下来轻轻一弹 → 布旗放下 → 纸条翻过来别上 → 星一颗颗钉上 → 木签落下；收起：反过来往上收。
+//   → 横木右边的绳圈上，按钮木签（下一关 / 重来 / 回标题）首尾相连挂成一串，看着 / 指着 + 捏 = 按（和封面木签一样）；
+//   → 战报木签接着挂在最下面那块按钮的底孔上，继续往下串：关名 / 射挡接修 / 三颗铜星 + 短词条件（拿到的是金星）。
+//     每块只写一行短字、粗体墨字（11-26 用户：挂在布旗下面奇怪；字要好认）。
+//   11-26 用户：原来的打字机纸条和布旗、木签不搭（还是别在半空、没真挂住）→ 全部换成同一种木签 + 绳，横木换成带绑绳 / 绳圈的 CV_Stick。
+// 整组放在自己城的右前上方，不挡城。出现：横木落下来轻轻一弹 → 布旗放下 → 战报木签一块块荡下来 → 星一颗颗钉上 → 按钮木签落下；收起：反过来往上收。
 //   三星：① 赢；② 接住 ≥ 3 发；③ 自己的帅旗一下没挨。
 using System.Collections;
 using System.Collections.Generic;
@@ -14,14 +16,19 @@ namespace PaperSiege
     public class ResultBoard : MonoBehaviour
     {
         Director d;
-        Transform root, note;
+        Transform root;
+        readonly List<ReportLink> links = new();
         BannerCloth flag;
         LineRenderer cordL, cordR;
         readonly List<Transform> stars = new();
         readonly List<HangTag> tags = new();
         public int earned;
         bool[] got = new bool[3];
-        const float StickHalf = 0.17f;
+        const float StickHalf = 0.15f;      // 吊绳绑在横木两端的绑绳处（CV_Stick ±3 格）
+        const float FlagX = -0.07f, BtnX = 0.075f;   // 横木上两道绳圈（FBX 导入后 X 反向）
+        const float LinkScale = 1.1f;       // 战报木签相对按钮木签（0.82）再放大 → 约 0.9，13 cm 宽的牌子上一行字
+        const float HoleTop = -0.004f, HoleBottom = -0.04f;
+        const float LinkGap = 0.026f;       // 木签之间的绳长（模型坐标）：底孔到下沿约 0.8 cm，绳要比这长才看得出是串起来的   // CV_Tag 两个穿绳孔（模型坐标，原点在顶孔上方）
 
         public static int Score(Director d, bool win)
         {
@@ -65,83 +72,72 @@ namespace PaperSiege
             root = new GameObject("Result").transform;
             root.SetParent(transform, false);
             var pos = head + F * 0.55f + right * 0.23f;
-            pos.y = Mathf.Max(head.y - 0.02f, d.arena.tableCenter.y + 0.33f);   // 最低的木签也要高过桌面
+            pos.y = Mathf.Max(head.y + 0.04f, d.arena.tableCenter.y + 0.5f);   // 按钮 + 战报一整串约 40 cm，最低的木签也要高过桌面
             root.position = pos;
             var look = pos - head; look.y *= 0.3f;
             root.rotation = Quaternion.LookRotation(look, Vector3.up) * Quaternion.Euler(0, 0, -2.5f);   // 横木微微斜一点
 
             var cover = CoverMenu.Mat("M_Cover");
-            // 横木（封面木签横臂的模型：沿 -X 0.28 m → 放大到 0.34 m 居中）
+            // 横木：两端绑绳 + 漆头，中间两道绳圈（布旗 / 按钮串各挂一处）
             var stick = new GameObject("Stick");
             stick.transform.SetParent(root, false);
-            stick.transform.localPosition = new Vector3(StickHalf, 0, 0);
-            stick.transform.localScale = Vector3.one * (2 * StickHalf / 0.2825f);
-            stick.AddComponent<MeshFilter>().sharedMesh = CoverMenu.M("CV_TagArm");
+            stick.AddComponent<MeshFilter>().sharedMesh = CoverMenu.M("CV_Stick") ?? CoverMenu.M("CV_TagArm");
             stick.AddComponent<MeshRenderer>().sharedMaterial = cover;
             cordL = Cord(); cordR = Cord();
 
             // 小布旗
             string key = win ? "win" : d.timeUp ? "time" : "lost";
             var fg = new GameObject("Flag"); fg.transform.SetParent(root, false);
-            fg.transform.localPosition = new Vector3(-0.075f, -0.012f, 0);
+            fg.transform.localPosition = new Vector3(FlagX, -0.012f, 0);
             flag = fg.AddComponent<BannerCloth>();
             flag.Init(0.15f, 0.15f * 640f / 512f, CoverMenu.Mat($"M_Result_{key}_{(Loc.English ? "en" : "zh")}"));
 
-            // 战报纸条：斜着别在布旗下摆上，一颗铜别针
-            var ng = new GameObject("Note"); ng.transform.SetParent(root, false);
-            note = ng.transform;
-            note.localPosition = new Vector3(-0.02f, -0.285f, -0.012f);   // 只压住布旗下摆的布条，不挡结果大字
-            note.localScale = Vector3.one * 1.35f;
-            note.localRotation = Quaternion.Euler(0, 0, -5f);
-            var paper = new GameObject("Paper"); paper.transform.SetParent(note, false);
-            paper.AddComponent<MeshFilter>().sharedMesh = CoverMenu.CurledQuad(0.12f, 0.12f * 640f / 560f, 0.006f);
-            paper.AddComponent<MeshRenderer>().sharedMaterial = CoverMenu.Mat("M_Note");
-            var pin = GameObject.CreatePrimitive(PrimitiveType.Sphere); Destroy(pin.GetComponent<Collider>());
-            pin.transform.SetParent(note, false); pin.transform.localPosition = new Vector3(0, 0.058f, -0.004f); pin.transform.localScale = Vector3.one * 0.007f;
-            pin.GetComponent<MeshRenderer>().sharedMaterial = StarMat(true);
-            var ink = new Color(0.1f, 0.07f, 0.05f);
-            float zf = -0.0075f;
-            Text(note, new Vector3(0, 0.038f, zf), new Vector2(0.1f, 0.016f), 0.16f, TextAlignmentOptions.Left, ink).text = Loc.T(d.level.title);
-            var s = d.stats;
-            Text(note, new Vector3(0, 0.018f, zf), new Vector2(0.1f, 0.016f), 0.2f, TextAlignmentOptions.Left, ink).text = string.Format(Loc.T("射 {0}　挡 {1}"), s.shots, s.blocked);
-            Text(note, new Vector3(0, 0.002f, zf), new Vector2(0.1f, 0.016f), 0.2f, TextAlignmentOptions.Left, ink).text = string.Format(Loc.T("接 {0}　修 {1}"), s.caught, s.repaired);
-            string[] conds = { "打下对方帅旗", "接住 3 发", "帅旗没挨打" };
-            for (int i = 0; i < 3; i++)
-            {
-                float y = -0.02f - i * 0.016f;
-                var st = Star(note, new Vector3(-0.043f, y, zf - 0.002f), got[i]);
-                st.localScale = Vector3.zero; stars.Add(st);
-                var tt = Text(note, new Vector3(0.008f, y, zf), new Vector2(0.084f, 0.013f), 0.12f, TextAlignmentOptions.Left, got[i] ? ink : new Color(0.42f, 0.35f, 0.28f));
-                tt.text = Loc.T(conds[i]);
-            }
-            // 红铅笔：拿到星的那几条下面划一道
-            for (int i = 0; i < 3; i++)
-            {
-                if (!got[i]) continue;
-                var lr = new GameObject("RedPencil").AddComponent<LineRenderer>();
-                lr.transform.SetParent(note, false); lr.useWorldSpace = false; lr.positionCount = 5; lr.widthMultiplier = 0.0011f;
-                lr.sharedMaterial = new Material(CoverMenu.Mat("M_Cord")) { color = new Color(0.66f, 0.29f, 0.23f) };
-                lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                float y = -0.02f - i * 0.016f - 0.0068f;
-                for (int k = 0; k < 5; k++) { float u = k / 4f; lr.SetPosition(k, new Vector3(-0.034f + 0.07f * u, y + Mathf.Sin(u * 6f + i) * 0.0006f, zf - 0.0004f)); }
-            }
-
-            // 木签：横木右半边，高低错开
+            // 按钮木签：从右边绳圈往下首尾相连挂成一串
             var btns = new List<(string zh, System.Action act)>();
             if (win && d.levelIndex < Levels.Count - 1) btns.Add(("下一关", () => d.StartLevel(d.levelIndex + 1)));
             btns.Add(("重来", () => d.StartLevel(d.levelIndex)));
             btns.Add(("回标题", () => d.GoTitle()));
-            float[] xs = { 0.07f, 0.115f, 0.16f };
-            float[] cords = { 0.02f, 0.075f, 0.13f };
+            Transform parent = root; Vector3 knot = new Vector3(BtnX, -0.004f, 0);
             for (int i = 0; i < btns.Count; i++)
             {
-                var t = HangTag.Build(root, new Vector3(xs[i], -0.004f, -0.004f), cords[i], CoverMenu.M("CV_Tag"), cover, i);
-                t.transform.localScale = Vector3.one * 0.85f;
+                var t = HangTag.Build(parent, knot, i == 0 ? 0.03f : LinkGap, CoverMenu.M("CV_Tag"), cover, i);
+                if (i == 0) t.transform.localScale = Vector3.one * 0.82f;
                 t.Set(btns[i].zh, btns[i].act, true, 0);
                 t.drop = 0; t.Hold(true);
                 tags.Add(t);
+                parent = t.transform.Find("Swing/Tag/Look"); knot = new Vector3(0, HoleBottom, 0);   // 下一块挂在这块的底孔上
             }
+
+            // 战报木签：接着挂在最下面那块按钮的底孔上（不能按，只看）
+            var hole = new GameObject("BottomHole").transform;
+            hole.SetParent(parent, false); hole.localPosition = new Vector3(0, HoleBottom, 0);
+            var ink = new Color(0.13f, 0.08f, 0.05f);
+            var s = d.stats;
+            // 正面能写字的带：两个穿绳孔之间，y -0.008 ～ -0.036（模型坐标）
+            var l0 = ReportLink.Build(hole, LinkGap + 0.016f, cover, 0, LinkScale);   // 和按钮组之间的绳长一点，两组分得开
+            l0.Text(new Vector3(0, -0.022f, 0), new Vector2(0.112f, 0.028f), 0.32f, ink).text = Loc.T(d.level.title);
+            links.Add(l0);
+            var l1 = ReportLink.Build(l0.BottomHole, LinkGap, cover, 1, 1f);
+            l1.Text(new Vector3(0, -0.022f, 0), new Vector2(0.112f, 0.028f), 0.32f, ink).text =
+                string.Format(Loc.T("射{0} 挡{1} 修{2}"), N(s.shots), N(s.blocked), N(s.repaired));   // “接”写在星的条件里（接 2/3）
+            links.Add(l1);
+            var l2 = ReportLink.Build(l1.BottomHole, LinkGap, cover, 2, 1.15f);   // 三颗星 + 三个短词挤在一块，这块放大一点，字才够大
+            string[] conds = { Loc.T("夺旗"), string.Format(Loc.T("接{0}/3"), N(Mathf.Min(s.caught, 99))), Loc.T("无伤") };
+            for (int i = 0; i < 3; i++)
+            {
+                float x = (i - 1) * 0.041f;
+                var st = Star(l2.look, new Vector3(x, -0.0118f, -0.0058f), got[i]);
+                st.localRotation = Quaternion.Euler(0, 0, (i - 1) * 9f);
+                st.localScale = Vector3.zero; stars.Add(st);
+                // 没拿到的也用深墨色（浅褐字落在木纹上几乎看不见），拿没拿到只看星是金是灰
+                var tt = l2.Text(new Vector3(x, -0.0285f, 0), new Vector2(0.04f, 0.016f), 0.3f, ink);
+                tt.text = conds[i];
+            }
+            links.Add(l2);
         }
+
+        /// <summary>数字放大一点，和汉字差不多高（黑体的数字比汉字矮）</summary>
+        static string N(int v) => $"<size=110%>{v}</size>";
 
         LineRenderer Cord()
         {
@@ -191,7 +187,7 @@ namespace PaperSiege
         {
             if (!root) return;
             float ceil = d.arena.ceilingHeight;
-            var l = root.TransformPoint(new Vector3(-StickHalf + 0.01f, 0, 0)); var r = root.TransformPoint(new Vector3(StickHalf - 0.01f, 0, 0));
+            var l = root.TransformPoint(new Vector3(-StickHalf, 0, 0)); var r = root.TransformPoint(new Vector3(StickHalf, 0, 0));
             cordL.SetPosition(0, l); cordL.SetPosition(1, new Vector3(l.x, ceil, l.z));
             cordR.SetPosition(0, r); cordR.SetPosition(1, new Vector3(r.x, ceil, r.z));
         }
@@ -200,8 +196,7 @@ namespace PaperSiege
         {
             var end = root.localPosition;
             flag.reveal = 0;
-            note.gameObject.SetActive(false);
-            var noteRot = note.localRotation;
+            foreach (var lk in links) lk.drop = 0;
             // 1) 横木从上面落下来，轻轻一弹
             for (float k = 0; k < 1f; k += Time.deltaTime / 0.42f)
             {
@@ -213,17 +208,19 @@ namespace PaperSiege
             // 2) 布旗放下来
             for (float k = 0; k < 1f; k += Time.deltaTime / 0.38f) { flag.reveal = Mathf.SmoothStep(0, 1, k); yield return null; }
             flag.reveal = 1;
-            // 3) 纸条翻过来别上
-            note.gameObject.SetActive(true);
-            for (float k = 0; k < 1f; k += Time.deltaTime / 0.22f) { note.localRotation = noteRot * Quaternion.Euler(0, (1 - Mathf.SmoothStep(0, 1, k)) * 90f, 0); yield return null; }
-            note.localRotation = noteRot;
-            // 4) 星一颗颗钉上（同时木签开始往下落）
-            StartCoroutine(DropTags());
+            // 3) 按钮木签一块块落下，接着战报木签一块接一块荡下来
+            yield return DropTags();
+            foreach (var lk in links)
+            {
+                for (float k = 0; k < 1f; k += Time.deltaTime / 0.2f) { lk.drop = k; yield return null; }
+                lk.drop = 1; lk.kick = 1f;
+            }
+            // 4) 星一颗颗钉上
             for (int i = 0; i < 3; i++)
             {
-                yield return new WaitForSeconds(0.1f);
-                for (float k = 0; k < 1f; k += Time.deltaTime / 0.18f) { float o = 1 + Mathf.Sin(k * Mathf.PI) * 0.4f; stars[i].localScale = Vector3.one * k * o; yield return null; }
-                stars[i].localScale = Vector3.one;
+                yield return new WaitForSeconds(0.08f);
+                for (float k = 0; k < 1f; k += Time.deltaTime / 0.16f) { float o = 1 + Mathf.Sin(k * Mathf.PI) * 0.4f; stars[i].localScale = Vector3.one * 1.25f * k * o; yield return null; }
+                stars[i].localScale = Vector3.one * 1.25f;
                 if (got[i]) { Fx.Sparkle(stars[i].position, new Color(1f, 0.85f, 0.45f), 0.02f); Sfx.Place(stars[i].position); }
             }
         }
@@ -234,7 +231,7 @@ namespace PaperSiege
             for (int i = 0; i < tags.Count; i++)
             {
                 var t = tags[i];
-                for (float k = 0; k < 1f; k += Time.deltaTime / 0.25f) { t.drop = 1 - (1 - k) * (1 - k); yield return null; }
+                for (float k = 0; k < 1f; k += Time.deltaTime / 0.22f) { t.drop = 1 - (1 - k) * (1 - k); yield return null; }
                 t.drop = 1; t.Hold(false);
             }
         }
@@ -248,11 +245,76 @@ namespace PaperSiege
             {
                 foreach (var t in tags) t.drop = 1 - Mathf.Clamp01(k * 2.5f);
                 flag.reveal = 1 - Mathf.SmoothStep(0, 1, Mathf.Clamp01(k * 2f));
-                note.localScale = Vector3.one * (1 - Mathf.Clamp01(k * 2.2f));
+                foreach (var lk in links) lk.drop = 1 - Mathf.Clamp01(k * 2.2f);
                 root.localPosition = p0 + Vector3.up * 0.5f * k * k;      // 整组往上收回天花板
                 yield return null;
             }
             Destroy(gameObject);
+        }
+    }
+
+    /// <summary>
+    /// 战报木签（不能按）：和按钮木签同一个模型，顶孔用短绳挂在上一块的底孔 / 布旗扣眼上，
+    /// 自己像钟摆轻轻晃，下面挂着的跟着一起晃（层层嵌套）。drop 0 → 1 = 从侧着收起荡到正面挂好。
+    /// </summary>
+    public class ReportLink : MonoBehaviour
+    {
+        public Transform look;
+        public float drop = 1f, kick;
+        LineRenderer cord;
+        float gap, seed, scale;
+        public Transform BottomHole { get; private set; }
+
+        public static ReportLink Build(Transform parent, float gap, Material mat, int index, float scale, Material matOverride = null)
+        {
+            var l = new GameObject("Link_" + index).AddComponent<ReportLink>();
+            l.transform.SetParent(parent, false);
+            l.gap = gap; l.seed = index * 2.3f + 0.7f; l.scale = scale;
+            l.transform.localScale = Vector3.one * scale;
+            l.look = new GameObject("Look").transform;
+            l.look.SetParent(l.transform, false);
+            l.look.gameObject.AddComponent<MeshFilter>().sharedMesh = CoverMenu.M("CV_Tag");
+            l.look.gameObject.AddComponent<MeshRenderer>().sharedMaterial = matOverride ? matOverride : mat;
+            l.BottomHole = new GameObject("BottomHole").transform;
+            l.BottomHole.SetParent(l.look, false);
+            l.BottomHole.localPosition = new Vector3(0, -0.04f, 0);
+            l.cord = new GameObject("Cord").AddComponent<LineRenderer>();
+            l.cord.transform.SetParent(l.transform, false);
+            l.cord.useWorldSpace = true; l.cord.positionCount = 3; l.cord.widthMultiplier = 0.0018f;
+            l.cord.sharedMaterial = CoverMenu.Mat("M_Cord");
+            l.cord.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return l;
+        }
+
+        /// <summary>写在木签正面（-Z）的字：pos 是模型坐标下文字中心</summary>
+        public TextMeshPro Text(Vector3 pos, Vector2 size, float max, Color col)
+        {
+            var g = new GameObject("Text"); g.transform.SetParent(look, false);
+            g.transform.localPosition = new Vector3(pos.x, pos.y, -0.0053f);
+            var t = g.AddComponent<TextMeshPro>();
+            t.font = Fonts.Sans ? Fonts.Sans : Fonts.Type;   // 思源黑体：Courier 的数字比汉字小一圈，加粗后“0”像小写 o，认不清
+            t.rectTransform.sizeDelta = size;
+            t.enableAutoSizing = true; t.fontSizeMin = 0.01f; t.fontSizeMax = max;
+            t.fontStyle = FontStyles.Bold;   // 和按钮木签同一种字：粗体墨字，木纹上好认
+            t.alignment = TextAlignmentOptions.Center; t.textWrappingMode = TextWrappingModes.NoWrap;
+            t.color = col;
+            return t;
+        }
+
+        void LateUpdate()
+        {
+            float t = Time.time;
+            kick = Mathf.MoveTowards(kick, 0, Time.deltaTime * 1.2f);
+            float e = Mathf.Clamp01(drop);
+            // 收起时侧着（绕挂绳转 80°）、缩小；荡下来时转正，落定后被 kick 带着晃两下
+            float sway = Mathf.Sin(t * 1.15f + seed) * 1.8f + Mathf.Sin(t * 6f + seed) * kick * 7f;
+            look.localPosition = new Vector3(0, -gap * e + 0.004f, 0);   // 顶孔（模型 y = -0.004）落在绳下端
+            transform.localRotation = Quaternion.Euler(0, (1 - e) * 80f + Mathf.Sin(t * 0.55f + seed) * 5f, sway);
+            look.localScale = Vector3.one * Mathf.Max(0.001f, Mathf.Clamp01(e * 1.5f));
+            cord.enabled = e > 0.05f;
+            // 绳：从上一块的底孔穿下来，到这块的顶孔（中间稍往前鼓一点，像真绳圈）
+            var a = transform.position; var b = look.TransformPoint(new Vector3(0, -0.004f, 0));
+            cord.SetPosition(0, a); cord.SetPosition(1, (a + b) * 0.5f - look.forward * 0.0015f * scale); cord.SetPosition(2, b);
         }
     }
 }

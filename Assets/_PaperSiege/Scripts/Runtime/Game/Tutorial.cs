@@ -23,10 +23,23 @@ namespace PaperSiege
             gr = GhostHand.Build(true);
             gl.Show(false); gr.Show(false);
             StartCoroutine(Run());
+            d.PhaseChanged += OnPhase;
+        }
+
+        /// <summary>分出胜负（比如自由开打阶段输了）：教学立刻停下，收木牌和示范手，不和结算叠在一起</summary>
+        void OnPhase(Director.Phase p)
+        {
+            if (p != Director.Phase.Won && p != Director.Phase.Lost) return;
+            StopAllCoroutines(); ghostCo = null;
+            if (tag) tag.Show("");
+            if (gl) gl.Show(false);
+            if (gr) gr.Show(false);
+            done = true;
         }
 
         void OnDestroy()
         {
+            if (d) d.PhaseChanged -= OnPhase;
             if (tag) Destroy(tag.gameObject);
             if (gl) Destroy(gl.gameObject);
             if (gr) Destroy(gr.gameObject);
@@ -48,6 +61,7 @@ namespace PaperSiege
         {
             d.arena.enemy.SetKingHP(99);   // 学完防守之前，敌方帅旗打不倒
             d.arena.enemy.kingLocked = true;   // 被砸歪 / 掉下去也不算，过一会儿自己立回去
+            d.arena.mine.kingLocked = true;    // 我方同样：教挡 / 接 / 修时的敌弹可能把自己的帅旗震倒，教学没走完就判负
             d.timerPaused = true;
             yield return new WaitForSeconds(1.0f);
 
@@ -96,6 +110,7 @@ namespace PaperSiege
             Ghost(null);
             d.arena.enemy.SetKingHP(1);
             d.arena.enemy.kingLocked = false;
+            d.arena.mine.kingLocked = false;
             if (d.ammo.Total < 3) d.ammo.Add(Ammo.Stone, 3 - d.ammo.Total);
             d.timerPaused = false;
             d.timeLeft = d.level.timeLimit;

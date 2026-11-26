@@ -127,6 +127,7 @@ namespace PaperSiege
             catapult.Stop();
             SetPhase(win ? Phase.Won : Phase.Lost);
             if (sky) sky.OnEnd(win);
+            HintTag.HideAll();
             if (win) { Progress.SetStars(levelIndex, ResultBoard.Score(this, true)); if (levelIndex + 1 > Progress.Unlocked) Progress.Unlocked = levelIndex + 1; }
             StartCoroutine(ShowResult(win));
             Debug.Log($"[PaperSiege] 第 {levelIndex + 1} 关 {(win ? "胜" : "负")}  我方完整度 {arena.mine.Integrity:0.00} 敌方 {arena.enemy.Integrity:0.00}  射 {stats.shots} 挡 {stats.blocked} 接 {stats.caught}");

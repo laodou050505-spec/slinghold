@@ -552,19 +552,19 @@ namespace PaperSiege.EditorTools
             yield return new WaitForSeconds(5f);
             // 直接让敌方帅旗耐久打光（模拟打赢）
             D.arena.enemy.DamageKing(99, D.arena.enemy.transform.position - D.arena.forward);
-            yield return new WaitForSeconds(5.5f);
+            yield return new WaitForSeconds(7f);
             Debug.Log($"[流程] 赢后 phase={D.phase} 结算板={(GameObject.Find("ResultBoard") != null)} 星={Progress.Stars(D.levelIndex)} 解锁到={Progress.Unlocked + 1}");
             var rb = GameObject.Find("ResultBoard");
-            if (rb) { var rr = rb.transform.Find("Result"); SnapPlayerLook(dir, "结算_胜利", rr ? rr.position + Vector3.down * 0.08f : rb.transform.position); if (rr) Snap(dir, "结算_胜利_近看", D.head.transform.position, rr.position + Vector3.down * 0.1f, 38); }
+            if (rb) { var rr = rb.transform.Find("Result"); SnapPlayerLook(dir, "结算_胜利", rr ? rr.position + Vector3.down * 0.17f : rb.transform.position); if (rr) { Snap(dir, "结算_胜利_近看", D.head.transform.position, rr.position + Vector3.down * 0.17f, 38); Snap(dir, "结算_胜利_头显像素", D.head.transform.position, rr.position + Vector3.down * 0.17f, 50.5f); } }
             yield return PressButton("下一关");
             yield return new WaitForSeconds(1.0f);
             Debug.Log($"[流程] 捏“下一关”后 phase={D.phase} 关={D.levelIndex + 1}");
             Quiet();
             yield return new WaitForSeconds(5f);
             D.arena.mine.DamageKing(99, D.arena.mine.transform.position + D.arena.forward);
-            yield return new WaitForSeconds(5.0f);
+            yield return new WaitForSeconds(6.5f);
             rb = GameObject.Find("ResultBoard");
-            if (rb) { var rr = rb.transform.Find("Result"); SnapPlayerLook(dir, "结算_失守", rr ? rr.position + Vector3.down * 0.08f : rb.transform.position); if (rr) Snap(dir, "结算_失守_近看", D.head.transform.position, rr.position + Vector3.down * 0.1f, 38); }
+            if (rb) { var rr = rb.transform.Find("Result"); SnapPlayerLook(dir, "结算_失守", rr ? rr.position + Vector3.down * 0.17f : rb.transform.position); if (rr) { Snap(dir, "结算_失守_近看", D.head.transform.position, rr.position + Vector3.down * 0.17f, 38); Snap(dir, "结算_失守_头显像素", D.head.transform.position, rr.position + Vector3.down * 0.17f, 50.5f); } }
             Debug.Log($"[流程] 输后 phase={D.phase} 结算板={(rb != null)}");
             yield return PressButton("回标题");
             yield return new WaitForSeconds(1.0f);
@@ -953,6 +953,88 @@ namespace PaperSiege.EditorTools
             Snap(dir, "7_开局后", h.position, h.position + D.arena.forward, 80);
             D.GoTitle();
             C("完成");
+        }
+
+        /// <summary>火 / 灭火特效截图：点着我方城两块木头（近看）+ 敌城一块（远看），连拍；再灭火，按 0.1 秒逐帧拍“噗”的过程</summary>
+        public static string FireFx(string dir) { Level(3); Quiet(); D.StartCoroutine(FireFxRun(dir)); return "fire fx started"; }
+        static System.Collections.IEnumerator FireFxRun(string dir)
+        {
+            yield return new WaitForSeconds(0.5f);
+            var mine = D.arena.mine; var en = D.arena.enemy;
+            var woods = mine.blocks.Where(b => b && b.Wood && !b.Dead && b != mine.king).OrderByDescending(b => b.transform.position.y).Take(2).ToList();
+            foreach (var b in woods) b.Ignite();
+            var ew = en.blocks.Where(b => b && b.Wood && !b.Dead && b != en.king).OrderByDescending(b => b.transform.position.y).First();
+            ew.Ignite();
+            var c = woods[0].WorldBounds.center;
+            var eye = D.head.transform.position;
+            Vector3 near = c + (eye - c).normalized * 0.32f + Vector3.up * 0.04f;
+            for (int i = 0; i < 4; i++)
+            {
+                yield return new WaitForSeconds(i == 0 ? 0.8f : 0.35f);
+                Snap(dir, $"火_近_{i}", near, c + Vector3.up * 0.03f, 60);
+            }
+            SnapPlayer(dir, "火_玩家视角");
+            // 倒在桌上的块：从城里拿一块木头横放到城前桌面上点着
+            var lying = mine.blocks.Where(x => x && x.Wood && !x.Dead && x != mine.king && !woods.Contains(x) && x.def.id.Contains("Cube")).OrderBy(x => x.transform.position.y).FirstOrDefault()
+                        ?? mine.blocks.First(x => x && x.Wood && !x.Dead && x != mine.king && !woods.Contains(x));
+            if (lying.rb) lying.rb.isKinematic = true;
+            var tp = D.arena.tableCenter + Vector3.ProjectOnPlane(eye - D.arena.tableCenter, Vector3.up).normalized * 0.12f;
+            tp.y = mine.transform.position.y + lying.WorldBounds.extents.y * 0.6f;
+            lying.transform.SetPositionAndRotation(tp, Quaternion.Euler(0, 35, 90));
+            yield return new WaitForFixedUpdate();
+            lying.Ignite();
+            yield return new WaitForSeconds(1.0f);
+            var lc = lying.WorldBounds.center;
+            Snap(dir, "火_倒块", lc + (eye - lc).normalized * 0.28f + Vector3.up * 0.05f, lc, 60);
+            Snap(dir, "火_倒块_侧", lc + Vector3.Cross(Vector3.up, Vector3.ProjectOnPlane(eye - lc, Vector3.up).normalized) * 0.28f + Vector3.up * 0.06f, lc, 60);
+            SnapEnemy(dir, "火_敌城");
+            woods[0].Extinguish();
+            for (int i = 0; i < 8; i++)
+            {
+                yield return new WaitForSeconds(0.12f);
+                Snap(dir, $"灭_{i:00}", near, c + Vector3.up * 0.03f, 60);
+            }
+            Debug.Log("[FireFx] 完成");
+        }
+
+        /// <summary>面板重叠检查：①教学中推倒我方帅旗 → 应立回、不判负；②教学中途判负 → 教学木牌收起只剩结算；③普通关挂着提示时判负 → 同样</summary>
+        public static string OverlapCheck(string dir)
+        {
+            foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp);
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            D.head.transform.rotation = Quaternion.Euler(14, 0, 0);
+            D.StartLevel(0);
+            D.StartCoroutine(OverlapRun(dir));
+            return "overlap started";
+        }
+        static int ActiveTags() => Object.FindObjectsByType<HintTag>(FindObjectsInactive.Exclude).Length;
+        static System.Collections.IEnumerator OverlapRun(string dir)
+        {
+            yield return new WaitForSeconds(3f);
+            var k = D.arena.mine.king;
+            k.rb.isKinematic = false;
+            k.transform.rotation = Quaternion.Euler(0, 0, 80);
+            yield return new WaitForSeconds(0.3f);
+            Debug.Log($"[Overlap] ①推倒后 phase={D.phase}");
+            yield return new WaitForSeconds(3.5f);
+            Debug.Log($"[Overlap] ①3.8 秒后 phase={D.phase} 旗倾斜={Vector3.Angle(k.transform.up, Vector3.up):0}° 木牌={ActiveTags()}");
+            SnapPlayer(dir, "1_教学中推倒帅旗后");
+            D.End(false);
+            yield return new WaitForSeconds(4.5f);
+            Debug.Log($"[Overlap] ②教学中判负 phase={D.phase} 挂着的木牌={ActiveTags()}");
+            SnapPlayer(dir, "2_教学中判负");
+            Castle.InstantBuild = true; D.StartLevel(3); Castle.InstantBuild = false;
+            yield return new WaitForSeconds(1f);
+            D.catapult.Stop();
+            var w = D.arena.mine.blocks.First(b => b && b.Wood && !b.Dead && b != D.arena.mine.king);
+            w.Ignite();
+            yield return new WaitForSeconds(1.5f);
+            Debug.Log($"[Overlap] ③着火提示 木牌={ActiveTags()}");
+            D.End(false);
+            yield return new WaitForSeconds(4.5f);
+            Debug.Log($"[Overlap] ③判负后 挂着的木牌={ActiveTags()}");
+            SnapPlayer(dir, "3_着火提示时判负");
+            Debug.Log("[Overlap] 完成");
         }
 
         public static string State()

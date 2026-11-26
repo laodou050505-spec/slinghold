@@ -47,7 +47,7 @@ namespace PaperSiege
                 yield return null;
                 // 教学关：跳过教学（直接进自由开打）
                 var tut = d.GetComponent<Tutorial>();
-                if (tut) { Destroy(tut); d.arena.enemy.SetKingHP(d.level.kingHP); d.arena.enemy.kingLocked = false; d.timerPaused = false; d.catapult.Begin(d.level, d.arena.mine, d.ammo); }
+                if (tut) { Destroy(tut); d.arena.enemy.SetKingHP(d.level.kingHP); d.arena.enemy.kingLocked = false; d.arena.mine.kingLocked = false; d.timerPaused = false; d.catapult.Begin(d.level, d.arena.mine, d.ammo); }
                 var tips = d.GetComponent<LevelTips>(); if (tips) Destroy(tips);
                 float t0 = Time.time;
                 yield return Play();

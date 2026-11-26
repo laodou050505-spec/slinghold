@@ -22,6 +22,16 @@ namespace PaperSiege
         const float Scale = 3.2f;          // 模型 6×4 cm → 约 19×13 cm
         const float Cord = 0.07f;
 
+        static readonly System.Collections.Generic.List<HintTag> all = new();
+        void OnEnable() { if (!all.Contains(this)) all.Add(this); }
+        void OnDestroy() { all.Remove(this); }
+
+        /// <summary>结算 / 回标题时：所有提示木牌往上荡走收起（不和结算横木叠在一起）</summary>
+        public static void HideAll() { foreach (var h in all.ToArray()) if (h && h.gameObject.activeSelf) h.Show(""); }
+
+        /// <summary>已分出胜负（结算挂着）时不再挂提示</summary>
+        static bool Over => Director.I && (Director.I.phase == Director.Phase.Won || Director.I.phase == Director.Phase.Lost);
+
         public static HintTag Build(Transform head)
         {
             var h = new GameObject("HintTag").AddComponent<HintTag>();
@@ -82,7 +92,9 @@ namespace PaperSiege
         /// <summary>换一句提示（中文原文，内部走 Loc）。空串 = 收起</summary>
         public void Show(string zh)
         {
+            if (Over) zh = "";
             if (zh == current && gameObject.activeSelf) return;
+            if (string.IsNullOrEmpty(zh) && !gameObject.activeSelf) { current = ""; return; }
             current = zh;
             if (co != null) StopCoroutine(co);
             if (!gameObject.activeSelf) { gameObject.SetActive(true); anchor = anchorGoal = Goal(); drop = 1f; }

@@ -504,11 +504,26 @@ def cv_tag(rng):
     """菜单木签：原点在穿绳孔中心，正面朝 +Y（字在 Unity 里写）；约 13 × 4.5 cm × 7 mm"""
     pts = [(-1.3, -0.95), (1.3, -0.95), (1.3, -0.12), (1.08, 0.08), (-1.08, 0.08), (-1.3, -0.12)]
     o = prism('tag', [(x * g, z * g) for x, z in pts], 0.14 * g)
-    boolean(o, [cylinder('hole', 0.07 * g, 0.4 * g, verts=14, axis='Y', c=(0, 0, -0.08 * g))])
+    boolean(o, [cylinder('hole', 0.07 * g, 0.4 * g, verts=14, axis='Y', c=(0, 0, -0.08 * g)),
+                cylinder('hole2', 0.06 * g, 0.4 * g, verts=14, axis='Y', c=(0, 0, -0.8 * g))])   # 底孔：下一块木签挂在这里（一串木签首尾相连）
     boolean(o, chip_cutters(o, rng, 4, 0.08 * g))
     parts = [tag(finish(o, rng, 0.03 * g, seg=2, jitter=0.008 * g, warp=0.015 * g), WOOD)]
     for sx in (-1.05, 1.05):                      # 两颗小钉（真实木牌的钉补）
         parts.append(tag(cylinder('nail', 0.05 * g, 0.03 * g, verts=10, axis='Y', c=(sx * g, -0.085 * g, -0.75 * g)), IRON))
+    return parts
+
+
+def cv_stick(rng):
+    """结算横木：原点在中点，沿 X 长 6.8 格（34 cm）；两端各一道绑绳（吊绳绑在这里）+ 漆头；中间两道绳圈（挂布旗 / 木签的地方）"""
+    parts = []
+    st = cylinder('stick', 0.13 * g, 6.8 * g, verts=12, axis='X', c=(0, 0, 0))
+    parts.append(tag(finish(st, rng, 0.025 * g, seg=2, jitter=0.006 * g, warp=0.02 * g), STAIN))
+    for sx in (-1, 1):
+        parts.append(tag(ico('cap', 0.19 * g, (sx * 3.45 * g, 0, 0), subdiv=2), 'teal'))
+        for dx in (-0.08, 0.08):
+            parts.append(tag(torus('lash', 0.16 * g, 0.045 * g, ((sx * 3.0 + dx) * g, 0, 0), axis=(1, 0, 0), maj=12, mn=6), ROPE))
+    for x in (-1.5, 1.4):
+        parts.append(tag(torus('knot', 0.155 * g, 0.042 * g, (x * g, 0, 0), axis=(1, 0, 0), maj=12, mn=6), ROPE))
     return parts
 
 
@@ -540,6 +555,7 @@ if COVER:
         ('CV_TagArm', cv_tagarm, 0.012, 0.8, 1200),
         ('CV_Lantern', cv_lantern, 0.014, 0.6, 2400),
         ('CV_Tag', cv_tag, 0.01, 0.9, 900),
+        ('CV_Stick', cv_stick, 0.012, 0.8, 1200),
     ]
 
 
