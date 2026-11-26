@@ -100,6 +100,7 @@ namespace PaperSiege
                     part.AddComponent<MeshFilter>().sharedMesh = id == "K_Flag" ? m.lod0 : Pick(m);
                     part.AddComponent<MeshRenderer>().sharedMaterial = lib.propMaterial;
                     if (id == "K_Flag") part.AddComponent<FlagSway>();
+                    if (id == "K_Flag" && side == Side.Player) MineFlag.Apply(part);   // 我方帅旗：干净布面 + TRIPO 图标（敌方仍是太阳纹）
                 }
             }
             else if (pm != null && (pm.lod0 || pm.lod1))

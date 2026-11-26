@@ -119,6 +119,8 @@ namespace PaperSiege.EditorTools
                 m.SetFloat("_ReceiveShadows", 0f); m.EnableKeyword("_RECEIVE_SHADOWS_OFF"); EditorUtility.SetDirty(m);
             }
             for (int i = 1; i <= 3; i++) Cloth("M_Scrap_" + i, "scrap_" + i, 0.08f);
+            Cloth("M_FlagMine", "flag_mine", 0.05f);
+            { var fm = AssetDatabase.LoadAssetAtPath<Material>(dir + "M_FlagMine.mat"); fm.SetFloat("_Cull", 2f); EditorUtility.SetDirty(fm); }   // 我方帅旗：正反两片各自单面（两面的图标都不镜像）
             void Mark(string name, string tex)
             {
                 var m = Get(name, "Universal Render Pipeline/Unlit");
