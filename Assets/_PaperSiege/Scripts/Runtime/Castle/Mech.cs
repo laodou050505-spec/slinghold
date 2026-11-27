@@ -340,7 +340,7 @@ namespace PaperSiege
             float lx = transform.InverseTransformPoint(p).x / BlockLibrary.G;   // 落点在秤杆上的位置（格，+ = B 那头）
             if (Debug.isDebugBuild && Application.isEditor) Debug.Log($"[秤] 弹落 {p:F2} 离 B 盘 {d:0.00} 格 秤杆位置 {lx:0.0} 格 hit={(hit ? hit.def.id : "-")}");
             if (radius > 0f) { if (d * U < radius) AddWeight(w, p); return; }   // 炸丸的冲击：压一下（不留弹）
-            if (d < 1.3f || (hit == block && lx > 1.0f)) AddWeight(w, p);
+            if (d < 1.6f || (hit == block && lx > 0.8f)) AddWeight(w, p);   // 11-27 放宽（1.3 → 1.6 格）：秤盘是个圆盘，擦着盘沿落下也算，别让玩家觉得“明明打中了”
         }
 
         void AddWeight(float w, Vector3 p)

@@ -62,6 +62,9 @@ namespace PaperSiege.EditorTools
                 {
                     m.EnableKeyword("_EMISSION");
                     m.SetColor("_EmissionColor", new Color(1f, 0.45f, 0.1f));
+                    // URP 按光照标记决定留不留 _EMISSION：标记是 EmissiveIsBlack（默认）时，编辑器一校验材质就把关键字清掉 →
+                    // 打包时自发光变体被剥离、火丸在头显里不发光（11-27 查出）。设成实时自发光，URP 就会保留
+                    m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
                 }
                 EditorUtility.SetDirty(m);
                 log.Add($"{file} ← {shaderName} [{string.Join(" ", m.shaderKeywords)}]");
@@ -69,6 +72,49 @@ namespace PaperSiege.EditorTools
             CleanAlwaysIncluded(log);
             AssetDatabase.SaveAssets();
             return string.Join("\n", log);
+        }
+
+        /// <summary>
+        /// 打包前核对（11-27 查出：Lit_Emission 的 _EMISSION 关键字被清掉、Lit_Transparent 的 _SrcBlend 被改成 One——
+        /// URP 在编辑器里按属性重新推算材质时会写回，具体时机不固定）。不对就重新生成；返回空 = 都对。
+        /// </summary>
+        public static string Verify()
+        {
+            var bad = new List<string>();
+            foreach (var (file, shaderName, kind) in Specs)
+            {
+                var m = AssetDatabase.LoadAssetAtPath<Material>($"{Dir}/{file}.mat");
+                if (!m) { bad.Add(file + " 缺失"); continue; }
+                if (kind == Kind.Emission && !m.IsKeywordEnabled("_EMISSION")) bad.Add(file + " 缺 _EMISSION");
+                if (kind == Kind.Transparent)
+                {
+                    if (!m.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT")) bad.Add(file + " 缺 _SURFACE_TYPE_TRANSPARENT");
+                    if (!BlendOk(m)) bad.Add(file + $" _SrcBlend={m.GetInt("_SrcBlend")} _DstBlend={(m.HasProperty("_DstBlend") ? m.GetInt("_DstBlend") : -1)}（应为普通 Alpha 混合）");
+                }
+            }
+            if (bad.Count == 0) return "";
+            var fix = Build();
+            var still = new List<string>();
+            foreach (var (file, shaderName, kind) in Specs)
+            {
+                var m = AssetDatabase.LoadAssetAtPath<Material>($"{Dir}/{file}.mat");
+                if (kind == Kind.Emission && m && !m.IsKeywordEnabled("_EMISSION")) still.Add(file);
+                if (kind == Kind.Transparent && m && !BlendOk(m)) still.Add(file);
+            }
+            return "保底材质被改过：" + string.Join("；", bad) + (still.Count > 0 ? "\n重新生成后仍不对：" + string.Join("，", still) : "\n已重新生成");
+        }
+
+        /// <summary>
+        /// 透明混合是不是“普通 Alpha”：SrcAlpha / OneMinusSrcAlpha；或者 URP Lit“保留高光”开着时的 One / OneMinusSrcAlpha
+        /// （URP 把乘透明度挪进着色器里做，效果相同；透明度通道仍是 One / OneMinusSrcAlpha，透视合成不受影响）
+        /// </summary>
+        static bool BlendOk(Material m)
+        {
+            if (!m.HasProperty("_SrcBlend")) return true;
+            int src = m.GetInt("_SrcBlend"), dst = m.HasProperty("_DstBlend") ? m.GetInt("_DstBlend") : (int)BlendMode.OneMinusSrcAlpha;
+            bool preserve = m.HasProperty("_BlendModePreserveSpecular") && m.GetFloat("_BlendModePreserveSpecular") > 0;
+            if (dst != (int)BlendMode.OneMinusSrcAlpha) return false;
+            return src == (int)BlendMode.SrcAlpha || (preserve && src == (int)BlendMode.One);
         }
 
         /// <summary>“总是包含的着色器”里去掉空引用（从别的工程复制骨架时带过来的坏 GUID）</summary>

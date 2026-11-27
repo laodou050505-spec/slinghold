@@ -112,6 +112,20 @@ namespace PaperSiege
         static Material FlameMat => SheetMat("Fx/fx_flame", ref flameMat);
         static Material PuffMat => SheetMat("Fx/fx_puff", ref puffMat);
 
+        /// <summary>开机预热用：积木着火的三层（火苗序列帧 / 火星 / 烟团）在 root 下各画一次</summary>
+        public static void PrewarmFire(Transform root)
+        {
+            var fl = Child(root, "Flames", FlameMat, -20); Sheet(fl, 4, 2, true);
+            var sp = Child(root, "Sparks", Soft, -10);
+            var sm = Child(root, "Smoke", PuffMat, 20); Sheet(sm, 2, 2, false);
+            foreach (var ps in new[] { fl, sp, sm })
+            {
+                var m = ps.main; m.startSize = 0.001f; m.startSpeed = 0f; m.startLifetime = 0.5f;
+                var em = ps.emission; em.SetBursts(new[] { new ParticleSystem.Burst(0, 2) });
+                ps.Play();
+            }
+        }
+
         static ParticleSystem Child(Transform parent, string name, Material mat, int fudge)
         {
             var go = new GameObject(name);
@@ -359,7 +373,7 @@ namespace PaperSiege
         /// </summary>
         public static bool Firework(Vector3 p, Color c, FwKind kind, float scale, float riseTime = 0.6f, bool sound = true)
         {
-            if (FireworksAlive >= FireworksCap) return false;
+            if (FireworksAlive >= (HeadsetPerf.Tier > 0 ? FireworksCap / 2 : FireworksCap)) return false;
             // 烟花节的炸点放到 10～14 米外（太近会透视变形）：按距离放大，看起来和原来 8.5 米处一样大
             var camT = Camera.main ? Camera.main.transform : null;
             if (camT) scale *= Mathf.Clamp(Vector3.Distance(camT.position, p) / 8.5f, 1f, 1.7f);

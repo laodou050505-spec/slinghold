@@ -8,11 +8,28 @@ namespace PaperSiege
     {
         public static Vector3 G => Physics.gravity * GameTuning.I.shotGravity;
 
-        /// <summary>固定飞行时间 t，从 a 打到 b 需要的初速度</summary>
-        public static Vector3 VelocityFor(Vector3 a, Vector3 b, float t) => (b - a) / t - 0.5f * G * t;
+        /// <summary>
+        /// 固定飞行时间 t，从 a 打到 b 需要的初速度。按引擎的半隐式欧拉补偿：它比精确抛物线每秒多掉 0.5·g·步长 的高度
+        /// （n 步后位置 = v₀t + ½gt² + ½g·t·dt），所以初速度里扣掉 ½·G·dt
+        /// </summary>
+        public static Vector3 VelocityFor(Vector3 a, Vector3 b, float t) => (b - a) / t - 0.5f * G * t - 0.5f * G * Time.fixedDeltaTime;
 
         /// <summary>给定出膛速度大小，打到 b 的两个解（低抛 / 高抛）。没解返回 false</summary>
         public static bool Solve(Vector3 a, Vector3 b, float speed, out Vector3 low, out Vector3 high)
+        {
+            // 先按精确抛物线解一次，再按飞行时间把目标抬高 ½·g·t·dt（引擎积分多掉的那一截），再解一次 —— 落点和引擎一致
+            if (!SolveExact(a, b, speed, out low, out high)) return false;
+            float flat = new Vector2(b.x - a.x, b.z - a.z).magnitude;
+            float g = -G.y, dt = Time.fixedDeltaTime;
+            float tl = flat / Mathf.Max(0.01f, new Vector2(low.x, low.z).magnitude), th = flat / Mathf.Max(0.01f, new Vector2(high.x, high.z).magnitude);
+            bool okL = SolveExact(a, b + Vector3.up * 0.5f * g * tl * dt, speed, out var l2, out _);
+            bool okH = SolveExact(a, b + Vector3.up * 0.5f * g * th * dt, speed, out _, out var h2);
+            if (okL) low = l2;
+            if (okH) high = h2;
+            return true;
+        }
+
+        static bool SolveExact(Vector3 a, Vector3 b, float speed, out Vector3 low, out Vector3 high)
         {
             low = high = Vector3.zero;
             float g = -G.y;
@@ -30,14 +47,22 @@ namespace PaperSiege
         }
 
         /// <summary>沿弹道前向模拟，碰到实体（积木 / 桌面 / 地面）就停。返回落点；points 收集路径点</summary>
-        public static Vector3 Predict(Vector3 p, Vector3 v, float radius, List<Vector3> points, float maxT = 3f, float dt = 0.02f)
+        /// <summary>
+        /// 预测落点：和物理引擎同一种积分（11-27：步长改成 1/72 秒后，原来的精确抛物线和引擎的“先改速度再走一步”差得更多，
+        /// 1 秒飞行落点差约 7 cm —— 弹道虚线指着帅旗，弹却落在前面。现在按引擎的步长和算法逐步走，虚线和实际落点重合）
+        /// </summary>
+        public static Vector3 Predict(Vector3 p, Vector3 v, float radius, List<Vector3> points, float maxT = 3f, float dt = 0f)
         {
             points?.Clear();
             points?.Add(p);
-            for (float t = 0; t < maxT; t += dt)
+            float step = Time.fixedDeltaTime;
+            // 每 2 个物理步记一个点（虚线点数不翻倍），每一小步都和引擎一样积分
+            int sub = dt > 0f ? Mathf.Max(1, Mathf.RoundToInt(dt / step)) : 2;
+            float seg_dt = step * sub;
+            for (float t = 0; t < maxT; t += seg_dt)
             {
-                var nv = v + G * dt;
-                var np = p + (v + nv) * 0.5f * dt;
+                var np = p; var nv = v;
+                for (int k = 0; k < sub; k++) { nv += G * step; np += nv * step; }   // 引擎的半隐式欧拉：先更新速度，再用新速度走
                 var seg = np - p;
                 if (Physics.SphereCast(p, radius * 0.8f, seg.normalized, out var hit, seg.magnitude, Layers.SolidMask, QueryTriggerInteraction.Ignore))
                 {

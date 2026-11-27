@@ -19,6 +19,9 @@ namespace PaperSiege
         float patT = -1f; Vector3 patFrom;
         GUIStyle box, title;
 
+        /// <summary>头显保险（11-27）：这是编辑器里转相机的模拟脚本，真机上一出现就自毁，绝不碰玩家视角</summary>
+        void Awake() { if (!Application.isEditor || UnityEngine.XR.XRSettings.isDeviceActive) { enabled = false; Destroy(this); } }
+
         void Start()
         {
             d = Director.I;

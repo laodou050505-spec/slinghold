@@ -144,6 +144,12 @@ namespace PaperSiege.EditorTools
                 return "Switched 已切到 Android，等编译完成后再执行一次打包";
             }
             var prep = Prepare();
+            // 保底材质最终核对（11-27：URP 会在编辑器里把关键字 / 混合模式改回去）。Build 之后还不对就不打包
+            var kv = ShaderKeep.Verify();
+            if (kv.Contains("仍不对")) return "Failed " + kv;
+            // 物理步长 = 1 / 刷新率（每帧正好一次物理，不会这帧两次、下帧一次地不均匀）；落后太多不追（防雪崩式卡顿）
+            Time.fixedDeltaTime = 1f / 72f; Time.maximumDeltaTime = 1f / 30f;
+            AssetDatabase.SaveAssets();
             PlayerSettings.productName = ProductNameZh;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;

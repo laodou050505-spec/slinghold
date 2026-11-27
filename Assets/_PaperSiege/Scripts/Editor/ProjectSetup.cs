@@ -46,7 +46,8 @@ namespace PaperSiege.EditorTools
             Physics.defaultContactOffset = 0.002f;
             Physics.bounceThreshold = 0.5f;
             Physics.defaultMaxDepenetrationVelocity = 0.5f;
-            Time.fixedDeltaTime = 0.01f;   // 100 Hz：小积木叠高更稳
+            Time.fixedDeltaTime = 1f / 72f;   // 11-27：和头显 72 Hz 同步（原 100 Hz 时每帧要跑 1～2 次物理，忽快忽慢）；18 关全叫醒稳定性实测不变
+            Time.maximumDeltaTime = 1f / 30f;   // 某帧慢了不连跑十几次物理去追时间（雪崩式卡顿）
         }
 
         static void Tunings()

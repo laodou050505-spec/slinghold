@@ -961,10 +961,10 @@ namespace PaperSiege.EditorTools
         }
 
         /// <summary>分裂丸要在飞过最高点后才分开：从更远、更高的地方打，分开后三颗正好落到目标附近</summary>
-        static System.Collections.IEnumerator FireAt(Ammo a, Vector3 tgt, float wait)
+        static System.Collections.IEnumerator FireAt(Ammo a, Vector3 tgt, float wait, bool high = false)
         {
             var from = D.arena.tableCenter + Vector3.up * 0.35f + D.arena.forward * 0.05f;
-            D.DebugShoot(a, from, tgt, 5.5f, a == Ammo.Split);
+            D.DebugShoot(a, from, tgt, 5.5f, high || a == Ammo.Split);
             yield return new WaitForSeconds(wait);
         }
 
@@ -994,7 +994,7 @@ namespace PaperSiege.EditorTools
                                yield return FireAt(Ammo.Split, mid.WorldBounds.center, 4f); yield return Fire(Ammo.Stone, -1, 4f, true); break; }
                     case 14: { var beam = D.arena.enemy.blocks[Find("M_ScaleBeam")].transform; var pan = beam.TransformPoint(new Vector3(2.0f, -1.3f, 0) * BlockLibrary.G);
                                // 分裂丸两发 + 石丸一发，都打 B 盘（压够 3 发重就翻）
-                               yield return FireAt(Ammo.Split, pan, 2.5f); yield return FireAt(Ammo.Split, pan, 2.5f); yield return FireAt(Ammo.Stone, pan, 4f); break; }
+                               yield return FireAt(Ammo.Split, pan, 2.5f); yield return FireAt(Ammo.Split, pan, 2.5f); yield return FireAt(Ammo.Stone, pan, 4f, true); break; }   // 石丸高抛：秤盘在石墙后面，低平弹道会撞墙（玩家看虚线也会抬高）
                 }
                 SnapEnemy(dir, $"M{lv + 1:00}_b_触发后");
                 Debug.Log($"[机关] 第{lv + 1}关 结果：{MechState()}");
@@ -1673,6 +1673,134 @@ namespace PaperSiege.EditorTools
             cam.backgroundColor = bg; cam.clearFlags = cf;
             foreach (var g in hidden) g.SetActive(true);
             return p;
+        }
+
+        /// <summary>
+        /// 性能巡检（11-27 用户：一定要保证不掉帧不卡顿）：在最重的几个时刻各采 3 秒，记每帧主线程耗时、GC 分配、GC 次数：
+        /// 第 18 关开打 + 对轰 / 第 11 关连环火药桶爆炸 / 第 5 关草垛连烧 / 结局塌城 + 烟花节高潮。
+        /// 头显没法在编辑器里测 GPU，这里只抓 CPU 侧的卡顿源（GC 停顿、单帧尖峰）。
+        /// </summary>
+        public static string PerfSweep() { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(PerfRun()); return "perf started"; }
+
+        static System.Collections.IEnumerator Sample(string tag, float secs)
+        {
+            var main = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Internal, "Main Thread", 400);
+            var gcA = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 400);
+            int gc0 = System.GC.CollectionCount(0);
+            float t0 = Time.realtimeSinceStartup; int n = 0; float worstDt = 0;
+            while (Time.realtimeSinceStartup - t0 < secs) { worstDt = Mathf.Max(worstDt, Time.unscaledDeltaTime); n++; yield return null; }
+            long mWorst = 0, mSum = 0, aWorst = 0, aSum = 0; int c = 0;
+            for (int i = 0; i < main.Count; i++) { long v = main.GetSample(i).Value; mWorst = System.Math.Max(mWorst, v); mSum += v; c++; }
+            for (int i = 0; i < gcA.Count; i++) { long v = gcA.GetSample(i).Value; aWorst = System.Math.Max(aWorst, v); aSum += v; }
+            int parts = 0; foreach (var ps in Object.FindObjectsByType<ParticleSystem>()) parts += ps.particleCount;
+            Debug.Log($"[性能巡检] {tag}：{n} 帧 主线程 平均 {mSum / System.Math.Max(1, c) / 1e6:0.0}ms 最差 {mWorst / 1e6:0.0}ms | GC 分配 平均 {aSum / System.Math.Max(1, gcA.Count) / 1024f:0.0}KB/帧 最大 {aWorst / 1024f:0.0}KB | GC 次数 {System.GC.CollectionCount(0) - gc0} | 粒子 {parts} 刚体醒着 {Object.FindObjectsByType<Rigidbody>().Count(r => !r.isKinematic && !r.IsSleeping())}");
+            main.Dispose(); gcA.Dispose();
+        }
+
+        static System.Collections.IEnumerator PerfRun()
+        {
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            // 1) 第 18 关：开打 + 对轰（自己连发 + 投石机照常打）
+            Level(17);
+            yield return new WaitForSeconds(3f);
+            yield return Sample("第18关 静止", 3f);
+            for (int i = 0; i < 6; i++) { Shoot((Ammo)(i % 5), 3 + i % 4, 5.0f, false); yield return new WaitForSeconds(0.4f); }
+            yield return Sample("第18关 连发对轰", 3f);
+            // 2) 第 11 关：连环火药桶
+            Level(10); Quiet();
+            yield return new WaitForSeconds(3f);
+            foreach (var b in D.arena.enemy.blocks.Where(b => b && b.mech && b.mech.kind == Mech.Kind.Keg).Take(1)) b.Ignite();
+            yield return Sample("第11关 连环爆炸", 3f);
+            // 3) 第 5 关：草垛连烧
+            Level(4); Quiet();
+            yield return new WaitForSeconds(3f);
+            foreach (var b in D.arena.enemy.blocks.Where(b => b && b.mech && b.mech.kind == Mech.Kind.Hay).Take(1)) b.Ignite();
+            yield return new WaitForSeconds(1f);
+            yield return Sample("第5关 草垛连烧", 3f);
+            // 4) 结局
+            Level(Levels.Count - 1); Quiet();
+            yield return new WaitForSeconds(3f);
+            D.arena.enemy.DamageKing(99, D.arena.enemy.transform.position - D.arena.forward);
+            yield return new WaitForSeconds(2f);
+            yield return Sample("结局 塌城", 3f);
+            yield return new WaitForSeconds(4.5f);
+            yield return Sample("结局 烟花主秀", 3f);
+            yield return Sample("结局 烟花高潮", 3f);
+            yield return Sample("结局 金柳收尾 + 光柱", 3f);
+            Debug.Log("[性能巡检] 完成");
+        }
+
+        /// <summary>
+        /// 物理稳定 + 开销（11-27 调物理步长用）：18 关逐关搭好后叫醒全部积木 3 秒（最严苛：整座城都在物理里），
+        /// 看有没有块自己滑走 / 倒下（最大位移、倒下数、帅旗倒没倒），并记物理每帧耗时。
+        /// </summary>
+        public static string PhysStab() { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(PhysRun()); return "phys started"; }
+
+        static System.Collections.IEnumerator PhysRun()
+        {
+            var phys = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Physics, "Physics.Simulate", 2000);
+            float worstAll = 0; int badLv = 0;
+            for (int lv = 0; lv < Levels.Count; lv++)
+            {
+                Level(lv); Quiet();
+                foreach (var t in D.GetComponents<LevelTips>()) Object.Destroy(t);
+                yield return new WaitForSeconds(0.3f);
+                var e = D.arena.enemy;
+                foreach (var b in e.blocks) if (b && !b.Dead && !b.isKing) b.Wake();
+                yield return new WaitForSeconds(3f);
+                float maxD = 0; int fell = 0;
+                foreach (var b in e.blocks)
+                {
+                    if (!b || b.Dead || (b.mech && b.mech.Scripted)) continue;
+                    float d = Vector3.Distance(b.transform.position, b.homePos) / e.unit;
+                    maxD = Mathf.Max(maxD, d);
+                    if (d > 0.5f || Quaternion.Angle(b.transform.rotation, b.homeRot) > 20f) fell++;
+                }
+                long w = 0; for (int i = 0; i < phys.Count; i++) w = System.Math.Max(w, phys.GetSample(i).Value);
+                worstAll = Mathf.Max(worstAll, w / 1e6f);
+                bool bad = fell > 0 || e.IsKingDown;
+                if (bad) badLv++;
+                Debug.Log($"[物理] 第{lv + 1}关 {e.blocks.Count}块 全叫醒3秒：最大位移 {maxD:0.00}格 倒/滑 {fell} 块 帅旗倒={e.IsKingDown} 物理最差一帧 {w / 1e6f:0.0}ms {(bad ? "← 不稳" : "")}");
+            }
+            phys.Dispose();
+            Debug.Log($"[物理] 完成 fixed={Time.fixedDeltaTime:0.0000} iter={Physics.defaultSolverIterations}/{Physics.defaultSolverVelocityIterations} 不稳关数 {badLv} 物理最差一帧 {worstAll:0.0}ms");
+        }
+
+        /// <summary>预测 vs 实际（11-27 物理步长改 1/72 后）：我方弹以不同速度 / 仰角打出 8 发，记弹道虚线预测落点和真实第一次碰撞点的距离</summary>
+        public static string AimMatch() { Level(1); Quiet(); D.StartCoroutine(AimRun()); return "aim started"; }
+        static System.Collections.IEnumerator AimRun()
+        {
+            yield return new WaitForSeconds(2f);
+            var fc = D.head.transform.position + D.arena.forward * 0.4f + Vector3.down * 0.2f;
+            float worst = 0, sum = 0; int n = 0, onTarget = 0;
+            Vector3? hitAt = null; Block hitB = null;
+            System.Action<Ammo, Vector3, Block, Side> h = (a, p, b, sd) => { if (!hitAt.HasValue) { hitAt = p; hitB = b; } };
+            Projectile.Impacted += h;
+            // 打敌城里 8 块不同的积木（不同高度 / 左右），速度 4.6～6：用 Solve 求初速度（测补偿），比较虚线预测点和真实撞击点
+            var targets = D.arena.enemy.blocks.Where(b => b && !b.Dead).OrderBy(b => b.transform.position.y).ToList();
+            for (int k = 0; k < 8; k++)
+            {
+                var tb = targets[(k * 7) % targets.Count];
+                float spd = 4.6f + (k % 4) * 0.45f;
+                var aim = tb.WorldBounds.center;
+                if (!Ballistics.Solve(fc, aim, spd, out var v, out _)) continue;
+                var land = Ballistics.Predict(fc, v, GameTuning.I.playerBallRadius, null, 4f);
+                hitAt = null; hitB = null;
+                var pr = Projectile.Spawn(Ammo.Stone, Side.Player, fc, v);
+                float t = 0;
+                while (pr && pr.state == Projectile.State.Flying && t < 4f && !hitAt.HasValue) { t += Time.deltaTime; yield return null; }
+                if (!hitAt.HasValue) { Debug.Log($"[瞄准] 目标 {tb.name} 没撞到积木"); if (pr) Object.Destroy(pr.gameObject); continue; }
+                float d = Vector3.Distance(hitAt.Value, land);
+                worst = Mathf.Max(worst, d); sum += d; n++;
+                if (hitB == tb) onTarget++;
+                Debug.Log($"[瞄准] 目标 {tb.name} 速度 {spd:0.0}：预测 {land:F3} 实际 {hitAt.Value:F3} 差 {d * 100:0.0}cm 打中目标={(hitB == tb)}（实际打到 {(hitB ? hitB.name : "-")}）");
+                if (pr) Object.Destroy(pr.gameObject);
+                Castle.InstantBuild = true; D.StartLevel(1); Castle.InstantBuild = false; Quiet();   // 每发重搭，下一发打完整的城
+                yield return new WaitForSeconds(0.4f);
+                targets = D.arena.enemy.blocks.Where(b => b && !b.Dead).OrderBy(b => b.transform.position.y).ToList();
+            }
+            Projectile.Impacted -= h;
+            Debug.Log($"[瞄准] 完成 步长 {Time.fixedDeltaTime * 1000:0.0}ms 平均差 {sum / Mathf.Max(1, n) * 100:0.0}cm 最大差 {worst * 100:0.0}cm 瞄哪打哪 {onTarget}/{n}（敌城一格 {GameTuning.I.enemyUnit * 100:0.0}cm）");
         }
 
         public static string SnapPlayer(string dir, string name) => Snap(dir, name, D.head.transform.position, D.head.transform.position + D.head.transform.forward, D.head.fieldOfView);

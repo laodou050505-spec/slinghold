@@ -67,8 +67,10 @@ namespace PaperSiege
                     yield return null;
                 }
                 MRRig.FixEyeHeight();
+                yield return Prewarm.Run(head);   // 封面出现前，把所有材质 / 特效 / 弹在相机前各画一帧（防第一次出现时卡顿）
                 Debug.Log($"[木垒][启动] {why} 用时 {Time.unscaledTime - t0:0.0}s 头={head.transform.position} 地面原点={MRRig.FloorSet} 房间={(RoomTable.I ? RoomTable.I.Status : "无")}");
             }
+            if (!Prewarm.Done) yield return Prewarm.Run(head);   // 编辑器里也走一遍（同一套流程，便于测试）
             GoTitle();
         }
 
@@ -267,6 +269,8 @@ namespace PaperSiege
                 var lb = new Bounds(c, Vector3.zero); bool any = false;
                 for (int i = i0; i < i1; i++)
                 {
+                    // 每帧最多推醒 8 块（11-27 性能：几十块同一帧进物理，引擎要一次建好所有接触，那一帧会顿）
+                    if (i > i0 && (i - i0) % 8 == 0) yield return null;
                     var b = all[i];
                     if (!b || b.Dead) continue;
                     b.Wake();
