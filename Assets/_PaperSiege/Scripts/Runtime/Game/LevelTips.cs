@@ -75,8 +75,9 @@ namespace PaperSiege
         void Update()
         {
             if (!d || d.phase != Director.Phase.Battle) return;
-            if (!saidFire && d.arena.mine.Burning.Count > 0) { saidFire = true; StartCoroutine(Say("着火了\n拍两下灭火", () => d.arena.mine.Burning.Count == 0, 10f)); }
-            if (!saidEmpty && d.ammo.Total == 0) { saidEmpty = true; StartCoroutine(Say("没弹了\n接住敌弹来用", () => d.ammo.Total > 0, 8f)); }
+            // 着火 / 没弹：全程只提示一次（灭火第一关教学里已经教过 → 教完就不再提示）
+            if (!saidFire && d.arena.mine.Burning.Count > 0) { saidFire = true; if (!Progress.Seen("fire")) { Progress.MarkSeen("fire"); StartCoroutine(Say("着火了\n拍两下灭火", () => d.arena.mine.Burning.Count == 0, 10f)); } }
+            if (!saidEmpty && d.ammo.Total == 0) { saidEmpty = true; if (!Progress.Seen("empty")) { Progress.MarkSeen("empty"); StartCoroutine(Say("没弹了\n接住敌弹来用", () => d.ammo.Total > 0, 8f)); } }
             // 冰丸登场那关：说完冰丸的效果后，投石机开始蓄力时提醒一句“冰丸也能冻住投石机”
             if (iceCatapultTip && !stage && d.catapult && d.catapult.Winding && d.ammo.Count(Ammo.Ice) > 0) { iceCatapultTip = false; StartCoroutine(Say("冰丸也能冻住投石机", () => d.catapult.Frozen, 6f)); }
         }

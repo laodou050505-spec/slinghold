@@ -121,6 +121,21 @@ namespace PaperSiege
         /// <summary>这一局用的是不是系统扫描出来的真桌子</summary>
         public bool usingRealTable { get; private set; }
         VirtualTable vtable;
+        bool tableWanted;
+
+        /// <summary>
+        /// 虚拟桌立起 / 收起（有真实桌子时什么都不做）。返回桌子还要多久才搭好（秒），调用方据此推迟往桌上放东西。
+        /// 封面（标题页）收起；对局开始前立起。animate = false 时瞬间出现（测试 / 编辑器快捷键直接开局）。
+        /// </summary>
+        public float ShowTable(bool on, bool animate = true)
+        {
+            tableWanted = on;
+            if (!on) { if (vtable) vtable.Dismantle(); vtable = null; return 0f; }
+            if (usingRealTable) return 0f;
+            if (vtable) return vtable.Remaining;
+            vtable = VirtualTable.Build(transform, tableCenter, Quaternion.LookRotation(forward, Vector3.up), tableSize, animate);
+            return animate ? VirtualTable.BuildTime : 0f;
+        }
 
         void BuildEnv()
         {
@@ -138,15 +153,12 @@ namespace PaperSiege
             table.transform.SetParent(env.transform, false);
             table.transform.SetPositionAndRotation(tableCenter - Vector3.up * 0.02f, rot);
             table.AddComponent<BoxCollider>().size = new Vector3(tableSize.x, 0.04f, tableSize.y);
-            // 看得见的桌子：读到真实桌子就不画；没有就立一张虚拟木桌（编辑器、头显同一张，搭建有过程）
-            var vtPos = tableCenter;
-            bool keep = vtable && !usingRealTable && (vtable.transform.position - vtPos).sqrMagnitude < 0.0004f
+            // 看得见的桌子：读到真实桌子就不画；没有就立一张虚拟木桌（编辑器、头显同一张，搭建有过程）。
+            // 11-27 用户：封面上不要虚拟桌 → 只在对局时立（ShowTable），这里只处理“已经立着、位置变了”的情况
+            bool keep = vtable && !usingRealTable && (vtable.transform.position - tableCenter).sqrMagnitude < 0.0004f
                         && Quaternion.Angle(vtable.transform.rotation, rot) < 2f;
-            if (!keep)
-            {
-                if (vtable) vtable.Dismantle();
-                vtable = usingRealTable ? null : VirtualTable.Build(transform, vtPos, rot, tableSize);
-            }
+            if (!keep && vtable) { vtable.Dismantle(); vtable = null; }
+            if (tableWanted && !usingRealTable && !vtable) vtable = VirtualTable.Build(transform, tableCenter, rot, tableSize);
             // 编辑器占位房间（墙 / 地板 / 天花板替身，只在编辑器里）
             if (HandInput.Sim) EditorRoom(rot);
             // 盒盖：盖在玩家和敌城之间那片天花板上（宽 2.4 m、长 = 敌城距离 + 1.2 m）
@@ -161,20 +173,109 @@ namespace PaperSiege
             Prim("RoomWall", new Vector3(tableCenter.x, 1.25f, tableCenter.z) + forward * 5.2f, new Vector3(6, 2.5f, 0.1f), rot, new Color(0.86f, 0.84f, 0.8f));
             Prim("RoomWallL", new Vector3(tableCenter.x, 1.25f, tableCenter.z) - Vector3.Cross(Vector3.up, forward) * 3f + forward * 1.5f, new Vector3(0.1f, 2.5f, 7.5f), rot, new Color(0.83f, 0.81f, 0.77f));
             Prim("RoomWallR", new Vector3(tableCenter.x, 1.25f, tableCenter.z) + Vector3.Cross(Vector3.up, forward) * 3f + forward * 1.5f, new Vector3(0.1f, 2.5f, 7.5f), rot, new Color(0.83f, 0.81f, 0.77f));
-            // 占位天花板（盒盖那片之外的部分）：四块拼成一个框，中间留出盒盖的位置
-            var cc = new Vector3(tableCenter.x, ceilingHeight + 0.03f, tableCenter.z) + forward * 1.5f;
-            var r = Vector3.Cross(Vector3.up, forward);
-            // 中间留出盒盖的洞，洞比开口每边大 3 cm：替身天花板的切边藏在盒沿内壁后面（11-27：原来切边和内壁共面，闪成一道灰条像穿模）
-            const float m = LidRim.WallT + 0.005f;
-            Prim("CeilL", cc - r * (2.1f + m / 2), new Vector3(1.8f - m, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
-            Prim("CeilR", cc + r * (2.1f + m / 2), new Vector3(1.8f - m, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
-            float lidL = enemyDistance + 1.2f + 2 * m, lidC = enemyDistance * 0.5f + 0.2f - 1.5f;
-            float back = (7.5f / 2) - (lidC + lidL / 2), front = (7.5f / 2) + (lidC - lidL / 2);
-            if (back > 0.01f) Prim("CeilB", cc + forward * (7.5f / 2 - back / 2), new Vector3(2.4f + 2 * m, 0.06f, back), rot, new Color(0.9f, 0.89f, 0.86f));
-            if (front > 0.01f) Prim("CeilF", cc - forward * (7.5f / 2 - front / 2), new Vector3(2.4f + 2 * m, 0.06f, front), rot, new Color(0.9f, 0.89f, 0.86f));
+            // 占位天花板：四块拼成一个框，中间让出天空开口（开口在结局时会扩到整片天花板 → 跟着 SkyDome.MaskChanged 重新摆）
+            ceilParts = new Transform[4];
+            string[] names = { "CeilL", "CeilR", "CeilB", "CeilF" };
+            for (int i = 0; i < 4; i++) ceilParts[i] = Prim(names[i], Vector3.zero, Vector3.one, rot, new Color(0.9f, 0.89f, 0.86f)).transform;
+            if (sky)
+            {
+                sky.MaskChanged -= FitEditorCeiling; sky.MaskChanged += FitEditorCeiling;
+                var lc = new Vector3(tableCenter.x, ceilingHeight, tableCenter.z) + forward * (enemyDistance * 0.5f + 0.2f);
+                FitEditorCeiling(lc, new Vector2(1.2f, (enemyDistance + 1.2f) * 0.5f));
+            }
         }
 
-        void Prim(string name, Vector3 pos, Vector3 size, Quaternion rot, Color c)
+        // ── 编辑器替身天花板（6 × 7.5 m，中心在桌子前方 1.5 m）
+        Transform[] ceilParts;
+        const float RoomW = 6f, RoomL = 7.5f;
+        Vector3 RoomCenter => new Vector3(tableCenter.x, 0, tableCenter.z) + forward * 1.5f;
+
+        /// <summary>替身天花板让出天空开口（开口中心 c、横 / 纵半宽 h）。洞比开口每边大 3 cm：切边藏在盒沿内壁后面</summary>
+        void FitEditorCeiling(Vector3 c, Vector2 h)
+        {
+            if (ceilParts == null || ceilParts[0] == null) return;
+            var r = Vector3.Cross(Vector3.up, forward);
+            // 盒沿在时洞口外扩 3 cm 藏在内壁后面；结局盒沿收起后不留余量（否则天空和替身天花板之间露一道黑缝）
+            float m = sky && sky.RimVisible ? LidRim.WallT + 0.005f : 0f;
+            var rc = RoomCenter;
+            // 开口在房间坐标里的范围
+            var d = new Vector3(c.x, 0, c.z) - rc;
+            float x0 = Vector3.Dot(d, r) - h.x - m, x1 = Vector3.Dot(d, r) + h.x + m;
+            float z0 = Vector3.Dot(d, forward) - h.y - m, z1 = Vector3.Dot(d, forward) + h.y + m;
+            float W = RoomW / 2, L = RoomL / 2;
+            x0 = Mathf.Clamp(x0, -W, W); x1 = Mathf.Clamp(x1, -W, W); z0 = Mathf.Clamp(z0, -L, L); z1 = Mathf.Clamp(z1, -L, L);
+            float y = ceilingHeight + 0.03f;
+            void Put(Transform t, float ax0, float ax1, float az0, float az1)
+            {
+                bool on = ax1 - ax0 > 0.01f && az1 - az0 > 0.01f;
+                t.gameObject.SetActive(on);
+                if (!on) return;
+                t.position = rc + r * ((ax0 + ax1) / 2) + forward * ((az0 + az1) / 2) + Vector3.up * y;
+                t.localScale = new Vector3(ax1 - ax0, 0.06f, az1 - az0);
+            }
+            Put(ceilParts[0], -W, x0, -L, L);       // 左
+            Put(ceilParts[1], x1, W, -L, L);        // 右
+            Put(ceilParts[2], x0, x1, z1, L);       // 远
+            Put(ceilParts[3], x0, x1, -L, z0);      // 近
+        }
+
+        /// <summary>
+        /// 整片天花板能开成天空的范围（结局用）：中心（天花板高度）+ 横 / 纵半宽（沿 forward 坐标系）。
+        /// 必须不越过真实墙：否则抬头看墙时，墙的上半截会被画成天空。依次用：房间扫描里的天花板 → 系统安全区 → 保守默认值。
+        /// 不会比天窗本身小。
+        /// </summary>
+        public void CeilingSkyRect(out Vector3 center, out Vector2 half)
+        {
+            var r = Vector3.Cross(Vector3.up, forward);
+            var origin = new Vector3(tableCenter.x, 0, tableCenter.z);
+            float lidC = enemyDistance * 0.5f + 0.2f, lidH = (enemyDistance + 1.2f) * 0.5f;
+            float x0 = -1.2f, x1 = 1.2f, z0 = lidC - lidH, z1 = lidC + lidH;   // 天窗本身
+            string src = "默认";
+            var room = RoomTable.I;
+            if (room && room.TryCeilingBox(new Vector3(tableCenter.x, ceilingHeight, tableCenter.z) + forward * lidC, out var cb))
+            {
+                // 天花板盒子在 forward 坐标系里的内接矩形：轴对得上（±12°）就直接用，歪着就按短边保守取
+                float ang = Mathf.Abs(Mathf.DeltaAngle(0, Vector3.SignedAngle(cb.axisA, r, Vector3.up))) % 90f;
+                bool aligned = ang < 12f || ang > 78f;
+                var d = cb.center - origin; d.y = 0;
+                float cx = Vector3.Dot(d, r), cz = Vector3.Dot(d, forward);
+                float hx, hz;
+                if (aligned)
+                {
+                    bool aIsX = Mathf.Abs(Vector3.Dot(cb.axisA, r)) > 0.7f;
+                    hx = (aIsX ? cb.halfA : cb.halfB); hz = (aIsX ? cb.halfB : cb.halfA);
+                }
+                else hx = hz = Mathf.Min(cb.halfA, cb.halfB) * 0.7f;
+                x0 = Mathf.Min(x0, cx - hx + 0.15f); x1 = Mathf.Max(x1, cx + hx - 0.15f);
+                z0 = Mathf.Min(z0, cz - hz + 0.15f); z1 = Mathf.Max(z1, cz + hz - 0.15f);
+                src = "房间扫描天花板";
+            }
+            else
+            {
+                var poly = testBoundary ?? ReadBoundary();
+                if (poly != null && poly.Length >= 3)
+                {
+                    // 安全区一般在墙里面：取它在 forward 坐标系里的外框（不往外放）
+                    float bx0 = float.MaxValue, bx1 = float.MinValue, bz0 = float.MaxValue, bz1 = float.MinValue;
+                    var r2 = new Vector2(r.x, r.z); var f2 = new Vector2(forward.x, forward.z); var o2 = new Vector2(origin.x, origin.z);
+                    foreach (var p in poly) { var q = p - o2; float x = Vector2.Dot(q, r2), z = Vector2.Dot(q, f2); bx0 = Mathf.Min(bx0, x); bx1 = Mathf.Max(bx1, x); bz0 = Mathf.Min(bz0, z); bz1 = Mathf.Max(bz1, z); }
+                    x0 = Mathf.Min(x0, bx0); x1 = Mathf.Max(x1, bx1); z0 = Mathf.Min(z0, bz0); z1 = Mathf.Max(z1, bz1);
+                    src = "安全区";
+                }
+                else
+                {
+                    // 读不到房间（编辑器 / 没设边界）：左右各 2.4 m，往后到玩家身后 1.4 m，往前到天窗尽头
+                    x0 = -2.4f; x1 = 2.4f; z0 = -1.4f;
+                }
+            }
+            // 上限：左右各 3.5 m、纵向总长 9 m（再大的房间也够了）
+            x0 = Mathf.Max(x0, -3.5f); x1 = Mathf.Min(x1, 3.5f); z0 = Mathf.Max(z0, z1 - 9f);
+            center = origin + r * ((x0 + x1) / 2) + forward * ((z0 + z1) / 2) + Vector3.up * ceilingHeight;
+            half = new Vector2((x1 - x0) / 2, (z1 - z0) / 2);
+            Debug.Log($"[木垒] 结局天空范围（{src}）：横 {x0:0.0}～{x1:0.0} m 纵 {z0:0.0}～{z1:0.0} m");
+        }
+
+        GameObject Prim(string name, Vector3 pos, Vector3 size, Quaternion rot, Color c)
         {
             var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
             g.name = name;
@@ -185,6 +286,7 @@ namespace PaperSiege
             var m = new Material(Shader.Find("Universal Render Pipeline/Lit")) { color = c };
             m.SetFloat("_Smoothness", 0.1f);
             g.GetComponent<Renderer>().sharedMaterial = m;
+            return g;
         }
 
         /// <summary>标题页：上一局的两座城收掉</summary>
@@ -193,6 +295,18 @@ namespace PaperSiege
             if (mine) mine.Cleanup();
             if (enemy) enemy.Cleanup();
             mine = enemy = null;
+        }
+
+        /// <summary>只重搭敌城（教学练完、开打前：练习时打坏的城重新一块块搭起来）。位置 / 朝向和开局一样，投石机不动</summary>
+        public Castle RebuildEnemy(LevelDef level, float duration = 1.8f)
+        {
+            if (enemy) enemy.Cleanup();
+            var rot = Quaternion.LookRotation(forward, Vector3.up);
+            var ep = new Vector3(tableCenter.x, 0, tableCenter.z) + forward * enemyDistance;
+            enemy = Castle.Build(level.enemy, Side.Enemy, ep, rot, T.enemyUnit, true, transform);
+            if (!Castle.InstantBuild) enemy.StartCoroutine(enemy.Assemble(duration));
+            enemy.SetKingHP(level.kingHP);
+            return enemy;
         }
 
         public void BuildCastles(LevelDef level)

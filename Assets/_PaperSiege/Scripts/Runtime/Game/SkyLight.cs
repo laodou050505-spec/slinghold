@@ -112,27 +112,44 @@ namespace PaperSiege
             var rng = new System.Random(7);
             float R(float a, float b) => a + (float)rng.NextDouble() * (b - a);
             var half = sky.LidHalfSize;
-            // 分层抖动：沿天窗长边 5 段、短边 3 段，每格一道；再加 3 道很宽很淡的“空气光”垫底
-            // 只用天窗中段到远端（纵向 −0.3 ～ 0.95）：靠玩家那一头就在头顶上，光柱会贴着脸、整片冲白（11-27 第一版过曝）
-            int nz = 4, nx = 3;
+            var head = d.head ? d.head.transform.position : A.tableCenter - f * 0.5f + Vector3.up * 0.7f;
+            // 11-27 第二轮（用户：光柱也要天花板各处都有）：结局时开口已经铺满整片天花板 → 光柱在整片天花板上分层随机分布。
+            // 三条约束：①不在玩家头顶 1.1 m 以内起步（会贴着脸、整片冲白）；②落地点也要在天花板范围里（否则斜着穿进真实墙）；
+            // ③最多十几道（每道是两片半透明叠加长条，头显上铺满全屏的叠加层太多会掉帧）。
+            int nz = 4, nx = 4;
             for (int iz = 0; iz < nz; iz++)
                 for (int ix = 0; ix < nx; ix++)
                 {
                     if (rng.NextDouble() < 0.3) continue;   // 随机缺几道，不像栅栏
-                    float u = ((ix + R(0.15f, 0.85f)) / nx) * 2 - 1, v = Mathf.Lerp(-0.3f, 0.95f, (iz + R(0.15f, 0.85f)) / nz);
+                    float u = ((ix + R(0.15f, 0.85f)) / nx) * 2 - 1, v = ((iz + R(0.15f, 0.85f)) / nz) * 2 - 1;
                     var top = sky.LidPoint(u * (half.x - 0.15f), v * (half.y - 0.15f)) + Vector3.up * 0.12f;
+                    if (!ShaftOk(top, head, half)) continue;
                     AddShaft(top, (top.y + 0.02f) / -Dir.y, R(0.1f, 0.22f), R(0.38f, 0.55f), r, f, sh, R(0, 10), R(0, 6));
                 }
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 3; i++)
             {
-                var top = sky.LidPoint(R(-0.3f, 0.3f) * half.x, (0.15f + i * 0.45f) * half.y) + Vector3.up * 0.12f;
+                var top = sky.LidPoint(R(-0.5f, 0.5f) * half.x, R(-0.4f, 0.6f) * half.y) + Vector3.up * 0.12f;
+                if (!ShaftOk(top, head, half)) continue;
                 AddShaft(top, (top.y + 0.02f) / -Dir.y, R(0.6f, 0.8f), 0.16f, r, f, sh, R(0, 10), R(0, 6));
             }
+            Debug.Log($"[木垒] 日出光柱 {shafts.Count} 道（天空范围 横 ±{half.x:0.0} m 纵 ±{half.y:0.0} m）");
             // 浮尘：天窗下面、光柱经过的那片空间
             var c = sky.LidPoint(0, 0); c.y = ceil * 0.5f; c += Dir * 0.3f;
             motes = Fx.Motes(c, new Vector3(half.x * 1.6f, ceil - 0.4f, half.y * 1.6f), new Color(1f, 0.9f, 0.7f));
             motes.transform.SetParent(transform, true);
             motes.transform.rotation = Quaternion.LookRotation(f, Vector3.up);
+        }
+
+        /// <summary>光柱起点不在玩家头顶附近、落地点仍在天花板范围（≈房间）里</summary>
+        bool ShaftOk(Vector3 top, Vector3 head, Vector2 half)
+        {
+            var hd = top - head; hd.y = 0;
+            if (hd.magnitude < 1.1f) return false;
+            var floor = top + Dir * ((top.y + 0.02f) / -Dir.y);
+            var c = sky.LidPoint(0, 0);
+            var dd = floor - c; dd.y = 0;
+            var A = Director.I.arena; var f = A.forward; var r = Vector3.Cross(Vector3.up, f);
+            return Mathf.Abs(Vector3.Dot(dd, r)) < half.x - 0.1f && Mathf.Abs(Vector3.Dot(dd, f)) < half.y - 0.1f;
         }
 
         void AddShaft(Vector3 org, float len, float width, float gain, Vector3 r, Vector3 f, Shader sh, float seed, float phase)

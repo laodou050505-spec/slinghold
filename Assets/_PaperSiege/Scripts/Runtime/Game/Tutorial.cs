@@ -128,14 +128,14 @@ namespace PaperSiege
             tag.Card(GestureCard.Kind.PatOut, Lessons, Lessons);
             tag.Show("学会啦！");
             Sfx.Star(tag.transform.position);
-            yield return new WaitForSeconds(2.2f);
+            // 练习时打坏的敌城散掉、重新搭一座完整的再开打（11-27：原来火丸练习把敌方帅旗烧没了，最后一步却叫玩家去打倒帅旗）
+            yield return d.RefreshEnemyForBattle();
             tag.Card(null);
 
             // 10) 自由开打
             step = 10; tag.Show("打倒对面\n的帅旗！");
             Ghost(null);
-            d.arena.enemy.SetKingHP(1);
-            d.arena.enemy.kingLocked = false;
+            d.arena.enemy.SetKingHP(1);   // 新搭的敌城：一发打倒就赢
             d.arena.mine.kingLocked = false;
             // 11-26：教挡 / 接 / 修时敌弹会砸到自己的帅旗，锁只让它立回去、耐久照扣 → 开打时只剩 2/3，第三颗星“无伤”也没了。开打前补满
             d.arena.mine.SetKingHP(d.arena.mine.kingMaxHP);
@@ -242,6 +242,7 @@ namespace PaperSiege
             Ghost(null);
             mine.BurnSeconds = bs; mine.SpreadChance = sc;
             tag.Show("灭掉了！");
+            Progress.MarkSeen("fire");   // 灭火教过了，之后的关不再提示
             yield return new WaitForSeconds(1.4f);
         }
 

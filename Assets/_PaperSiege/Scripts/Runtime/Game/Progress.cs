@@ -26,6 +26,15 @@ namespace PaperSiege
         public static int Unlocked { get => Mathf.Clamp(PlayerPrefs.GetInt("ps_unlocked", 0), 0, Levels.Count - 1); set { PlayerPrefs.SetInt("ps_unlocked", Mathf.Clamp(value, 0, Levels.Count - 1)); PlayerPrefs.Save(); } }
         public static int Stars(int lv) => PlayerPrefs.GetInt("ps_stars_" + lv, 0);
         /// <summary>十关全部打过（看过结局）：封面主按钮变“从头再来”，选关全开</summary>
+        /// <summary>
+        /// 一次性提示（11-27 用户：新东西只在第一次出现的那关提示，之后不再出现）：着火 / 没弹 这类情况提示，全程只说一次。
+        /// 新弹演示、机关说明本来就只在它登场的那一关。
+        /// </summary>
+        public static bool Seen(string key) => PlayerPrefs.GetInt("ps_seen_" + key, 0) == 1;
+        public static void MarkSeen(string key) { PlayerPrefs.SetInt("ps_seen_" + key, 1); PlayerPrefs.Save(); }
+        public static readonly string[] SeenKeys = { "fire", "empty" };
+        public static void ClearSeen() { foreach (var k in SeenKeys) PlayerPrefs.DeleteKey("ps_seen_" + k); PlayerPrefs.Save(); }
+
         public static bool Cleared { get => PlayerPrefs.GetInt("ps_cleared", 0) == 1; set { PlayerPrefs.SetInt("ps_cleared", value ? 1 : 0); PlayerPrefs.Save(); } }
         public static int TotalStars { get { int n = 0; for (int i = 0; i < Levels.Count; i++) n += Stars(i); return n; } }
         public static void SetStars(int lv, int n) { if (n > Stars(lv)) { PlayerPrefs.SetInt("ps_stars_" + lv, n); PlayerPrefs.Save(); } }

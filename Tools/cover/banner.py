@@ -108,11 +108,11 @@ def text(dst, s, font, size, cx, cy, col):
     d.text(((W - (bb[2] - bb[0])) / 2 - bb[0], size // 2), s, font=f, fill=col)
     im = im.crop(im.getbbox()); paste(dst, im, cx, cy, 0.92)
 
-def text_at(dst, s, font, size, cx, cy, col):
+def text_at(dst, s, font, size, cx, cy, col, weight=500):
     im = Image.new('RGBA', (W, size * 2), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
     f = ImageFont.truetype(font, size)
     if 'Outfit' in font:
-        try: f.set_variation_by_axes([500])
+        try: f.set_variation_by_axes([weight])
         except Exception: pass
     d.text((10, size // 2), s, font=f, fill=col)
     im = im.crop(im.getbbox()); paste(dst, im, cx, cy, 0.92)
@@ -136,10 +136,12 @@ def build(lang, seed):
     # 公司标志：右下角布条上方一枚小标（像织在布上的商标），原样颜色、不拉伸；署名文字另起一行在它下面（品牌规则）
     brand = os.path.join(ROOT, 'Assets/_PaperSiege/Resources/Fonts/Outfit.ttf')
     sans = os.path.join(ROOT, 'Assets/_PaperSiege/Resources/Fonts/NotoSansSC-Medium.otf')
-    mx, my = W - 200, H - FRINGE - 270
-    paste(img, tripo_mark(int(W * 0.12)), mx, my)
-    if lang == 'zh': text_at(img, 'Tripo XR 出品', sans, 24, mx, my + 86, (60, 50, 44, 255))
-    else: text_at(img, 'Tripo XR Developers', brand, 24, mx, my + 86, (60, 50, 44, 255))
+    # 11-27 用户：署名字太小看不清（24 px ≈ 布上 6 mm，头显里只有几个像素）→ 字 44 px（≈ 1.1 cm）、加粗，图标也放大；
+    # 整组挪到布旗下沿居中（英文一行变长，放右下角会被裁）
+    mx, my = W / 2, H - FRINGE - 250
+    paste(img, tripo_mark(int(W * 0.15)), mx, my)
+    if lang == 'zh': text_at(img, 'Tripo XR 出品', os.path.join(ROOT, 'Assets/_PaperSiege/Resources/Fonts/NotoSansSC-Medium.otf'), 46, mx, my + 112, (52, 42, 36, 255), weight=700)
+    else: text_at(img, 'Tripo XR Developers', brand, 46, mx, my + 112, (52, 42, 36, 255), weight=650)
     a = edges(rng)
     out = np.dstack([np.clip(img, 0, 255), a * 255]).astype(np.uint8)
     Image.fromarray(out).save(os.path.join(OUT, f'banner_{lang}.png'))

@@ -119,6 +119,22 @@ namespace PaperSiege
             return best;
         }
 
+        /// <summary>点 p 正上方那块天花板（房间扫描的盒子，水平两轴 + 半宽）；读不到返回 false</summary>
+        public bool TryCeilingBox(Vector3 p, out Table t)
+        {
+            t = default; bool ok = false; float best = float.MaxValue;
+            foreach (var raw in ceilings)
+            {
+                var tb = ToWorld(raw);
+                var d = p - tb.center; d.y = 0;
+                float da = Mathf.Abs(Vector3.Dot(d, tb.axisA)), db = Mathf.Abs(Vector3.Dot(d, tb.axisB));
+                if (da > tb.halfA || db > tb.halfB) continue;
+                if (tb.halfA < 0.8f || tb.halfB < 0.8f) continue;   // 太小的碎块不算
+                if (d.magnitude < best) { best = d.magnitude; t = tb; ok = true; }
+            }
+            return ok;
+        }
+
         Table ToWorld(Raw r)
         {
             Vector3 W(Vector3 p) => space ? space.TransformPoint(p) : p;

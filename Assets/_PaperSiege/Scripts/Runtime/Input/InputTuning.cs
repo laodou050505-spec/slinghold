@@ -39,7 +39,7 @@ namespace PaperSiege
         [Tooltip("拉开小于它不算拉开，松手也不发射（米）")]
         public float pullMin = 0.05f;
         [Tooltip("拉满的距离（米）")]
-        public float pullMax = 0.35f;
+        public float pullMax = 0.30f;   // 11-27：35 cm 拉满时右手离脸太近（头显摄像头近距离容易跟丢），缩到 30 cm
         [Tooltip("左手跟丢后弓架原地停多久（秒）")]
         public float bowHoldOnLost = 1.0f;
         [Tooltip("右手跟丢超过这么久自动松弓且不发射（秒）")]
@@ -55,7 +55,7 @@ namespace PaperSiege
         [Tooltip("拍打判定的手掌速度（米/秒）")]
         public float patSpeed = 0.9f;   // 11-27：1.2 m/s 要拍得很猛（真人对着小玩具城拍不了那么重），降到 0.9
         [Tooltip("拍到着火块的距离（米）")]
-        public float patRadius = 0.07f;
+        public float patRadius = 0.09f;   // 11-27：7 cm 偏紧（掌心点在手掌中间，拍到积木时离积木表面就有 2～3 cm）
 
         [Header("修城")]
         [Tooltip("捏合点离补给块多近算捏到（米）")]

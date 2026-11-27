@@ -123,9 +123,14 @@ namespace PaperSiege
         public Ammo? Pick(Vector3 p, float r)
         {
             if (!gameObject.activeInHierarchy) return null;
+            // 取最近的一格（11-27：原来取“第一个在半径内的”，格距 3.1 cm、半径 3 cm，捏在两格之间会选错）
+            Ammo? best = null; float bd = r;
             for (int i = 0; i < 5; i++)
-                if (Vector3.Distance(p, SlotPos((Ammo)i)) < r) return (Ammo)i;
-            return null;
+            {
+                float dd = Vector3.Distance(p, SlotPos((Ammo)i));
+                if (dd < bd) { bd = dd; best = (Ammo)i; }
+            }
+            return best;
         }
     }
 }

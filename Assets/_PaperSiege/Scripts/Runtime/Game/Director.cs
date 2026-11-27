@@ -110,6 +110,7 @@ namespace PaperSiege
             foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
             if (!sky) { sky = SkyDome.Build(this, FindAnyObjectByType<Light>()); arena.sky = sky; }
             if (NeedLayout(true)) DoLayout();
+            arena.ShowTable(false);   // 封面上不放虚拟桌（封面不和游戏场景同时出现），开局时再搭起来
             levelIndex = Progress.Unlocked;
             level = Levels.Get(levelIndex);
             arena.ClearCastles();
@@ -124,8 +125,30 @@ namespace PaperSiege
             SetPhase(Phase.Title);
         }
 
+        /// <summary>
+        /// 从封面开局（11-27）：封面收起的同时，没有真实桌子就先在面前搭一张虚拟木桌，搭好了再开局（城、补给盘、弹盒都落到桌上）。
+        /// 有真实桌子时立刻开局。
+        /// </summary>
+        public void BeginFromTitle(int i)
+        {
+            if (beginning) return;
+            StartCoroutine(BeginRun(i));
+        }
+        bool beginning;
+        System.Collections.IEnumerator BeginRun(int i)
+        {
+            beginning = true;
+            if (title) { title.Close(); title = null; }
+            if (NeedLayout(false)) DoLayout();
+            float wait = arena.ShowTable(true);
+            for (float t = 0; t < wait; t += Time.unscaledDeltaTime) yield return null;
+            beginning = false;
+            StartLevel(i);
+        }
+
         public void StartLevel(int i)
         {
+            beginning = false;
             ending = false;
             Mech.ResetLevel();
             paused = false; Time.timeScale = 1f;
@@ -136,6 +159,7 @@ namespace PaperSiege
             foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
             if (!sky) { sky = SkyDome.Build(this, FindAnyObjectByType<Light>()); arena.sky = sky; }
             if (NeedLayout(false)) DoLayout();
+            arena.ShowTable(true, animate: false);   // 正常从封面进来时桌子已经搭好；测试 / 快捷键直接开局时瞬间补上
             arena.BuildCastles(level);
             ammo.Reset(level.start);
             stats = new Stats();
@@ -188,26 +212,23 @@ namespace PaperSiege
         }
 
         /// <summary>
-        /// 结局（简单版）：王城帅旗倒下 → 剩下的王城整座塌下来（每块轻轻一推，有先后）→ 满天烟花 →
-        /// 烟花渐稀、天慢慢亮回清晨（音乐换回清晨那首）→ 终章横木垂下：“全胜”布旗 + “十城尽破”+ 总星数 + 回标题。
-        /// </summary>
-        /// <summary>
-        /// 结局（11-27 用户：打败之后太仓促，要有一个让它散去的过程）。约 17 秒，五段：
+        /// 结局（11-27 用户：打败之后太仓促，要有一个让它散去的过程；烟花要铺满天、天花板各处都看得到，光柱也是，烟花久一点）。约 20 秒：
         ///   ① 0～0.8 s 帅旗倒下，静一下；
         ///   ② 0.8～2.4 s 整座王城开始晃，越晃越厉害，缝里一阵阵冒灰（预警）；
         ///   ③ 2.4～5.4 s 从最高的尖塔往下一层层垮掉，每层一阵积木声，最后一大团尘土腾起来（发生）；
-        ///   ④ 5.5 s 起满天烟花，8 s 起天慢慢亮、晨光从天窗斜照进来；
-        ///   ⑤ 9～15 s 废墟里的积木一块块轻轻飘起、转着缩小，化成金色光点随风散去，投石机也一起散掉 —— 地上空了（收尾）；
-        ///   ⑥ 16.5 s 终章横木垂下。
+        ///   ④ 5 s 天窗开口往四周扩开、约 4 秒铺满整片天花板；5.5 s 起烟花放 14 秒（整片天花板上哪儿都有）；
+        ///      13 s 起天慢慢亮，晨光从整片天花板斜照下来；
+        ///   ⑤ 8.4～13.4 s 废墟里的积木一块块轻轻飘起、转着缩小，化成金色光点随风散去，投石机也一起散掉 —— 地上空了（收尾）；
+        ///   ⑥ 约 20 s 终章横木垂下（烟花收尾时）。
         /// </summary>
         System.Collections.IEnumerator Ending()
         {
             ending = true;
             Progress.Cleared = true;
-            if (sky) sky.Ending(5.5f, 8f);
+            if (sky) { arena.CeilingSkyRect(out var rc, out var rh); sky.Ending(5.5f, 13f, 5.0f, rc, rh); }
             var e = arena.enemy;
             yield return new WaitForSeconds(0.8f);
-            if (!e) { yield return new WaitForSeconds(15f); if (phase == Phase.Won) result = ResultBoard.Build(this, true, true); yield break; }
+            if (!e) { yield return new WaitForSeconds(19f); if (phase == Phase.Won) result = ResultBoard.Build(this, true, true); yield break; }
             float U = e.unit;
             var c = e.transform.position;
             var all = new System.Collections.Generic.List<Block>();
@@ -280,11 +301,30 @@ namespace PaperSiege
                 if (i == rest.Count / 2 && catapult) StartCoroutine(DisperseObject(catapult.transform, U * 4f));
                 yield return new WaitForSeconds(span / Mathf.Max(1, rest.Count));
             }
-            yield return new WaitForSeconds(2.0f);
+            yield return new WaitForSeconds(6.5f);   // 看烟花、等天亮（烟花放到约 19.5 s）
             if (phase == Phase.Won) result = ResultBoard.Build(this, true, true);
         }
 
         /// <summary>一块积木散去：停住物理 → 轻轻飘起 4～8 cm、慢慢转 → 缩小到没，同时冒一小撮金色光点</summary>
+        /// <summary>教学练完：练习时打坏的敌城散成碎屑（同结局的消散，快一点），再一块块重搭，然后开打</summary>
+        public System.Collections.IEnumerator RefreshEnemyForBattle()
+        {
+            var old = arena.enemy;
+            if (old)
+            {
+                float U = old.unit;
+                old.enabled = false;   // 旧城停止判定：消散时帅旗会转动，不能被当成“帅旗倒了”判胜
+                var alive = old.blocks.FindAll(b => b && !b.Dead && b.gameObject.activeInHierarchy);
+                foreach (var b in alive) { Fx.DetachFire(b); b.burning = false; }
+                alive.Sort((a, b) => b.transform.position.y.CompareTo(a.transform.position.y));   // 从上往下散
+                for (int i = 0; i < alive.Count; i++) { StartCoroutine(Disperse(alive[i], U, false)); if (i % 2 == 1) yield return new WaitForSeconds(0.05f); }
+                yield return new WaitForSeconds(1.0f);
+            }
+            var e = arena.RebuildEnemy(level);
+            e.KingDown += _ => End(true);
+            yield return new WaitForSeconds(2.0f);   // 等搭好
+        }
+
         System.Collections.IEnumerator Disperse(Block b, float U, bool king)
         {
             if (!b) yield break;

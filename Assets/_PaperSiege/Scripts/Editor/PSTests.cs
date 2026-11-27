@@ -177,6 +177,101 @@ namespace PaperSiege.EditorTools
             Log("完成 " + State());
         }
 
+        /// <summary>
+        /// 边缘手势（11-27 用户：交互要仔细考虑手眼识别效果、好不好操作，别出现难识别 / 难操作）：
+        /// 模拟真机上常见的“不标准”操作，看还认不认：松手瞬间跟丢 0.5 秒、跟丢 1.5 秒（应取消）、捏在两格弹中间、
+        /// 拍火偏开 6 cm、按暂停木签偏 3.5 cm、看偏 3° 捏“继续”、手离按钮 8 cm 隔空按。
+        /// </summary>
+        public static string EdgeGestures() { Level(1); Quiet(); D.StartCoroutine(EdgeRun()); return "edge started"; }
+
+        static System.Collections.IEnumerator EdgeRun()
+        {
+            void E(string m) => Debug.Log("[边缘] " + m);
+            var sling = D.sling;
+            yield return new WaitForSeconds(2.5f);
+            D.catapult.Stop();
+            var bow = HeadPt(0.38f, -0.12f, -0.22f);
+            SimHands.Pose(0, bow, true); yield return new WaitForSeconds(0.3f);
+            // 1) 拉开后右手跟丢 0.5 秒，重新出现时已张开 → 应发射
+            for (int round = 0; round < 2; round++)
+            {
+                float lost = round == 0 ? 0.5f : 1.5f;
+                int shots0 = D.stats.shots;
+                var pr = sling.PouchRest;
+                SimHands.Pose(1, pr, false); yield return null;
+                SimHands.Pose(1, pr, true); yield return null; yield return null;
+                var back = sling.ForkCenter + (D.head.transform.position - sling.ForkCenter).normalized * 0.2f;
+                yield return Move(1, pr, back, 0.4f, true);
+                float p01 = sling.pull01;
+                SimHands.Hide(1);
+                yield return new WaitForSeconds(lost);
+                SimHands.Pose(1, back, false); yield return null; yield return null;
+                E($"跟丢 {lost:0.0}s 后张手出现：拉力 {p01:0.00} 射出={D.stats.shots > shots0}（期望 {(round == 0 ? "射出" : "不射、取消")}） state={sling.state}");
+                SimHands.Hide(1);
+                yield return new WaitForSeconds(2.5f);   // 等皮兜回弹、冷却过去
+                SimHands.Pose(0, bow, true); yield return new WaitForSeconds(0.3f);
+            }
+            // 2) 换弹：捏在石丸格和火丸格中间、略偏火丸 → 应选火丸
+            D.ammo.Add(Ammo.Fire, 2);
+            var box = Object.FindAnyObjectByType<AmmoBox>();
+            if (box)
+            {
+                var mid = Vector3.Lerp(box.SlotPos(Ammo.Stone), box.SlotPos(Ammo.Fire), 0.56f) + Vector3.up * 0.012f;
+                SimHands.Pose(1, mid + Vector3.up * 0.03f, false); yield return null;
+                SimHands.Pose(1, mid, true); yield return null; yield return null;
+                SimHands.Pose(1, mid, false); yield return null;
+                E($"捏在两格中间（偏火丸）：选中 {D.ammo.selected}（期望 Fire）");
+                SimHands.Hide(1);
+            }
+            // 3) 拍火：掌心偏开 6 cm 往下拍两下 → 应灭
+            var mine = D.arena.mine;
+            var burn = mine.blocks.Find(b => b && b.Wood && !b.Dead && !b.isKing);
+            burn.Ignite();
+            yield return new WaitForSeconds(0.6f);
+            var r = Vector3.Cross(Vector3.up, D.arena.forward);
+            var top = burn.WorldBounds.center + Vector3.up * (burn.WorldBounds.extents.y + 0.05f) + r * 0.06f;
+            for (int i = 0; i < 2; i++)
+            {
+                yield return Move(1, top + Vector3.up * 0.1f, top + Vector3.up * 0.1f, 0.2f, false);
+                yield return Move(1, top + Vector3.up * 0.1f, top - Vector3.up * 0.02f, 0.08f, false);
+                yield return new WaitForSeconds(0.2f);
+            }
+            E($"拍火偏 6 cm：还在烧={burn.burning}（期望 False）");
+            SimHands.Hide(1); SimHands.Hide(0);
+            yield return new WaitForSeconds(1.5f);
+            // 4) 暂停木签：手偏 3.5 cm 捏 → 应暂停
+            WoodButton pb = null; foreach (var x in WoodButton.All) if (x && x.Key == "暂停") pb = x;
+            if (pb)
+            {
+                var pp = pb.ClosestPoint(pb.transform.position - D.arena.forward * 0.1f) + r * 0.035f;
+                SimHands.Pose(1, pp - D.arena.forward * 0.03f, false); yield return null; yield return null;
+                SimHands.Pose(1, pp, true); yield return null; yield return null;
+                SimHands.Pose(1, pp, false); yield return new WaitForSecondsRealtime(1.2f);
+                SimHands.Hide(1);
+                E($"暂停木签偏 3.5 cm 捏：暂停={D.paused}（期望 True）");
+            }
+            else E("找不到暂停木签");
+            yield return new WaitForSecondsRealtime(1.5f);
+            // 5) 看偏 3° + 右手在身侧远处捏 → “继续”
+            WoodButton cb = null; foreach (var x in WoodButton.All) if (x && x.Key == "继续") cb = x;
+            if (cb)
+            {
+                var eye = D.head.transform.position;
+                var dir = Quaternion.AngleAxis(3f, Vector3.up) * (cb.transform.position - eye).normalized;
+                HandInput.SimGaze = new Ray(eye, dir);
+                yield return null; yield return null;
+                var side = HeadPt(0.3f, 0.3f, -0.35f);
+                SimHands.Pose(1, side, false); yield return null; yield return null;
+                SimHands.Pose(1, side, true); yield return null; yield return null;
+                SimHands.Pose(1, side, false);
+                yield return new WaitForSecondsRealtime(1.6f);
+                HandInput.SimGaze = null; SimHands.Hide(1);
+                E($"看偏 3° 捏“继续”：暂停={D.paused}（期望 False）");
+            }
+            else E("找不到“继续”");
+            E("完成");
+        }
+
         // ── 松手瞬间：慢放逐帧截图 + 量弹到弓架模型的最近距离（不能穿模）
         public static string ReleaseCheck(string dir)
         {
@@ -574,8 +669,10 @@ namespace PaperSiege.EditorTools
             yield return new WaitForSeconds(2.4f);   // 封面出现过程约 2 秒，期间木签不响应
             Debug.Log($"[流程] 标题 phase={D.phase} 按钮={WoodButton.All.Count}");
             yield return PressButton(Progress.Unlocked == 0 ? "开始游戏" : "继续游戏");
-            yield return new WaitForSeconds(1.0f);
-            Debug.Log($"[流程] 捏“继续”后 phase={D.phase} 关={D.levelIndex + 1}");
+            float w0 = Time.time;   // 没有真实桌子时先搭虚拟桌（约 1.3 秒）再开局
+            while (D.phase != Director.Phase.Battle && Time.time - w0 < 3f) yield return null;
+            yield return new WaitForSeconds(0.5f);
+            Debug.Log($"[流程] 捏“继续”后 phase={D.phase} 关={D.levelIndex + 1}（按下到开局 {Time.time - w0 - 0.5f:0.0}s）");
             if (D.phase != Director.Phase.Battle) { Debug.Log("[流程] 失败：没进入对战"); Debug.Log("[流程] 完成"); yield break; }
             Quiet();
             yield return new WaitForSeconds(5f);
@@ -620,13 +717,17 @@ namespace PaperSiege.EditorTools
             D.arena.enemy.DamageKing(99, D.arena.enemy.transform.position - D.arena.forward);
             Debug.Log($"[结局] 打倒王城 phase={D.phase} ending={D.ending}");
             float t0 = Time.time;
-            foreach (var (at, name) in new[] { (1.8f, "E1_晃"), (3.8f, "E2_一层层垮"), (7.0f, "E3_烟花"), (10.5f, "E4_天亮光柱"), (12.5f, "E5_散去中"), (15.5f, "E6_地上空了") })
+            // 抬头看天花板：从玩家位置往前上方 55°、广角（头显视场约 100°）
+            var up = t.position + (D.arena.forward * 0.55f + Vector3.up).normalized * 3f;
+            foreach (var (at, name, sky) in new[] { (1.8f, "E1_晃", false), (3.8f, "E2_一层层垮", false), (6.6f, "E3_开口扩开中_抬头", true), (9.8f, "E4_满天烟花_抬头", true),
+                                                    (11.5f, "E5_散去中", false), (16.5f, "E6_天亮光柱_抬头", true), (18.0f, "E7_地上空了_光柱", false) })
             {
                 while (Time.time - t0 < at) yield return null;
-                SnapPlayer(dir, name);
-                Debug.Log($"[结局] {at:0.0}s {name} dawn={D.sky.dawn:0.00} 敌城完整={D.arena.enemy.Integrity:0.00}");
+                if (sky) { Snap(dir, name, t.position, up, 100f); SnapRoomless(dir, name + "_头显模拟", t.position, up, 100f); }
+                else SnapPlayer(dir, name);
+                Debug.Log($"[结局] {at:0.0}s {name} dawn={D.sky.dawn:0.00} 开口扩开={D.sky.Expanded} 敌城完整={D.arena.enemy.Integrity:0.00}");
             }
-            while (Time.time - t0 < 18.0f) yield return null;
+            while (Time.time - t0 < 23.5f) yield return null;   // 终章横木约 20 s 落下、1 秒多垂到位才能按
             var rb = GameObject.Find("ResultBoard");
             Debug.Log($"[结局] 终章横木={(rb != null)} 通关={Progress.Cleared} 总星={Progress.TotalStars} 按钮={string.Join("/", WoodButton.All.Where(b => b).Select(b => b.Key))}");
             if (rb)
@@ -1318,7 +1419,15 @@ namespace PaperSiege.EditorTools
             for (int f = 0; f < 6; f++) { Snap(dir, $"0_出现_{f * 0.35f:0.00}s", h.position, h.position + D.arena.forward, 80); yield return new WaitForSeconds(0.35f); }
             yield return new WaitForSeconds(0.6f);
             var cover = Object.FindAnyObjectByType<CoverMenu>();
-            C($"出现完 appear={cover.Appear:0.00} 木签：{keys()}");
+            C($"出现完 appear={cover.Appear:0.00} 木签：{keys()}  封面上的虚拟桌={Object.FindObjectsByType<VirtualTable>().Length}");
+            // 署名（布旗下沿的 TRIPO 图标 + 一行字）：按头显像素密度（视场 50.5° ≈ 头显 1:1）对准拍
+            var ban = GameObject.Find("CoverMenu/Cover/Banner");
+            if (ban)
+            {
+                var br = ban.GetComponent<Renderer>(); var bb = br ? br.bounds : new Bounds(ban.transform.position, Vector3.one * 0.1f);
+                var credit = new Vector3(bb.center.x, bb.min.y + bb.size.y * 0.2f, bb.center.z);
+                Snap(dir, "0b_署名_头显像素", h.position, credit, 50.5f);
+            }
             // 悬停：手停在“开始 / 继续”木签前 4 cm
             var t0 = cover.Tags[0].button.transform.position;
             SimHands.scripted = true; SimHands.Pose(1, t0 - D.arena.forward * 0.04f, false);
@@ -1356,7 +1465,8 @@ namespace PaperSiege.EditorTools
             C($"选关页：{keys()}  积木 {cover.LevelButtons.Count} 块，可按 {cover.LevelButtons.Count(b => b.interactable)} 块");
             Snap(dir, "5_选关", h.position, h.position + D.arena.forward, 80);
             yield return PinchAt(cover.LevelButtons[1].transform.position);
-            for (int f = 0; f < 4; f++) { yield return new WaitForSeconds(0.3f); Snap(dir, $"6_开局_{f * 0.3f + 0.3f:0.0}s", h.position, h.position + D.arena.forward, 80); }
+            var down = h.position + (D.arena.forward + Vector3.down * 0.55f).normalized;
+            for (int f = 0; f < 7; f++) { yield return new WaitForSeconds(0.3f); Snap(dir, $"6_开局_{f * 0.3f + 0.3f:0.0}s", h.position, down, 80); }
             yield return new WaitForSeconds(2.5f);
             C($"开局后 phase={D.phase} 关={D.levelIndex + 1} 封面还在={(Object.FindAnyObjectByType<CoverMenu>() != null)}");
             Snap(dir, "7_开局后", h.position, h.position + D.arena.forward, 80);
@@ -1549,6 +1659,19 @@ namespace PaperSiege.EditorTools
             cam.backgroundColor = bg; cam.clearFlags = cf;
             foreach (var g in hidden) g.SetActive(true);
             X("完成");
+        }
+
+        /// <summary>模拟头显：藏掉编辑器替身房间（墙 / 地 / 天花板）、背景换成中灰当透视，拍一张</summary>
+        public static string SnapRoomless(string dir, string name, Vector3 pos, Vector3 look, float fov)
+        {
+            var hidden = new System.Collections.Generic.List<GameObject>();
+            foreach (var rr in Object.FindObjectsByType<Renderer>()) { var n = rr.name; if (n.StartsWith("Room") || n.StartsWith("Ceil")) { rr.gameObject.SetActive(false); hidden.Add(rr.gameObject); } }
+            var cam = D.head; var bg = cam.backgroundColor; var cf = cam.clearFlags;
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.5f, 0.5f, 0.5f, 1f);
+            var p = Snap(dir, name, pos, look, fov);
+            cam.backgroundColor = bg; cam.clearFlags = cf;
+            foreach (var g in hidden) g.SetActive(true);
+            return p;
         }
 
         public static string SnapPlayer(string dir, string name) => Snap(dir, name, D.head.transform.position, D.head.transform.position + D.head.transform.forward, D.head.fieldOfView);

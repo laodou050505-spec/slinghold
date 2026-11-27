@@ -23,13 +23,13 @@ MonoBehaviour:
   lostPrompt: 2.5
   pouchGrab: 0.1
   pullMin: 0.05
-  pullMax: 0.35
+  pullMax: 0.3
   bowHoldOnLost: 1
   releaseOnLost: 1
   catchRadius: 0.2
   catchHover: 0.6
   patSpeed: 0.9
-  patRadius: 0.07
+  patRadius: 0.09
   grabRadius: 0.04
   snapDistance: 0.04
   gazeSnap: 4

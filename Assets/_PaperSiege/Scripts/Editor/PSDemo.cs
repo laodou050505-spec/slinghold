@@ -24,7 +24,7 @@ namespace PaperSiege.EditorTools
         public static void ToLastLevel() { Progress.Unlocked = Levels.Count - 1; Play(false); }
 
         [MenuItem("PaperSiege/清空存档进度")]
-        public static void ResetProgress() { Progress.Unlocked = 0; Progress.Cleared = false; for (int i = 0; i < Levels.Count; i++) UnityEngine.PlayerPrefs.DeleteKey("ps_stars_" + i); UnityEngine.PlayerPrefs.Save(); }
+        public static void ResetProgress() { Progress.ClearSeen(); Progress.Unlocked = 0; Progress.Cleared = false; for (int i = 0; i < Levels.Count; i++) UnityEngine.PlayerPrefs.DeleteKey("ps_stars_" + i); UnityEngine.PlayerPrefs.Save(); }
 
         static void Play(bool demo)
         {

@@ -226,7 +226,8 @@ namespace PaperSiege
         {
             Arc(new Vector3(-0.78f, 0.12f, 0.16f), Impact, 0.26f, true);
             Arc(new Vector3(-0.80f, 0.52f, 0.20f), new Vector3(-0.50f, 0.86f, 0.06f), 0.12f, true);
-            Arc(new Vector3(-0.20f, 0.02f, -0.02f), new Vector3(0.30f, 0.06f, 0.10f), 0.14f, true);
+            // 第三条从木签下方掠过（11-27：原来弹道最高点正好在木签那一列，虚线穿过“设置”两个字），从旗杆前面经过、不穿杆
+            Arc(new Vector3(-0.24f, 0.0f, -0.06f), new Vector3(0.36f, 0.0f, 0.02f), 0.06f, true);
         }
 
         void Arc(Vector3 a, Vector3 b, float apex, bool cross)
@@ -313,7 +314,7 @@ namespace PaperSiege
 #endif
         }
 
-        void Begin(int level) { if (!busy) d.StartLevel(level); }
+        void Begin(int level) { if (!busy) d.BeginFromTitle(level); }   // 先收封面 + 搭虚拟桌，再开局
 
         // 选关：10 块编号积木，在布旗下方排两行（解锁的上漆、写关号、星星钉；没解锁的是裸木）
         void ShowLevels(bool on, bool instant)

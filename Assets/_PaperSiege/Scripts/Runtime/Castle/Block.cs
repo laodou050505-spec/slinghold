@@ -115,6 +115,7 @@ namespace PaperSiege
         public void Ignite()
         {
             if (Dead || !Wood || burning || burn >= 1f || doused) return;
+            if (isKing && castle && castle.kingLocked) return;   // 教学锁着的帅旗点不着（11-27：教换弹时打的火丸把敌方帅旗烧没了，最后一步“打倒帅旗”却找不到旗）
             if (Frozen) { frozenT = 0; return; }   // 冻着的块点不着，只会把冰化掉
             burning = true;
             spreadLeft = Random.Range(1, 4);
@@ -160,6 +161,8 @@ namespace PaperSiege
         public void Kill(bool hide)
         {
             if (Dead) return;
+            // 教学锁着的帅旗不会被打碎 / 烧没：熄火、烧焦度清零，交给城去立回原位
+            if (isKing && castle && castle.kingLocked) { burning = false; burn = 0f; castle.OnExtinguish(this); castle.RestoreKingIfLocked(); return; }
             Dead = true;
             burning = false;
             castle?.OnBlockDead(this);

@@ -102,20 +102,110 @@ namespace PaperSiege
                 boardRot.Add(go.transform.rotation);
             }
             ApplyLid();
-            // 天空遮罩：只在这片开口里画天空（头显上四周是真实房间）
-            sky.SetVector("_LidCenter", new Vector4(center.x, ceilY, center.z, 0));
-            sky.SetVector("_LidRight", right);
-            sky.SetVector("_LidFwd", fwd);
-            sky.SetVector("_LidHalf", new Vector4(w * 0.5f, l * 0.5f, 0, 0));
-            lidCenter = center; lidFwd = fwd; lidRight = right; lidCeil = ceilY; lidHalf = new Vector2(w * 0.5f, l * 0.5f);
+            lidFwd = fwd; lidRight = right; lidCeil = ceilY;
+            baseCenter = center; baseHalf = new Vector2(w * 0.5f, l * 0.5f); expanded = 0f;
             if (rim) Destroy(rim);
             rim = LidRim.Build(transform, center, fwd, ceilY, w, l);
             if (!shafts) { shafts = gameObject.AddComponent<LightShafts>(); shafts.sky = this; }
-            // 烟花粒子（PaperSiege/SkyParticle）用同一个开口遮罩
-            Shader.SetGlobalVector("_SkyLidCenter", new Vector4(center.x, ceilY, center.z, 0));
-            Shader.SetGlobalVector("_SkyLidRight", right);
-            Shader.SetGlobalVector("_SkyLidFwd", fwd);
-            Shader.SetGlobalVector("_SkyLidHalf", new Vector4(w * 0.5f, l * 0.5f, 0, 0));
+            SetMask(baseCenter, baseHalf);
+        }
+
+        // ── 天空遮罩（只在这片开口里画天空；头显上四周是真实房间）。结局时开口会扩到整片天花板（ExpandToCeiling）
+        Vector3 baseCenter; Vector2 baseHalf;
+        float expanded;   // 0 = 只有天窗，1 = 铺满整片天花板
+        /// <summary>遮罩变了（编辑器里替身天花板跟着让出洞口）：中心（天花板高度）、横向 / 纵向半宽</summary>
+        public event System.Action<Vector3, Vector2> MaskChanged;
+        public bool Expanded => expanded > 0.001f;
+        public bool RimVisible => rim && rim.activeSelf;
+
+        void SetMask(Vector3 c, Vector2 h)
+        {
+            lidCenter = c; lidHalf = h;
+            var cv = new Vector4(c.x, lidCeil, c.z, 0); var hv = new Vector4(h.x, h.y, 0, 0);
+            if (sky) { sky.SetVector("_LidCenter", cv); sky.SetVector("_LidRight", lidRight); sky.SetVector("_LidFwd", lidFwd); sky.SetVector("_LidHalf", hv); }
+            // 烟花粒子（SkyParticle）、光柱（LightShaft）用同一个遮罩
+            Shader.SetGlobalVector("_SkyLidCenter", cv);
+            Shader.SetGlobalVector("_SkyLidRight", lidRight);
+            Shader.SetGlobalVector("_SkyLidFwd", lidFwd);
+            Shader.SetGlobalVector("_SkyLidHalf", hv);
+            MaskChanged?.Invoke(new Vector3(c.x, lidCeil, c.z), h);
+        }
+
+        /// <summary>
+        /// 结局（11-27 用户：最后的烟花要铺满天空、天花板各处都看得到，光柱也是）：天窗开口往四周扩开到整片天花板。
+        /// 有过程：原木盒沿先收进天花板，然后开口边缘一路往外推、边上簌簌掉细灰，约 dur 秒铺满。
+        /// rectCenter / rectHalf = 整片天花板（在开口的横 / 纵坐标系里，Arena.CeilingSkyRect 算，保证不越过真实墙）。
+        /// </summary>
+        public void ExpandToCeiling(Vector3 rectCenter, Vector2 rectHalf, float dur = 3.2f) => StartCoroutine(ExpandRun(rectCenter, rectHalf, dur));
+
+        IEnumerator ExpandRun(Vector3 c1, Vector2 h1, float dur)
+        {
+            var c0 = baseCenter; var h0 = baseHalf;
+            // 盒沿收进天花板（0.8 秒：往上缩、变薄）
+            if (rim)
+            {
+                var t0 = rim.transform; var s0 = t0.localScale; var p0 = t0.position;
+                for (float t = 0; t < 0.8f; t += Time.deltaTime)
+                {
+                    float k = Mathf.SmoothStep(0, 1, t / 0.8f);
+                    t0.position = p0 + Vector3.up * 0.15f * k;
+                    t0.localScale = new Vector3(s0.x, s0.y * (1 - k), s0.z);
+                    yield return null;
+                }
+                rim.SetActive(false);
+                t0.position = p0; t0.localScale = s0;
+                SetMask(lidCenter, lidHalf);   // 通知替身天花板：盒沿没了，洞口不再外扩
+            }
+            float dustT = 0;
+            for (float t = 0; t < dur; t += Time.deltaTime)
+            {
+                float k = Mathf.SmoothStep(0, 1, t / dur);
+                expanded = k;
+                var c = Vector3.Lerp(c0, c1, k); var h = Vector2.Lerp(h0, h1, k);
+                SetMask(c, h);
+                // 开口边缘往外推的地方掉一点细灰（像天花板被一圈圈揭开）
+                if ((dustT -= Time.deltaTime) <= 0f)
+                {
+                    dustT = 0.12f;
+                    float side = Random.value * 4f, a = Random.Range(-1f, 1f);
+                    var e = side < 1 ? new Vector2(h.x * a, h.y) : side < 2 ? new Vector2(h.x * a, -h.y) : side < 3 ? new Vector2(h.x, h.y * a) : new Vector2(-h.x, h.y * a);
+                    var p = new Vector3(c.x, lidCeil - 0.05f, c.z) + lidRight * e.x + lidFwd * e.y;
+                    Fx.Dust(p, 0.12f, 3);
+                }
+                yield return null;
+            }
+            expanded = 1f;
+            SetMask(c1, h1);
+        }
+
+        /// <summary>收回到只有天窗（回标题 / 开新局前）：开口往回缩，盒沿再长出来</summary>
+        IEnumerator ShrinkRun(float dur)
+        {
+            var c0 = lidCenter; var h0 = lidHalf;
+            for (float t = 0; t < dur; t += Time.deltaTime)
+            {
+                float k = Mathf.SmoothStep(0, 1, t / dur);
+                expanded = 1f - k;
+                SetMask(Vector3.Lerp(c0, baseCenter, k), Vector2.Lerp(h0, baseHalf, k));
+                yield return null;
+            }
+            expanded = 0f;
+            SetMask(baseCenter, baseHalf);
+            if (rim)
+            {
+                rim.SetActive(true);
+                SetMask(baseCenter, baseHalf);   // 盒沿回来了：替身天花板洞口重新外扩藏到内壁后
+                var t0 = rim.transform; var s0 = t0.localScale;
+                for (float t = 0; t < 0.5f; t += Time.deltaTime) { t0.localScale = new Vector3(s0.x, s0.y * Mathf.SmoothStep(0, 1, t / 0.5f), s0.z); yield return null; }
+                t0.localScale = s0;
+            }
+        }
+
+        void ResetMaskNow()
+        {
+            expanded = 0f;
+            if (rim) rim.SetActive(true);
+            SetMask(baseCenter, baseHalf);
         }
 
         GameObject rim;
@@ -147,7 +237,10 @@ namespace PaperSiege
         Vector3 SkyPoint()
         {
             var head = d.head ? d.head.transform.position : Vector3.up * 1.5f;
-            var p = lidCenter + lidFwd * Random.Range(0.1f, 0.7f) * lidHalf.y + lidRight * Random.Range(-0.6f, 0.6f) * lidHalf.x;
+            // 平时只在天窗前半段；结局开口铺满天花板后，整片天花板上哪儿都可能炸开（头顶正上方也有）
+            var p = Expanded
+                ? lidCenter + lidFwd * Random.Range(-0.85f, 0.85f) * lidHalf.y + lidRight * Random.Range(-0.85f, 0.85f) * lidHalf.x
+                : lidCenter + lidFwd * Random.Range(0.1f, 0.7f) * lidHalf.y + lidRight * Random.Range(-0.6f, 0.6f) * lidHalf.x;
             p.y = lidCeil;
             // 沿“眼睛 → 开口里那一点”的视线再往外推 1～2 米：看起来在开口外的天上
             var dir = (p - head).normalized;
@@ -164,6 +257,7 @@ namespace PaperSiege
             sink = 0; swirl = 0;
             openTarget = 0; open = 0; ApplyLid();
             StopAllCoroutines();
+            if (Expanded) ResetMaskNow();
             StartCoroutine(OpenLid());
         }
 
@@ -180,6 +274,7 @@ namespace PaperSiege
         public void Close()
         {
             StopAllCoroutines();
+            if (Expanded) StartCoroutine(ShrinkRun(1.4f));
             openTarget = 0f; crack = 0f;
             dawn = 0;
             level = -2;   // 下次开局一定重新掀盖
@@ -206,27 +301,35 @@ namespace PaperSiege
         /// 约 9 秒里星星、月亮淡掉，天边转暖，太阳从地平线下面升到清晨的高度。打了一整天，又是新的一天。
         /// </summary>
         /// <summary>结局：fireworksAt 秒后放一阵满天烟花（约 6 秒，越放越稀），dawnAt 秒后天开始亮（9 秒亮到清晨）</summary>
-        public void Ending(float fireworksAt = 0f, float dawnAt = 4.5f)
+        /// <summary>结局烟花放多久（秒）。11-27 用户：烟花可以持续久一点（原 6.5 秒）</summary>
+        public const float EndingFireworks = 14f;
+
+        public void Ending(float fireworksAt = 0f, float dawnAt = 4.5f, float expandAt = -1f, Vector3 rectCenter = default, Vector2 rectHalf = default)
         {
             StopAllCoroutines();
             openTarget = 1f;
-            StartCoroutine(EndingRun(fireworksAt, dawnAt));
+            StartCoroutine(EndingRun(fireworksAt, dawnAt, expandAt, rectCenter, rectHalf));
         }
 
-        IEnumerator EndingRun(float fireworksAt, float dawnAt)
+        IEnumerator EndingRun(float fireworksAt, float dawnAt, float expandAt, Vector3 rc, Vector2 rh)
         {
             StartCoroutine(DawnRun(dawnAt, 9f));
+            if (expandAt >= 0f && rh.x > 0f) StartCoroutine(ExpandLater(expandAt, rc, rh));
             yield return new WaitForSeconds(fireworksAt);
             float t = 0;
-            while (t < 6.5f)
+            while (t < EndingFireworks)
             {
+                float k = t / EndingFireworks;
                 Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.45f, 1f));
-                if (t < 2.5f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.4f, 1f));   // 头两秒半一次两朵
-                float w = Mathf.Lerp(0.3f, 1.2f, t / 6.5f);                                       // 越放越稀
+                if (k < 0.55f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.4f, 1f));        // 前一半一次两朵
+                if (k > 0.25f && k < 0.45f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.35f, 1f));   // 中间一段最密（高潮）
+                float w = Mathf.Lerp(0.32f, 1.1f, k * k);                                                 // 最后越放越稀
                 t += w;
                 yield return new WaitForSeconds(w);
             }
         }
+
+        IEnumerator ExpandLater(float at, Vector3 c, Vector2 h) { yield return new WaitForSeconds(at); yield return ExpandRun(c, h, 3.2f); }
 
         IEnumerator DawnRun(float delay, float dur)
         {

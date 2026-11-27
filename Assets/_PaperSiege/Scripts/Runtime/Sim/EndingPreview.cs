@@ -26,14 +26,18 @@ namespace PaperSiege
             // 1) 盯着王城：晃 → 一层层垮（约 6 秒）
             yield return Turn(t, d.arena.enemy.transform.position + Vector3.up * 0.3f, 0.6f);
             yield return new WaitForSeconds(5.2f);
-            // 2) 抬头看天窗：满天烟花 → 天发白
-            var sky = d.arena.tableCenter + d.arena.forward * 1.6f + Vector3.up * 2.6f;
+            // 2) 抬头看天花板：天窗往四周扩开铺满整片天花板，满天烟花（左右慢慢扫一眼）
+            var sky = t.position + d.arena.forward * 1.4f + Vector3.up * 2.2f;
+            var side = Vector3.Cross(Vector3.up, d.arena.forward);
             yield return Turn(t, sky, 2.0f);
-            yield return new WaitForSeconds(3.0f);
+            yield return new WaitForSeconds(1.5f);
+            yield return Turn(t, sky + side * 1.6f, 2.5f);
+            yield return Turn(t, sky - side * 1.6f + Vector3.up * 0.4f, 3.5f);
+            yield return Turn(t, sky, 2.0f);
             // 3) 低头看废墟：晨光照进来，积木一块块化成光点散去
             yield return Turn(t, d.arena.enemy.transform.position + Vector3.up * 0.45f, 2.0f);
             float w = 0; GameObject rb = null;
-            while (w < 9f && !(rb = GameObject.Find("ResultBoard"))) { w += Time.deltaTime; yield return null; }
+            while (w < 14f && !(rb = GameObject.Find("ResultBoard"))) { w += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(0.3f);
             // 4) 转向终章横木
             if (rb) { var r = rb.transform.Find("Result"); yield return Turn(t, (r ? r.position : rb.transform.position) + Vector3.down * 0.12f, 1.6f); }

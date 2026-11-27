@@ -195,7 +195,7 @@ namespace PaperSiege
             // ── 右手：在桌上的弹盒里捏一颗 = 换弹（不架弓时也可以先选好）
             if (rightFree && input.pinchDown[1] && state != State.Drawing)
             {
-                var pick = box.Pick(R.pinchPoint, 0.03f);
+                var pick = box.Pick(R.pinchPoint, 0.04f);
                 if (pick.HasValue && d.ammo.Count(pick.Value) > 0) { d.ammo.selected = pick.Value; box.Tick(); }
             }
             // ── 右手：抓皮兜 / 拉 / 放
@@ -204,7 +204,7 @@ namespace PaperSiege
                 if (springT >= 0.45f) aimDir = Vector3.Slerp(aimDir, HeadForward(), Time.deltaTime * 4f);   // 刚松手、皮兜还在回弹时锁住方向（否则皮兜会斜着蹭进飞出的弹）
                 if (rightFree && input.pinchDown[1])
                 {
-                    if (!box.Pick(R.pinchPoint, 0.03f).HasValue && Vector3.Distance(R.pinchPoint, PouchRest) < IT.pouchGrab && cooldown <= 0f) { state = State.Drawing; rightLostT = 0; Sfx.Grab(PouchRest); }
+                    if (!box.Pick(R.pinchPoint, 0.04f).HasValue && Vector3.Distance(R.pinchPoint, PouchRest) < IT.pouchGrab && cooldown <= 0f) { state = State.Drawing; rightLostT = 0; Sfx.Grab(PouchRest); }
                 }
             }
             else if (state == State.Drawing)
@@ -223,6 +223,9 @@ namespace PaperSiege
                     if (rightLostT > IT.releaseOnLost) Cancel();
                 }
                 else if (input.released[1] == ReleaseKind.Open) Release();
+                // 11-27 头显防护：松手那一下手动得快、常常跟丢几帧（超过 0.2 秒的保持期）——手 1 秒内重新出现时已经张开，
+                // 而且之前确实拉开了一截：按“松手发射”算（原来一律只取消，玩家会觉得“松了手却没射出去”）
+                else if (rightLostT > 0f && pull01 >= 0.25f) { rightLostT = 0f; Release(); }
                 else Cancel();   // 粘连松开：只松弓，不发射
             }
             Pose();

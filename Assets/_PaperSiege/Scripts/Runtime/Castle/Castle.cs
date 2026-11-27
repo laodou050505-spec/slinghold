@@ -270,6 +270,8 @@ namespace PaperSiege
             DeclareKingDown("耐久打光");
         }
 
+        public void RestoreKingIfLocked() { if (kingLocked && king && !kingRestoring) StartCoroutine(RestoreKing()); }
+
         /// <summary>教学里帅旗被砸倒：先躺 1.2 秒（让玩家看清“打倒了”），再用 0.8 秒慢慢立回原位</summary>
         System.Collections.IEnumerator RestoreKing()
         {

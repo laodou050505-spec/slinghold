@@ -17,6 +17,10 @@ namespace PaperSiege
         readonly List<Transform> legs = new(), feet = new();
         float legLen;
         bool closing;
+        float builtAt;
+        /// <summary>完整搭一次大约多久（脚垫 0.3 + 腿 0.45 + 桌面落下 0.32 + 顿一下 0.18）</summary>
+        public const float BuildTime = 1.3f;
+        public float Remaining => Mathf.Max(0f, builtAt - Time.unscaledTime);
 
         static Dictionary<string, Mesh> map;
         static Material mat, placeholderWood, placeholderDark;
@@ -39,6 +43,7 @@ namespace PaperSiege
             var vt = root.AddComponent<VirtualTable>();
             vt.legLen = Mathf.Max(0.2f, center.y - TopThick - FootH);
             vt.Make(size);
+            vt.builtAt = Time.unscaledTime + (animate ? BuildTime : 0f);
             if (animate) vt.StartCoroutine(vt.Assemble());
             return vt;
         }
