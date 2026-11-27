@@ -360,6 +360,9 @@ namespace PaperSiege
         public static bool Firework(Vector3 p, Color c, FwKind kind, float scale, float riseTime = 0.6f, bool sound = true)
         {
             if (FireworksAlive >= FireworksCap) return false;
+            // 烟花节的炸点放到 10～14 米外（太近会透视变形）：按距离放大，看起来和原来 8.5 米处一样大
+            var camT = Camera.main ? Camera.main.transform : null;
+            if (camT) scale *= Mathf.Clamp(Vector3.Distance(camT.position, p) / 8.5f, 1f, 1.7f);
             FireworksAlive++;
             var root = new GameObject("Fx_Firework");
             root.transform.position = p;
@@ -373,7 +376,7 @@ namespace PaperSiege
             rm.startLifetime = riseTime; rm.startSpeed = riseH / riseTime; rm.startSize = 0.07f * scale + 0.02f;
             rm.startColor = Color.Lerp(c, new Color(1f, 0.85f, 0.6f), 0.6f);
             var rs = rise.shape; rs.enabled = true; rs.shapeType = ParticleSystemShapeType.Cone; rs.angle = 1; rs.radius = 0.001f;
-            var tr = rise.trails; tr.enabled = true; tr.lifetime = 0.35f; tr.widthOverTrail = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, 1, 1, 0)); tr.dieWithParticles = false;
+            var tr = rise.trails; tr.enabled = true; tr.lifetime = 0.15f; tr.widthOverTrail = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, 1, 1, 0)); tr.dieWithParticles = false;
             rise.GetComponent<ParticleSystemRenderer>().trailMaterial = SkyMat;
             var rem = rise.emission; rem.SetBursts(new[] { new ParticleSystem.Burst(0, 1) });
             rise.Play();
@@ -383,30 +386,30 @@ namespace PaperSiege
                 case FwKind.Willow:
                     // 金柳：金色、慢、长长的拖尾往下垂（收尾的金色垂幕）
                     life = 4.0f;
-                    Shell(root.transform, p, new Color(1f, 0.78f, 0.42f), 80, 2.4f * scale, 2.9f * scale, 3.2f, 4.0f, 0.13f * scale, 0.45f, 0.6f, 1.2f, riseTime);
+                    Shell(root.transform, p, new Color(1f, 0.78f, 0.42f), 80, 2.4f * scale, 2.9f * scale, 3.2f, 4.0f, 0.14f * scale, 0.45f, 0.6f, 0f, riseTime);   // 金柳靠金色星点慢慢下垂认出来，不拖尾（11-27 用户：烟花不能拉伸）
                     break;
                 case FwKind.Ring:
                     // 圆环：一圈，斜着随机朝向
                     life = 2.0f;
-                    Shell(root.transform, p, c, 72, 3.4f * scale, 3.6f * scale, 1.5f, 1.9f, 0.17f * scale, 0.12f, 0.2f, 0.25f, riseTime, ring: true);
+                    Shell(root.transform, p, c, 72, 3.4f * scale, 3.6f * scale, 1.5f, 1.9f, 0.18f * scale, 0.12f, 0.2f, 0f, riseTime, ring: true);
                     Shell(root.transform, p, Color.Lerp(c, Color.white, 0.6f), 18, 0.8f * scale, 1.1f * scale, 0.9f, 1.2f, 0.14f * scale, 0.1f, 0.1f, 0f, riseTime);
                     break;
                 case FwKind.Crackle:
                     // 碎银：炸开后满天一闪一闪的小白点
                     life = 2.6f;
-                    Shell(root.transform, p, c, 70, 2.8f * scale, 3.3f * scale, 1.1f, 1.5f, 0.15f * scale, 0.15f, 0.3f, 0.3f, riseTime);
+                    Shell(root.transform, p, c, 70, 2.8f * scale, 3.3f * scale, 1.1f, 1.5f, 0.16f * scale, 0.15f, 0.3f, 0f, riseTime);
                     Glitter(root.transform, p, 3.6f * scale, riseTime + 0.9f, 120);
                     break;
                 case FwKind.Peony:
                     // 牡丹：一团满圆、不拖尾，中间一圈别色花心
                     life = 2.4f;
-                    Shell(root.transform, p, c, 120, 3.0f * scale, 3.5f * scale, 1.5f, 2.1f, 0.2f * scale, 0.12f, 0.3f, 0.18f, riseTime);
+                    Shell(root.transform, p, c, 120, 3.0f * scale, 3.5f * scale, 1.5f, 2.1f, 0.2f * scale, 0.12f, 0.3f, 0f, riseTime);
                     Shell(root.transform, p, Pistil(c), 36, 1.3f * scale, 1.6f * scale, 1.1f, 1.5f, 0.17f * scale, 0.1f, 0.3f, 0f, riseTime + 0.05f);
                     break;
                 default:
                     // 菊花：每颗星都拖着一小段光尾
                     life = 2.4f;
-                    Shell(root.transform, p, c, 100, 3.2f * scale, 3.8f * scale, 1.6f, 2.2f, 0.17f * scale, 0.15f, 0.25f, 0.32f, riseTime);
+                    Shell(root.transform, p, c, 100, 3.2f * scale, 3.8f * scale, 1.6f, 2.2f, 0.18f * scale, 0.15f, 0.25f, 0f, riseTime);   // 菊花不拖尾（11-27 用户：烟花不能拉伸变形；光尾随速度变长，远处放大的烟花会拉成直线）
                     if (scale > 0.9f) Shell(root.transform, p, Pistil(c), 28, 1.3f * scale, 1.6f * scale, 1.0f, 1.4f, 0.15f * scale, 0.1f, 0.3f, 0f, riseTime + 0.05f);
                     break;
             }
@@ -429,6 +432,7 @@ namespace PaperSiege
             var ps = go.AddComponent<ParticleSystem>();
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var r = go.GetComponent<ParticleSystemRenderer>(); r.sharedMaterial = m; r.sortingOrder = sort;
+            r.alignment = ParticleSystemRenderSpace.Facing;   // 11-27 用户：烟花不能拉伸变形 → 每颗星正对眼睛（按屏幕平面朝向时视野边缘会被拉宽）
             var main = ps.main; main.playOnAwake = false; main.simulationSpace = ParticleSystemSimulationSpace.World; main.loop = false;
             var em = ps.emission; em.rateOverTime = 0;
             var sh = ps.shape; sh.enabled = false;

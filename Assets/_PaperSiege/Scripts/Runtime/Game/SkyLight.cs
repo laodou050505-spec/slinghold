@@ -21,9 +21,20 @@ namespace PaperSiege
             var beam = lib ? lib.Meshes("W_Beam") : null;
             if (beam == null || !beam.lod1) return root;
             var mat = lib.Paint(Paint.Bare);
+            for (int i = 0; i < 4; i++) { Plank(root.transform, beam.lod1, mat, "Wall"); Plank(root.transform, beam.lod1, mat, "Lip"); }
+            Fit(root, center, fwd, ceilY, w, l);
+            return root;
+        }
+
+        /// <summary>
+        /// 把木框摆到这个开口的四周（结局开口往外扩时每帧调：木框跟着边缘一起往外推，一直框住天空 ——
+        /// 11-27 用户：原来木框缩进天花板消失，很奇怪）
+        /// </summary>
+        public static void Fit(GameObject root, Vector3 center, Vector3 fwd, float ceilY, float w, float l)
+        {
+            if (!root || root.transform.childCount < 8) return;
             var right = Vector3.Cross(Vector3.up, fwd);
             var c = new Vector3(center.x, ceilY, center.z);
-            // 四条边：每条边的中点、沿边方向、朝外方向、边长
             // 四条边：前后两条横跨整个宽度并盖住四个转角，左右两条夹在中间、只到转角为止 —— 转角对接、不重叠
             // （11-27 用户截图：原来四条都伸到转角，两两重叠、共面闪烁，看着像穿模）
             var sides = new (Vector3 mid, Vector3 along, Vector3 outN, float len, bool full)[]
@@ -34,20 +45,20 @@ namespace PaperSiege
                 (c - right * (w / 2), fwd, -right, l, false),
             };
             const float bx = 3 * BlockLibrary.G, by = 0.4f * BlockLibrary.G, bz = 0.8f * BlockLibrary.G;   // W_Beam 尺寸（长沿 X、原点在底面）
-            foreach (var (mid, along, outN, len, full) in sides)
+            for (int k = 0; k < 4; k++)
             {
+                var (mid, along, outN, len, full) = sides[k];
                 // 内壁：竖着的木板，内表面和开口边齐平，从天花板往上伸
-                var wall = Plank(root.transform, beam.lod1, mat, "Wall");
+                var wall = root.transform.GetChild(k * 2);
                 wall.rotation = Quaternion.LookRotation(Vector3.up, -outN);         // 本地 Z = 上，本地 Y = 朝里（木板从原点往 +Y 长厚度）
                 wall.position = mid + outN * WallT + Vector3.up * (WallH * 0.5f - 0.01f);
                 wall.localScale = new Vector3((full ? len + 2 * WallT : len - 0.002f) / bx, WallT / by, (WallH - (full ? 0f : 0.004f)) / bz);
                 // 边框：贴着天花板往外伸的一圈木条（比天花板略低一点点，盖住开口的切边）
-                var lip = Plank(root.transform, beam.lod1, mat, "Lip");
+                var lip = root.transform.GetChild(k * 2 + 1);
                 lip.rotation = Quaternion.LookRotation(outN, Vector3.down);           // 本地 Z = 朝外，本地 Y = 朝下（厚度往下长）
                 lip.position = mid + outN * (Lip * 0.5f) + Vector3.up * 0.004f;
                 lip.localScale = new Vector3((full ? len + 2 * Lip : len - 0.002f) / bx, (LipT - (full ? 0f : 0.002f)) / by, Lip / bz);   // 夹在中间的两条薄 2 mm，底面不和横跨的两条共面
             }
-            return root;
         }
 
         static Transform Plank(Transform parent, Mesh mesh, Material mat, string name)

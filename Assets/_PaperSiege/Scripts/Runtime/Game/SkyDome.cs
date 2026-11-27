@@ -141,21 +141,7 @@ namespace PaperSiege
         IEnumerator ExpandRun(Vector3 c1, Vector2 h1, float dur)
         {
             var c0 = baseCenter; var h0 = baseHalf;
-            // 盒沿收进天花板（0.8 秒：往上缩、变薄）
-            if (rim)
-            {
-                var t0 = rim.transform; var s0 = t0.localScale; var p0 = t0.position;
-                for (float t = 0; t < 0.8f; t += Time.deltaTime)
-                {
-                    float k = Mathf.SmoothStep(0, 1, t / 0.8f);
-                    t0.position = p0 + Vector3.up * 0.15f * k;
-                    t0.localScale = new Vector3(s0.x, s0.y * (1 - k), s0.z);
-                    yield return null;
-                }
-                rim.SetActive(false);
-                t0.position = p0; t0.localScale = s0;
-                SetMask(lidCenter, lidHalf);   // 通知替身天花板：盒沿没了，洞口不再外扩
-            }
+            // 木框跟着开口边缘一起往外推（11-27 用户：原来木框缩进天花板消失，很奇怪）
             float dustT = 0;
             for (float t = 0; t < dur; t += Time.deltaTime)
             {
@@ -163,7 +149,8 @@ namespace PaperSiege
                 expanded = k;
                 var c = Vector3.Lerp(c0, c1, k); var h = Vector2.Lerp(h0, h1, k);
                 SetMask(c, h);
-                // 开口边缘往外推的地方掉一点细灰（像天花板被一圈圈揭开）
+                LidRim.Fit(rim, c, lidFwd, lidCeil, h.x * 2f, h.y * 2f);
+                // 木框推过去的地方掉一点细灰（像天花板被一圈圈推开）
                 if ((dustT -= Time.deltaTime) <= 0f)
                 {
                     dustT = 0.12f;
@@ -176,9 +163,10 @@ namespace PaperSiege
             }
             expanded = 1f;
             SetMask(c1, h1);
+            LidRim.Fit(rim, c1, lidFwd, lidCeil, h1.x * 2f, h1.y * 2f);
         }
 
-        /// <summary>收回到只有天窗（回标题 / 开新局前）：开口往回缩，盒沿再长出来</summary>
+        /// <summary>收回到只有天窗（回标题 / 开新局前）：开口连同木框一起往回缩</summary>
         IEnumerator ShrinkRun(float dur)
         {
             var c0 = lidCenter; var h0 = lidHalf;
@@ -186,19 +174,14 @@ namespace PaperSiege
             {
                 float k = Mathf.SmoothStep(0, 1, t / dur);
                 expanded = 1f - k;
-                SetMask(Vector3.Lerp(c0, baseCenter, k), Vector2.Lerp(h0, baseHalf, k));
+                var c = Vector3.Lerp(c0, baseCenter, k); var h = Vector2.Lerp(h0, baseHalf, k);
+                SetMask(c, h);
+                LidRim.Fit(rim, c, lidFwd, lidCeil, h.x * 2f, h.y * 2f);
                 yield return null;
             }
             expanded = 0f;
             SetMask(baseCenter, baseHalf);
-            if (rim)
-            {
-                rim.SetActive(true);
-                SetMask(baseCenter, baseHalf);   // 盒沿回来了：替身天花板洞口重新外扩藏到内壁后
-                var t0 = rim.transform; var s0 = t0.localScale;
-                for (float t = 0; t < 0.5f; t += Time.deltaTime) { t0.localScale = new Vector3(s0.x, s0.y * Mathf.SmoothStep(0, 1, t / 0.5f), s0.z); yield return null; }
-                t0.localScale = s0;
-            }
+            LidRim.Fit(rim, baseCenter, lidFwd, lidCeil, baseHalf.x * 2f, baseHalf.y * 2f);
         }
 
         void ResetMaskNow()
@@ -206,6 +189,7 @@ namespace PaperSiege
             expanded = 0f;
             if (rim) rim.SetActive(true);
             SetMask(baseCenter, baseHalf);
+            LidRim.Fit(rim, baseCenter, lidFwd, lidCeil, baseHalf.x * 2f, baseHalf.y * 2f);
         }
 
         GameObject rim;
@@ -246,11 +230,11 @@ namespace PaperSiege
             var head = d && d.head ? d.head.transform.position : Vector3.up * 1.5f;
             for (int k = 0; k < 16; k++)
             {
-                var dir = Quaternion.AngleAxis(Random.Range(-75f, 75f), Vector3.up) * Quaternion.AngleAxis(-Random.Range(28f, 82f), lidRight) * lidFwd;
+                var dir = Quaternion.AngleAxis(Random.Range(-75f, 75f), Vector3.up) * Quaternion.AngleAxis(-Random.Range(28f, 74f), lidRight) * lidFwd;
                 if (dir.y < 0.1f) continue;
                 var hit = head + dir * ((lidCeil - head.y) / dir.y) - lidCenter;
                 if (Mathf.Abs(Vector3.Dot(hit, lidRight)) > lidHalf.x * 0.92f || Mathf.Abs(Vector3.Dot(hit, lidFwd)) > lidHalf.y * 0.92f) continue;
-                var q = head + dir * Random.Range(7f, 10f);
+                var q = head + dir * Random.Range(10f, 14f);   // 远一点：近处炸开的烟花透视变形（像拉伸），Fx.Firework 会按距离放大
                 q.y = Mathf.Max(q.y, lidCeil + 2.5f);
                 return q;
             }
