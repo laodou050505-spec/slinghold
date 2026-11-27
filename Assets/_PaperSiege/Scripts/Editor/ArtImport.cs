@@ -80,8 +80,17 @@ namespace PaperSiege.EditorTools
 
         void OnPreprocessTexture()
         {
-            if (!IsArt(assetPath)) return;
             var ti = (TextureImporter)assetImporter;
+            // 启动画面（MADE WITH TRIPO）和应用图标：和其他游戏（《摘星》真机验证版）一样不压缩、不加安卓覆盖。
+            // 11-27 查出：它们在 Art/ 下被套了积木贴图的 ASTC 6×6 压缩，头显里标志和小字边缘会有色块 / 发糊
+            var pp = assetPath.Replace('\\', '/');
+            if (pp.StartsWith(ArtRoot + "Brand/") || pp.StartsWith(ArtRoot + "Icon/"))
+            {
+                ti.textureCompression = TextureImporterCompression.Uncompressed;
+                ti.ClearPlatformTextureSettings("Android");
+                return;
+            }
+            if (!IsArt(assetPath)) return;
             string f = System.IO.Path.GetFileNameWithoutExtension(assetPath).ToLowerInvariant();
             if (f.EndsWith("_normal")) { ti.textureType = TextureImporterType.NormalMap; ti.sRGBTexture = false; }
             else if (f.EndsWith("_mask")) { ti.textureType = TextureImporterType.Default; ti.sRGBTexture = false; }
