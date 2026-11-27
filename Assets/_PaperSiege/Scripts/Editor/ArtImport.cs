@@ -87,6 +87,7 @@ namespace PaperSiege.EditorTools
             if (pp.StartsWith(ArtRoot + "Brand/") || pp.StartsWith(ArtRoot + "Icon/"))
             {
                 ti.textureCompression = TextureImporterCompression.Uncompressed;
+                ti.mipmapEnabled = false;   // 同上：《摘星》不开 mipmap（头显里启动图贴在眼前的面片上，取到缩小那一级会发软）
                 ti.ClearPlatformTextureSettings("Android");
                 return;
             }
