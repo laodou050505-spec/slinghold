@@ -660,57 +660,27 @@ def mech_hay(rng):
         parts.append(tag(s, col))
         ctr += 1
 
-    # ─── 两道麻绳箍（torus 绕整圈，紧贴核心表面，轴向 Z）─────────────
-    # 核心在 XY 截面约 ±0.52×±0.43格，绳子略微嵌入（半径略小于核心外壁）
-    # 高度：0.28格 和 0.56格
-    # 用椭圆环：在 XY 平面构建椭圆环路（近似：用细管绕矩形 4 段，或用 torus 适当 scale）
-    # 采用 4 段圆弧（Bezier 圆角矩形逼近），用 tube 函数
-    r_rope = 0.018 * g   # 绳截面半径
-    for rope_z in (0.28 * g, 0.56 * g):
-        # 椭圆矩形环路：4 段直线 + 4 段圆角（直接用稠密折线点列近似圆角）
-        pts_rope = []
-        RX, RY = 0.52 * g, 0.42 * g    # 绳子路径的矩形半宽（嵌入核心约 0.015g）
-        corner_r = 0.06 * g             # 圆角半径
-        # 生成矩形圆角路径（逆时针，从 +X+Y 角开始）
-        corners_xy = [(RX - corner_r, RY), (RX, RY - corner_r),
-                      (RX, -(RY - corner_r)), (RX - corner_r, -RY),
-                      (-(RX - corner_r), -RY), (-RX, -(RY - corner_r)),
-                      (-RX, RY - corner_r), (-(RX - corner_r), RY)]
-        arc_centers = [(RX - corner_r, RY - corner_r),
-                       (RX - corner_r, -(RY - corner_r)),
-                       (-(RX - corner_r), -(RY - corner_r)),
-                       (-(RX - corner_r), RY - corner_r)]
-        arc_starts = [math.radians(90), math.radians(0), math.radians(270), math.radians(180)]
-        for ci in range(4):
-            # 直线段
-            if ci == 0:
-                # +Y 侧直线
-                pts_rope.append((-(RX - corner_r), RY, rope_z, r_rope))
-                pts_rope.append((RX - corner_r, RY, rope_z, r_rope))
-            elif ci == 1:
-                # +X 侧直线
-                pts_rope.append((RX, RY - corner_r, rope_z, r_rope))
-                pts_rope.append((RX, -(RY - corner_r), rope_z, r_rope))
-            elif ci == 2:
-                # -Y 侧直线
-                pts_rope.append((RX - corner_r, -RY, rope_z, r_rope))
-                pts_rope.append((-(RX - corner_r), -RY, rope_z, r_rope))
-            else:
-                # -X 侧直线
-                pts_rope.append((-RX, -(RY - corner_r), rope_z, r_rope))
-                pts_rope.append((-RX, RY - corner_r, rope_z, r_rope))
-            # 圆弧（4点近似）
-            cx_arc, cy_arc = arc_centers[ci]
-            a0 = arc_starts[ci]
-            for k in range(5):
-                a = a0 + math.radians(90) * k / 4
-                px = cx_arc + corner_r * math.cos(a)
-                py = cy_arc + corner_r * math.sin(a)
-                pts_rope.append((px, py, rope_z, r_rope))
-        # 闭合（首尾连接）：在 tube 中首尾点重合即可
-        pts_rope.append(pts_rope[0])
-        rope_ob = tube(f'rope_{int(rope_z * 1000)}', pts_rope, res=8, bevel_res=3)
-        parts.append(tag(rope_ob, ROPE))
+    # ─── 两道麻绳箍（11-27 返工：原来 4 段直圆柱半径才 1 mm、又埋在外层草茎里看不见，圆角处还戳出灰疙瘩）
+    # 改成沿圆角矩形绕一整圈的圆管：中心线在草茎外皮上（勒进草里约半个绳径），转角跟着草捆圆角走；
+    # 颜色比干草深两档，远看也能分出两道箍。
+    ROPE_DARK = dict(col='7d5f37', wear=0.0, grain=0.2)
+    r_rope = 0.032 * g
+    hx, hy, rc = 0.565 * g, 0.465 * g, 0.12 * g      # 绳中心线半宽 / 半深 / 转角半径
+    for ri, rope_z in enumerate((0.28 * g, 0.56 * g)):
+        pts = []
+        corners = [(hx - rc, hy - rc, 0), (-(hx - rc), hy - rc, 90), (-(hx - rc), -(hy - rc), 180), (hx - rc, -(hy - rc), 270)]
+        for cx, cy, a0 in corners:
+            for k in range(4):
+                a = math.radians(a0 + k * 30)
+                # 绳子不是完全平的：随角度轻微上下起伏 + 粗细变化（手捆的）
+                z = rope_z + math.sin(a * 2 + ri) * 0.008 * g
+                pts.append((cx + math.cos(a) * rc, cy + math.sin(a) * rc, z, r_rope * rng.uniform(0.9, 1.1)))
+        pts.append(pts[0]); pts.append(pts[1])          # 首尾多绕一段，体素重建后接成闭环
+        parts.append(tag(tube(f'rope{ri}', pts, res=8, bevel_res=4), ROPE_DARK))
+        # 绳结：前面偏右一个小疙瘩 + 两根短绳头
+        kx = 0.25 * g * (1 if ri == 0 else -1)
+        parts.append(tag(ico(f'knot{ri}', r_rope * 1.7, c=(kx, -hy - 0.01 * g, rope_z), subdiv=2), ROPE_DARK))
+        parts.append(tag(tube(f'rend{ri}', [(kx, -hy - 0.02 * g, rope_z, r_rope * 0.8), (kx + 0.04 * g, -hy - 0.05 * g, rope_z - 0.08 * g, r_rope * 0.7), (kx + 0.03 * g, -hy - 0.05 * g, rope_z - 0.14 * g, r_rope * 0.6)], res=6, bevel_res=3), ROPE_DARK))
 
     return parts
 
@@ -856,15 +826,26 @@ def mech_trough(rng):
 
 def mech_keystone(rng):
     """M_Keystone 楔形拱顶石：顶宽0.7底宽0.45，高0.6厚1.0格，正面有圆圈印记。底面中心为原点。
-    整块石头，不分层，石头材质（bare=1.0, grain=0.0 无木纹）。"""
+    整块石头，不分层，石头材质（bare=0.0, grain=0.0 无木纹）。
+    正面印记改为环形浅刻槽（外径0.12格内径0.09格深0.015格），不再是贯穿孔。"""
     parts = []
     # 楔形轮廓（XZ 平面：x 水平 z 竖直），沿 Y 挤出 1.0 格厚度
     # 顶面在 z=0.6g（上宽0.7格），底面在 z=0（下宽0.45格）——正视图明显倒梯形楔形
     pts_xz = [(-0.35, 0.6), (0.35, 0.6), (0.225, 0.0), (-0.225, 0.0)]
     stone = prism('keystone', [(x * g, z * g) for x, z in pts_xz], 1.0 * g)
-    # 正面圆圈印记（从正面 y=-0.5g 切入 0.08g 深，圆半径0.1格，位于石体高度中心 z=0.3g）
-    mark = cylinder('mark', 0.1 * g, 0.1 * g, verts=16, axis='Y', c=(0, -0.46 * g, 0.3 * g))
-    boolean(stone, [mark])
+    # 正面浮雕环形刻槽：外圆柱 boolean 切入，再保留内圆柱（环形槽）
+    # 外圆柱（切入石面，深度 0.015g）
+    groove_outer = cylinder('go', 0.12 * g, 0.04 * g, verts=24, axis='Y',
+                             c=(0, -0.49 * g, 0.3 * g))
+    # 内圆柱（保留的部分，直径 0.09g，从外圆柱里挖掉中间）
+    groove_inner = cylinder('gi', 0.09 * g, 0.08 * g, verts=24, axis='Y',
+                             c=(0, -0.49 * g, 0.3 * g))
+    # 先切外圆，再把内圆从切割体中挖回来（布尔差：stone - outer，然后 union inner_saved）
+    # 实际操作：先做 outer 布尔差（切入0.015g槽），inner 不切（保留中心凸台）
+    # 只切外圆，不切内圆 → 结果是正面上有一圈浅圆盘凹面，中心保持平整
+    # 更直接：outer - inner = 环形切割体（先从 outer 里布尔差 inner）
+    boolean(groove_outer, [groove_inner])  # groove_outer 变成环形切割体（空心圆盘）
+    boolean(stone, [groove_outer])          # 把环形槽切入石面
     # 石头磕碰缺角（圆润碎块，stone=True 更接近石质破损）
     boolean(stone, chip_cutters(stone, rng, 4, 0.08 * g, stone=True, corner_share=0.7))
     # 石头表面起伏（比木头更大振幅、更随机）
@@ -1090,6 +1071,108 @@ if MECH:
         ('M_BellFrame', mech_bellframe,  0.010, 0.9, 3800),
         ('M_ScalePost', mech_scalepost,  0.007, 0.8, 1800),
         ('M_ScaleBeam', mech_scalebeam,  0.007, 0.6, 2800),
+    ]
+
+
+# ───────────────────────── 虚拟木桌（table 模式）─────────────────────────
+
+def table_top(rng):
+    """M_TableTop 桌面：0.90×0.60m，厚0.035m，原点=桌面上表面中心。
+    4块木板拼合（沿X方向），板缝清晰，端面年轮感；底部裙板内嵌，四角留腿孔。"""
+    parts = []
+    W, D, TH = 0.90, 0.60, 0.035   # 单位米（不用格）
+    # 4块木板（沿X方向，每块宽约0.225m，拼缝约4mm——需大于 voxel 尺寸 2.5mm 才能保留）
+    seam = 0.005                      # 板缝宽（5mm，确保 voxel 体素化后仍然可见）
+    board_w = (W - 3 * seam) / 4     # 板宽
+    for i in range(4):
+        cx = -W / 2 + (i + 0.5) * board_w + (i + 0.5) * seam
+        b = box(f'board{i}', board_w, D, TH, cx=cx, z0=-TH)
+        # 轻微磨旧、翘曲（手工木板不平整）
+        b = finish(b, rng, 0.003, seg=2, jitter=0.0008, warp=0.001)
+        parts.append(tag(b, dict(col='a07a55', wear=0.6, grain=0.9, bare=0.0)))
+    # 深色板缝条（嵌在板与板之间，颜色深棕，确保烘焙后贴图里有清晰深色线）
+    for i in range(1, 4):
+        seam_cx = -W / 2 + i * (board_w + seam) - seam / 2
+        sc = box(f'seam{i}', seam * 0.9, D, TH * 0.8, cx=seam_cx, z0=-TH * 0.8)
+        parts.append(tag(sc, dict(col='5a3a22', wear=0.0, grain=0.6, bare=0.0)))
+    # 裙板（apron）：4面，内嵌 0.04m，高 0.06m，从桌面向下
+    apron_inset = 0.04
+    apron_h = 0.06
+    apron_th = 0.018
+    # 长边裙板（沿X）
+    for sy in (-1, 1):
+        ay = sy * (D / 2 - apron_inset - apron_th / 2)
+        ap = box(f'apron_y{sy}', W - apron_inset * 2, apron_th, apron_h,
+                 cy=ay, z0=-TH - apron_h)
+        ap = finish(ap, rng, 0.003, seg=2, jitter=0.0006, warp=0.0005)
+        parts.append(tag(ap, dict(col='8a6440', wear=0.5, grain=0.9, bare=0.0)))
+    # 短边裙板（沿Y）
+    for sx in (-1, 1):
+        ax = sx * (W / 2 - apron_inset - apron_th / 2)
+        leg_gap = 0.05 + 0.004 * 2    # 腿截面 + 间隙
+        ap = box(f'apron_x{sx}', apron_th, D - apron_inset * 2, apron_h,
+                 cx=ax, z0=-TH - apron_h)
+        ap = finish(ap, rng, 0.003, seg=2, jitter=0.0006, warp=0.0005)
+        parts.append(tag(ap, dict(col='8a6440', wear=0.5, grain=0.9, bare=0.0)))
+    # 裙板角部小支撑块（强调榫卯）
+    for sx, sy in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
+        bk_x = sx * (W / 2 - apron_inset - apron_th - 0.01)
+        bk_y = sy * (D / 2 - apron_inset - apron_th - 0.01)
+        bk = box(f'bracket{sx}{sy}', apron_th * 1.2, apron_th * 1.2, apron_h * 0.8,
+                 cx=bk_x, cy=bk_y, z0=-TH - apron_h * 0.8)
+        parts.append(tag(bk, dict(col='7a5638', wear=0.4, grain=0.8, bare=0.0)))
+    return parts
+
+
+def table_leg(rng):
+    """M_TableLeg 桌腿：0.05×0.05m 截面，长1.0m，原点=顶面中心，向 -Z 延伸。
+    木纹沿腿长方向；顶端和底端3cm内有轻微细节（榫头/脚尖），中段干净无横向特征。"""
+    parts = []
+    LEG_L = 1.0
+    LEG_W = 0.05
+    # 腿体（主段：从0到-1.0m）
+    # 用 box，原点在顶面中心，z0=-LEG_L
+    leg = box('leg_body', LEG_W, LEG_W, LEG_L, z0=-LEG_L)
+    # 倒角（截面棱角，避免完全方正）
+    md = leg.modifiers.new('bev', 'BEVEL')
+    md.width = 0.004
+    md.segments = 2
+    md.limit_method = 'ANGLE'
+    md.angle_limit = math.radians(45)
+    apply_mods(leg)
+    # 整体轻微磨旧（极小 warp 防止中段横向变形）
+    leg = finish(leg, rng, 0.002, seg=2, jitter=0.0005, warp=0.0)
+    parts.append(tag(leg, dict(col='a07a55', wear=0.5, grain=1.0, bare=0.0)))
+    # 顶端榫头细节（方形榫，从顶向下 2.5cm，截面略小 0.040×0.040）
+    tenon = box('tenon', 0.038, 0.038, 0.022, z0=-0.022)
+    parts.append(tag(tenon, dict(col='8a6440', wear=0.3, grain=0.9, bare=0.0)))
+    # 底端收脚（从 -0.975m 到 -1.0m，轻微内收，仅视觉）
+    foot_tip = box('foot_tip', 0.048, 0.048, 0.025, z0=-1.0)
+    parts.append(tag(finish(foot_tip, rng, 0.002, seg=2, jitter=0.0004), dict(col='7a5638', wear=0.4, grain=0.8, bare=0.0)))
+    return parts
+
+
+def table_foot(rng):
+    """M_TableFoot 腿垫：0.06×0.06×0.025m，原点=顶面中心。"""
+    parts = []
+    o = box('foot', 0.06, 0.06, 0.025, z0=-0.025)
+    md = o.modifiers.new('bev', 'BEVEL')
+    md.width = 0.005
+    md.segments = 2
+    md.limit_method = 'ANGLE'
+    md.angle_limit = math.radians(45)
+    apply_mods(o)
+    o = finish(o, rng, 0.002, seg=2, jitter=0.0005, warp=0.0003)
+    parts.append(tag(o, dict(col='7a5638', wear=0.5, grain=0.8, bare=0.0)))
+    return parts
+
+
+if TABLE:
+    # vox 单位是格（×g=0.05m 得实际体素尺寸）：桌面0.05格×0.05=0.0025m，腿0.05格=0.0025m
+    ITEMS = [
+        ('M_TableTop',  table_top,  0.05, 0.6, 3000),
+        ('M_TableLeg',  table_leg,  0.05, 0.5, 400),
+        ('M_TableFoot', table_foot, 0.05, 0.5, 200),
     ]
 
 
