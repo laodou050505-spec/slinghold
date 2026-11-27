@@ -105,7 +105,14 @@ namespace PaperSiege
         public static void Button(Vector3 p) => Play(Pick("button", Synth.Place), p, 0.8f, 1f, 0.02f);
         /// <summary>结算时铜星钉上</summary>
         public static void Star(Vector3 p) => Play(Pick("star", Synth.Ding), p, 0.6f, 1f, 0f);
-        public static void Firework(Vector3 p) => Play(Pick("firework", Synth.Firework), p, 0.85f, Random.Range(0.9f, 1.1f));
+        /// <summary>烟花炸开。烟花节高潮时一瞬间好几朵：间隔不到 0.09 秒的只放一个，叠在一起会糊成一团爆音</summary>
+        public static void Firework(Vector3 p)
+        {
+            if (Time.time - lastFw < 0.09f) return;
+            lastFw = Time.time;
+            Play(Pick("firework", Synth.Firework), p, Random.Range(0.7f, 0.9f), Random.Range(0.88f, 1.12f));
+        }
+        static float lastFw = -1f;
 
         /// <summary>拉弓时每帧调：tension 0～1。只在“又拉开了一截”时咯吱一下，停着不动就没声</summary>
         public static void Creak(Vector3 p, float tension)

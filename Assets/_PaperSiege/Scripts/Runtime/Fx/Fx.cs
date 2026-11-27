@@ -341,39 +341,153 @@ namespace PaperSiege
             Burst(ps, 12, 0.6f);
         }
 
-        /// <summary>烟花：先一道细光往上蹿（预警），到顶炸成一圈亮点，慢慢下坠、熄灭</summary>
-        public static void Firework(Vector3 p, Color c)
+        // ── 烟花（11-27 第二轮，用户：烟花要更壮观、像烟花节）。五种花型 + 升空拖尾 + 双层花心；同屏数量有上限（头显上叠加粒子太多会掉帧）
+        public enum FwKind { Peony, Chrysanthemum, Willow, Ring, Crackle }
+        /// <summary>天上还活着的烟花（每朵算一个）。超过上限就不再放新的，保住帧率</summary>
+        public static int FireworksAlive;
+        public const int FireworksCap = 22;   // 实测同屏 22 朵约 1500 个粒子
+
+        class FwLife : MonoBehaviour { void OnDestroy() { FireworksAlive = Mathf.Max(0, FireworksAlive - 1); } }
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] static void ResetFw() => FireworksAlive = 0;
+
+        /// <summary>平时（每关赢了、烟火夜零星）放的一朵：菊花，原来的大小</summary>
+        public static void Firework(Vector3 p, Color c) => Firework(p, c, FwKind.Chrysanthemum, 0.75f, 0.4f);
+
+        /// <summary>
+        /// 一朵烟花：先一道带拖尾的光往上蹿（预警，riseTime 秒），到 p 炸开。scale 1 ≈ 炸开半径 4 米（放在 6～9 米外的天上）。
+        /// 返回 false = 同屏已满没放。
+        /// </summary>
+        public static bool Firework(Vector3 p, Color c, FwKind kind, float scale, float riseTime = 0.6f, bool sound = true)
         {
-            var rise = Make("FwRise", p - Vector3.up * 1.2f);
+            if (FireworksAlive >= FireworksCap) return false;
+            FireworksAlive++;
+            var root = new GameObject("Fx_Firework");
+            root.transform.position = p;
+            root.AddComponent<FwLife>();
+            // 升空：从下方 2～3 米处一道光蹿上来，到点正好炸开
+            float riseH = Mathf.Lerp(1.8f, 3.2f, Random.value) * Mathf.Max(0.6f, scale);
+            var rise = FwChild(root.transform, "Rise", SkyMat, 0);
+            rise.transform.position = p - Vector3.up * riseH + Random.insideUnitSphere * 0.2f;
+            rise.transform.rotation = Quaternion.LookRotation(p - rise.transform.position);
             var rm = rise.main;
-            rm.startLifetime = 0.4f; rm.startSpeed = 3.2f; rm.startSize = 0.05f; rm.startColor = Color.Lerp(c, Color.white, 0.6f);
-            var rs = rise.shape; rs.shapeType = ParticleSystemShapeType.Cone; rs.angle = 2; rs.radius = 0.001f;
-            rise.transform.rotation = Quaternion.LookRotation(Vector3.up);
-            var tr = rise.trails; tr.enabled = true; tr.lifetime = 0.3f; tr.widthOverTrail = 0.5f;
-            rise.GetComponent<ParticleSystemRenderer>().sharedMaterial = SkyMat;
+            rm.startLifetime = riseTime; rm.startSpeed = riseH / riseTime; rm.startSize = 0.07f * scale + 0.02f;
+            rm.startColor = Color.Lerp(c, new Color(1f, 0.85f, 0.6f), 0.6f);
+            var rs = rise.shape; rs.enabled = true; rs.shapeType = ParticleSystemShapeType.Cone; rs.angle = 1; rs.radius = 0.001f;
+            var tr = rise.trails; tr.enabled = true; tr.lifetime = 0.35f; tr.widthOverTrail = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, 1, 1, 0)); tr.dieWithParticles = false;
             rise.GetComponent<ParticleSystemRenderer>().trailMaterial = SkyMat;
-            Burst(rise, 1, 0.5f);
-            var ps = Make("Firework", p);
+            var rem = rise.emission; rem.SetBursts(new[] { new ParticleSystem.Burst(0, 1) });
+            rise.Play();
+            float life;
+            switch (kind)
+            {
+                case FwKind.Willow:
+                    // 金柳：金色、慢、长长的拖尾往下垂（收尾的金色垂幕）
+                    life = 4.0f;
+                    Shell(root.transform, p, new Color(1f, 0.78f, 0.42f), 80, 2.4f * scale, 2.9f * scale, 3.2f, 4.0f, 0.13f * scale, 0.45f, 0.6f, 1.2f, riseTime);
+                    break;
+                case FwKind.Ring:
+                    // 圆环：一圈，斜着随机朝向
+                    life = 2.0f;
+                    Shell(root.transform, p, c, 72, 3.4f * scale, 3.6f * scale, 1.5f, 1.9f, 0.17f * scale, 0.12f, 0.2f, 0.25f, riseTime, ring: true);
+                    Shell(root.transform, p, Color.Lerp(c, Color.white, 0.6f), 18, 0.8f * scale, 1.1f * scale, 0.9f, 1.2f, 0.14f * scale, 0.1f, 0.1f, 0f, riseTime);
+                    break;
+                case FwKind.Crackle:
+                    // 碎银：炸开后满天一闪一闪的小白点
+                    life = 2.6f;
+                    Shell(root.transform, p, c, 70, 2.8f * scale, 3.3f * scale, 1.1f, 1.5f, 0.15f * scale, 0.15f, 0.3f, 0.3f, riseTime);
+                    Glitter(root.transform, p, 3.6f * scale, riseTime + 0.9f, 120);
+                    break;
+                case FwKind.Peony:
+                    // 牡丹：一团满圆、不拖尾，中间一圈别色花心
+                    life = 2.4f;
+                    Shell(root.transform, p, c, 120, 3.0f * scale, 3.5f * scale, 1.5f, 2.1f, 0.2f * scale, 0.12f, 0.3f, 0.18f, riseTime);
+                    Shell(root.transform, p, Pistil(c), 36, 1.3f * scale, 1.6f * scale, 1.1f, 1.5f, 0.17f * scale, 0.1f, 0.3f, 0f, riseTime + 0.05f);
+                    break;
+                default:
+                    // 菊花：每颗星都拖着一小段光尾
+                    life = 2.4f;
+                    Shell(root.transform, p, c, 100, 3.2f * scale, 3.8f * scale, 1.6f, 2.2f, 0.17f * scale, 0.15f, 0.25f, 0.32f, riseTime);
+                    if (scale > 0.9f) Shell(root.transform, p, Pistil(c), 28, 1.3f * scale, 1.6f * scale, 1.0f, 1.4f, 0.15f * scale, 0.1f, 0.3f, 0f, riseTime + 0.05f);
+                    break;
+            }
+            Object.Destroy(root, riseTime + life + 0.4f);
+            if (sound) Sfx.Firework(p);
+            SkyDome.Flash(kind == FwKind.Willow ? new Color(1f, 0.78f, 0.42f) : c);
+            return true;
+        }
+
+        static Color Pistil(Color c)
+        {
+            Color.RGBToHSV(c, out var h, out var sat, out var v);
+            return Color.HSVToRGB(Mathf.Repeat(h + 0.45f, 1f), Mathf.Min(sat, 0.5f), 1f);   // 花心用对比色、浅一点
+        }
+
+        static ParticleSystem FwChild(Transform root, string name, Material m, int sort)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(root, false);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var r = go.GetComponent<ParticleSystemRenderer>(); r.sharedMaterial = m; r.sortingOrder = sort;
+            var main = ps.main; main.playOnAwake = false; main.simulationSpace = ParticleSystemSimulationSpace.World; main.loop = false;
+            var em = ps.emission; em.rateOverTime = 0;
+            var sh = ps.shape; sh.enabled = false;
+            return ps;
+        }
+
+        /// <summary>一层星：n 颗，速度 v0～v1，寿命 l0～l1，大小 size，重力 grav，阻力 drag（0～1，越大越快停下“挂”在空中），拖尾 trail 秒（0 = 不拖）</summary>
+        static void Shell(Transform root, Vector3 p, Color c, int n, float v0, float v1, float l0, float l1, float size, float grav, float drag, float trail, float delay, bool ring = false)
+        {
+            var ps = FwChild(root, "Shell", SkyMat, 1);
+            ps.transform.position = p;
+            if (ring) ps.transform.rotation = Random.rotation;
             var m = ps.main;
-            m.startDelay = 0.4f;
-            m.startLifetime = new ParticleSystem.MinMaxCurve(1.0f, 1.6f);
-            m.startSpeed = new ParticleSystem.MinMaxCurve(1.4f, 2.0f);
-            m.startSize = new ParticleSystem.MinMaxCurve(0.07f, 0.12f);
-            m.startColor = new ParticleSystem.MinMaxGradient(c, Color.Lerp(c, Color.white, 0.5f));
-            m.gravityModifier = 0.08f;
-            var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Sphere; sh.radius = 0.02f;
-            ps.transform.position = p;   // 升空那道光在下面 0.6 m 处起步，到这里炸开
-            var ptr = ps.trails; ptr.enabled = true; ptr.lifetime = 0.25f; ptr.widthOverTrail = 0.4f;
-            ps.GetComponent<ParticleSystemRenderer>().sharedMaterial = SkyMat;
-            ps.GetComponent<ParticleSystemRenderer>().trailMaterial = SkyMat;
+            m.startDelay = delay;
+            m.startLifetime = new ParticleSystem.MinMaxCurve(l0, l1);
+            m.startSpeed = new ParticleSystem.MinMaxCurve(v0, v1);
+            m.startSize = new ParticleSystem.MinMaxCurve(size * 0.8f, size * 1.2f);
+            m.startColor = new ParticleSystem.MinMaxGradient(c, Color.Lerp(c, Color.white, 0.35f));
+            m.gravityModifier = grav;
+            m.maxParticles = n;
+            var sh = ps.shape; sh.enabled = true;
+            if (ring) { sh.shapeType = ParticleSystemShapeType.Circle; sh.radius = 0.02f; sh.radiusThickness = 0f; }
+            else { sh.shapeType = ParticleSystemShapeType.Sphere; sh.radius = 0.02f; }
+            if (drag > 0f) { var lv = ps.limitVelocityOverLifetime; lv.enabled = true; lv.drag = drag * 2.2f; lv.multiplyDragByParticleVelocity = true; }
+            if (trail > 0f)
+            {
+                var t = ps.trails; t.enabled = true; t.lifetime = trail; t.minVertexDistance = 0.08f;
+                t.widthOverTrail = new ParticleSystem.MinMaxCurve(0.6f, AnimationCurve.Linear(0, 1, 1, 0));
+                t.inheritParticleColor = true;
+                ps.GetComponent<ParticleSystemRenderer>().trailMaterial = SkyMat;
+            }
             var col = ps.colorOverLifetime; col.enabled = true;
             var g = new Gradient();
-            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(c, 0.3f), new GradientColorKey(c * 0.6f, 1) },
-                      new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(0.9f, 0.6f), new GradientAlphaKey(0, 1) });
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 0.08f), new GradientColorKey(c, 0.25f), new GradientColorKey(c * 0.75f, 1) },
+                      new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1f, 0.55f), new GradientAlphaKey(0, 1) });
             col.color = g;
-            Burst(ps, 70, 2.2f);
-            Sfx.Firework(p);
-            SkyDome.Flash(c);
+            var sz = ps.sizeOverLifetime; sz.enabled = true; sz.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 1.3f), new Keyframe(0.2f, 1f), new Keyframe(1, 0.5f)));
+            var em = ps.emission; em.SetBursts(new[] { new ParticleSystem.Burst(0, (short)n) });
+            ps.Play();
+        }
+
+        /// <summary>碎银：炸开范围里稀稀落落一闪一闪的小白点（闪烁 = 亮度曲线来回跳）</summary>
+        static void Glitter(Transform root, Vector3 p, float radius, float delay, int n)
+        {
+            var ps = FwChild(root, "Glitter", SkyMat, 2);
+            ps.transform.position = p;
+            var m = ps.main;
+            m.startDelay = delay; m.startLifetime = new ParticleSystem.MinMaxCurve(0.25f, 0.6f);
+            m.startSpeed = 0.1f; m.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.14f);
+            m.startColor = new Color(1f, 0.97f, 0.9f); m.gravityModifier = 0.05f; m.maxParticles = n;
+            var sh = ps.shape; sh.enabled = true; sh.shapeType = ParticleSystemShapeType.Sphere; sh.radius = radius; sh.radiusThickness = 0.5f;
+            var em = ps.emission; em.rateOverTime = n / 1.1f;
+            m.duration = 1.1f;
+            var col = ps.colorOverLifetime; col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                      new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, 0.15f), new GradientAlphaKey(0.1f, 0.35f), new GradientAlphaKey(1, 0.55f), new GradientAlphaKey(0, 1) });
+            col.color = g;
+            ps.Play();
         }
 
         /// <summary>

@@ -225,7 +225,7 @@ namespace PaperSiege
         {
             ending = true;
             Progress.Cleared = true;
-            if (sky) { arena.CeilingSkyRect(out var rc, out var rh); sky.Ending(5.5f, 13f, 5.0f, rc, rh); }
+            if (sky) { arena.CeilingSkyRect(out var rc, out var rh); sky.Ending(4.6f, 13f, 4.2f, rc, rh); }   // 4.2 s 天窗开始扩开、4.6 s 烟花节开场齐射
             var e = arena.enemy;
             yield return new WaitForSeconds(0.8f);
             if (!e) { yield return new WaitForSeconds(19f); if (phase == Phase.Won) result = ResultBoard.Build(this, true, true); yield break; }

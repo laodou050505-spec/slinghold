@@ -719,13 +719,14 @@ namespace PaperSiege.EditorTools
             float t0 = Time.time;
             // 抬头看天花板：从玩家位置往前上方 55°、广角（头显视场约 100°）
             var up = t.position + (D.arena.forward * 0.55f + Vector3.up).normalized * 3f;
-            foreach (var (at, name, sky) in new[] { (1.8f, "E1_晃", false), (3.8f, "E2_一层层垮", false), (6.6f, "E3_开口扩开中_抬头", true), (9.8f, "E4_满天烟花_抬头", true),
-                                                    (11.5f, "E5_散去中", false), (16.5f, "E6_天亮光柱_抬头", true), (18.0f, "E7_地上空了_光柱", false) })
+            foreach (var (at, name, sky) in new[] { (1.8f, "E1_晃", false), (3.8f, "E2_一层层垮", false), (6.6f, "E3a_烟花节开场齐射_抬头", true), (8.6f, "E3b_主秀_抬头", true),
+                                                    (11.5f, "E5_散去中", false), (14.2f, "E4_高潮_抬头", true), (16.9f, "E6_金柳收尾_抬头", true), (18.0f, "E7_地上空了_光柱", false) })
             {
                 while (Time.time - t0 < at) yield return null;
                 if (sky) { Snap(dir, name, t.position, up, 100f); SnapRoomless(dir, name + "_头显模拟", t.position, up, 100f); }
                 else SnapPlayer(dir, name);
-                Debug.Log($"[结局] {at:0.0}s {name} dawn={D.sky.dawn:0.00} 开口扩开={D.sky.Expanded} 敌城完整={D.arena.enemy.Integrity:0.00}");
+                int parts = 0; foreach (var ps in Object.FindObjectsByType<ParticleSystem>()) parts += ps.particleCount;
+                Debug.Log($"[结局] {at:0.0}s {name} dawn={D.sky.dawn:0.00} 开口扩开={D.sky.Expanded} 敌城完整={D.arena.enemy.Integrity:0.00} 烟花={Fx.FireworksAlive} 粒子={parts} 帧时={Time.smoothDeltaTime * 1000:0}ms");
             }
             while (Time.time - t0 < 23.5f) yield return null;   // 终章横木约 20 s 落下、1 秒多垂到位才能按
             var rb = GameObject.Find("ResultBoard");

@@ -234,7 +234,31 @@ namespace PaperSiege
         float idleFw;
 
         /// <summary>开口外的天上随机一点（烟花放这里，从头显看过去落在开口里）</summary>
-        Vector3 SkyPoint()
+        Vector3 SkyPoint() => SkyPoint(1f);
+
+        /// <summary>
+        /// 烟花节的炸点：按方向在整片天空里均匀撒（相对开口前方左右 ±75°、仰角 28°～82°），离眼睛 7～10 米；
+        /// 视线必须穿过天花板开口（开口外的炸点头显里看不到），取不到就退回 SkyPoint。
+        /// （第一版沿“开口里一点”往外推，炸点大多挤在视野下沿、头顶一大片空着）
+        /// </summary>
+        Vector3 ShowPoint()
+        {
+            var head = d && d.head ? d.head.transform.position : Vector3.up * 1.5f;
+            for (int k = 0; k < 16; k++)
+            {
+                var dir = Quaternion.AngleAxis(Random.Range(-75f, 75f), Vector3.up) * Quaternion.AngleAxis(-Random.Range(28f, 82f), lidRight) * lidFwd;
+                if (dir.y < 0.1f) continue;
+                var hit = head + dir * ((lidCeil - head.y) / dir.y) - lidCenter;
+                if (Mathf.Abs(Vector3.Dot(hit, lidRight)) > lidHalf.x * 0.92f || Mathf.Abs(Vector3.Dot(hit, lidFwd)) > lidHalf.y * 0.92f) continue;
+                var q = head + dir * Random.Range(7f, 10f);
+                q.y = Mathf.Max(q.y, lidCeil + 2.5f);
+                return q;
+            }
+            return SkyPoint(1.4f);
+        }
+
+        /// <summary>天上一个炸点：先在开口里取一点，再沿视线往外推 4～6 米 × far（烟花节用 far 1.5：更远更高、看着更大）</summary>
+        Vector3 SkyPoint(float far)
         {
             var head = d.head ? d.head.transform.position : Vector3.up * 1.5f;
             // 平时只在天窗前半段；结局开口铺满天花板后，整片天花板上哪儿都可能炸开（头顶正上方也有）
@@ -244,7 +268,7 @@ namespace PaperSiege
             p.y = lidCeil;
             // 沿“眼睛 → 开口里那一点”的视线再往外推 1～2 米：看起来在开口外的天上
             var dir = (p - head).normalized;
-            var q = p + dir * Random.Range(4.0f, 6.0f);
+            var q = p + dir * Random.Range(4.0f, 6.0f) * far;
             q.y = Mathf.Max(q.y, lidCeil + 2.0f);   // 整朵烟花（半径约 1.5 m）都在天花板以上，火星不会落进房间
             return q;
         }
@@ -316,17 +340,72 @@ namespace PaperSiege
             StartCoroutine(DawnRun(dawnAt, 9f));
             if (expandAt >= 0f && rh.x > 0f) StartCoroutine(ExpandLater(expandAt, rc, rh));
             yield return new WaitForSeconds(fireworksAt);
-            float t = 0;
-            while (t < EndingFireworks)
+            yield return FireworkShow();
+        }
+
+        // 烟花节的颜色：饱和、亮（叠加在真实房间上要显色）
+        static readonly Color[] FestColors =
+        {
+            new(1f, 0.32f, 0.28f), new(1f, 0.72f, 0.3f), new(0.45f, 1f, 0.45f), new(0.35f, 0.65f, 1f),
+            new(0.78f, 0.45f, 1f), new(1f, 0.45f, 0.75f), new(0.9f, 0.95f, 1f), new(0.3f, 0.95f, 0.95f),
+        };
+        static Color Fest() => FestColors[Random.Range(0, FestColors.Length)];
+        static Fx.FwKind AnyKind() { float r = Random.value; return r < 0.32f ? Fx.FwKind.Peony : r < 0.62f ? Fx.FwKind.Chrysanthemum : r < 0.76f ? Fx.FwKind.Ring : r < 0.9f ? Fx.FwKind.Crackle : Fx.FwKind.Willow; }
+
+        /// <summary>
+        /// 结局烟花节（11-27 第二轮，用户：截图里看不到烟花，要更壮观、像烟花节），共约 EndingFireworks 秒：
+        ///   ① 开场齐射：五支火箭从天窗各处同时蹿上去，一起炸开；
+        ///   ② 主秀：每 0.35～0.55 秒一两朵、花型轮换，每隔两秒多来一排同色扇形连发（从左到右一朵接一朵）；
+        ///   ③ 高潮：每 0.16 秒一朵、满天都是；
+        ///   ④ 收尾：一排金柳同时炸开，金色拖尾慢慢垂下来，再零星两朵碎银。
+        /// 同屏最多 Fx.FireworksCap 朵（头显帧率），超了自动跳过。
+        /// </summary>
+        IEnumerator FireworkShow()
+        {
+            float T0 = Time.time;
+            // ① 开场齐射
+            for (int i = 0; i < 5; i++)
             {
-                float k = t / EndingFireworks;
-                Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.45f, 1f));
-                if (k < 0.55f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.4f, 1f));        // 前一半一次两朵
-                if (k > 0.25f && k < 0.45f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.35f, 1f));   // 中间一段最密（高潮）
-                float w = Mathf.Lerp(0.32f, 1.1f, k * k);                                                 // 最后越放越稀
-                t += w;
-                yield return new WaitForSeconds(w);
+                Fx.Firework(ShowPoint(), Fest(), i % 2 == 0 ? Fx.FwKind.Chrysanthemum : Fx.FwKind.Peony, 1.3f, 1.0f, i == 0);
+                yield return new WaitForSeconds(0.06f);
             }
+            yield return new WaitForSeconds(1.4f);
+            // ② 主秀
+            float mainEnd = EndingFireworks - 5.5f, nextSalvo = Time.time + 1.6f;
+            while (Time.time - T0 < mainEnd)
+            {
+                if (Time.time >= nextSalvo)
+                {
+                    nextSalvo = Time.time + Random.Range(2.0f, 2.6f);
+                    var c = Fest(); var kind = Random.value < 0.5f ? Fx.FwKind.Peony : Fx.FwKind.Ring;
+                    // 扇形连发：在开口横向从一边到另一边排开
+                    float side = Random.value < 0.5f ? -1f : 1f;
+                    var c0 = ShowPoint();
+                    for (int i = 0; i < 5; i++)
+                    {
+                        var q = c0 + lidRight * side * Mathf.Lerp(-4f, 4f, i / 4f) + Vector3.up * Mathf.Sin(i / 4f * Mathf.PI) * 0.8f;   // 一排拱形
+                        Fx.Firework(q, c, kind, 1.05f, 0.6f, i % 2 == 0);
+                        yield return new WaitForSeconds(0.12f);
+                    }
+                }
+                Fx.Firework(ShowPoint(), Fest(), AnyKind(), Random.Range(0.95f, 1.3f), Random.Range(0.55f, 0.8f));
+                if (Random.value < 0.6f) Fx.Firework(ShowPoint(), Fest(), AnyKind(), Random.Range(0.85f, 1.15f), Random.Range(0.5f, 0.75f));
+                yield return new WaitForSeconds(Random.Range(0.35f, 0.55f));
+            }
+            // ③ 高潮
+            float climaxEnd = EndingFireworks - 3.2f;
+            while (Time.time - T0 < climaxEnd)
+            {
+                Fx.Firework(ShowPoint(), Fest(), Random.value < 0.5f ? Fx.FwKind.Peony : Fx.FwKind.Chrysanthemum, Random.Range(1.0f, 1.35f), 0.5f);
+                yield return new WaitForSeconds(0.13f);
+            }
+            // ④ 收尾：一排金柳 + 碎银
+            yield return new WaitForSeconds(0.5f);
+            for (int i = 0; i < 8; i++) { Fx.Firework(ShowPoint(), Color.white, Fx.FwKind.Willow, 1.4f, 0.8f, i % 2 == 0); yield return new WaitForSeconds(0.07f); }
+            yield return new WaitForSeconds(1.6f);
+            Fx.Firework(ShowPoint(), new Color(0.9f, 0.95f, 1f), Fx.FwKind.Crackle, 1.2f, 0.7f);
+            yield return new WaitForSeconds(0.3f);
+            Fx.Firework(ShowPoint(), new Color(1f, 0.8f, 0.5f), Fx.FwKind.Crackle, 1.1f, 0.7f);
         }
 
         IEnumerator ExpandLater(float at, Vector3 c, Vector2 h) { yield return new WaitForSeconds(at); yield return ExpandRun(c, h, 3.2f); }
