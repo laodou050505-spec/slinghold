@@ -58,7 +58,7 @@ open -na /Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app --args \
 - 菜单 **PaperSiege → Setup Project** = 一键重建工程设置（物理层、调参资源、积木库、主场景）。换机器或改坏了就跑这个。
 - 菜单 **PaperSiege → 打包 APK** = 一键打包（`Editor/PSBuild.cs`）：写 PICO 设置（透视 + 手势 + 眼动）、生成运行时着色器保底材质、填图标和两处启动画面（普通标志列表 + VR Splash Image）、IL2CPP / ARM64 出包到 `Builds/Slinghold_月日_时分.apk`。
   命令行：`cs.py 'PSBuild.BuildApkLater();'`，结果追加到 `/tmp/papersiege_build.txt`。
-- 应用图标是游戏里自己的城实拍：运行模式下 `cs.py 'PSBuild.MakeIcon();'` 重新生成 `Art/Icon/icon_1024.png`。
+- 应用图标 `Art/Icon/icon_1024.png`：11-27 定稿的插画（积木塔被木球击中，Tripo 生成后裁掉自带外框，原图和其他候选在本机 `ArtSource/Icon_1127/`，不进仓库）。打包时 `PSBuild.ApplyIcon()` 自动填进各尺寸。**不要再用 `PSBuild.MakeIcon()` 覆盖它**（那是旧的游戏实拍图标，现在只输出到 `Art/Icon/icon_ingame.png`）。
 - 英文系统里应用名显示 SLINGHOLD（`Assets/Plugins/Android/AppName.androidlib/res/values-en`），其它语言显示“木垒”。
 
 命令行工具（可选，开发用）：

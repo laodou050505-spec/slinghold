@@ -117,7 +117,8 @@ namespace PaperSiege.EditorTools
             RenderTexture.active = null;
             foreach (var g in hidden) if (g) g.SetActive(true);
             UnityEngine.Object.DestroyImmediate(bg); UnityEngine.Object.DestroyImmediate(cam.gameObject); rt.Release();
-            var full = Path.Combine(Path.GetDirectoryName(Application.dataPath), IconPath);
+            // 11-27 起正式图标是插画（icon_1024.png，别覆盖）；实拍版只另存一份备查
+            var full = Path.Combine(Path.GetDirectoryName(Application.dataPath), Path.Combine(Path.GetDirectoryName(IconPath), "icon_ingame.png"));
             Directory.CreateDirectory(Path.GetDirectoryName(full));
             File.WriteAllBytes(full, tex.EncodeToPNG());
             return full;
