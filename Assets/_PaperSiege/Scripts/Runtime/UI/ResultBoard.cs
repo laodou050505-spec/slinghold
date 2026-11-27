@@ -42,7 +42,7 @@ namespace PaperSiege
 
         public static ResultBoard Build(Director d, bool win) => Build(d, win, false);
 
-        /// <summary>finale = 终章（第十关打下王城、天亮之后）：“全胜”布旗 + “十城尽破” + 十关总星数，只留“回标题”</summary>
+        /// <summary>finale = 终章（第十关打下王城、天亮之后）：“全胜”布旗 + “全城尽破” + 全部关卡总星数，只留“回标题”</summary>
         public static ResultBoard Build(Director d, bool win, bool finale)
         {
             var r = new GameObject("ResultBoard").AddComponent<ResultBoard>();
@@ -121,9 +121,9 @@ namespace PaperSiege
             // 正面能写字的带：两个穿绳孔之间，y -0.008 ～ -0.036（模型坐标）
             if (finale)
             {
-                // 终章：“十城尽破” → 一颗金星 + 十关总星数
+                // 终章：“全城尽破” → 一颗金星 + 全部关卡总星数
                 var f0 = ReportLink.Build(hole, LinkGap + 0.016f, cover, 0, LinkScale);
-                f0.Text(new Vector3(0, -0.022f, 0), new Vector2(0.118f, 0.03f), 0.5f, ink).text = Loc.T("十城尽破");   // 四个字，字号放到和“回标题”差不多
+                f0.Text(new Vector3(0, -0.022f, 0), new Vector2(0.118f, 0.03f), 0.5f, ink).text = Loc.T("全城尽破");   // 四个字，字号放到和“回标题”差不多
                 links.Add(f0);
                 var f1 = ReportLink.Build(f0.BottomHole, LinkGap, cover, 1, 1.15f);
                 var st = Star(f1.look, new Vector3(-0.03f, -0.022f, -0.0058f), true);

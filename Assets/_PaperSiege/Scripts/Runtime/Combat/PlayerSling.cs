@@ -164,7 +164,7 @@ namespace PaperSiege
         void Update()
         {
             if (Director.I && Director.I.paused) return;   // 暂停：手上的操作一律不响应
-            if (!d || d.phase != Director.Phase.Battle) { if (state != State.Hidden) { state = State.Hidden; Show(false); } return; }
+            if (!d || d.phase != Director.Phase.Battle) { HandInput.KeepPinch[0] = false; if (state != State.Hidden) { state = State.Hidden; Show(false); } return; }
             input ??= HandInput.Instance;
             if (!input) return;
             cooldown -= Time.deltaTime;
@@ -189,6 +189,7 @@ namespace PaperSiege
                 else if (!L.tracked && L.lostFor > 0) { leftLostT += Time.deltaTime; if (leftLostT > IT.bowHoldOnLost) Drop(); }
                 else Drop();   // 左手松开捏合：收弓
             }
+            HandInput.KeepPinch[0] = state != State.Hidden && !OneHand;   // 举弓的左手一直捏着：不套用防粘连
             if (state == State.Hidden) return;
 
             // ── 右手：在桌上的弹盒里捏一颗 = 换弹（不架弓时也可以先选好）

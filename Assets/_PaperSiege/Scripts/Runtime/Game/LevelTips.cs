@@ -30,6 +30,39 @@ namespace PaperSiege
             d = Director.I;
             tip = HintTag.Build(d.head.transform);
             if (d.level.newAmmo.HasValue) StartCoroutine(NewAmmo(d.level.newAmmo.Value));
+            if (!string.IsNullOrEmpty(d.level.mechTip)) StartCoroutine(MechIntro(d.level.mechTip, d.level.mechPiece));
+            if (d.level.newAmmo == Ammo.Ice) iceCatapultTip = true;
+        }
+        bool iceCatapultTip;
+
+        /// <summary>
+        /// 机关登场（11-27）：城搭好后，说明木牌挂到这个机关正上方（在敌城上空、不挡自己城），机关自己闪 3 下暖光；
+        /// 12 秒或者机关已经触发就收起。和新弹说明一样只说一句、不打断对局。
+        /// </summary>
+        IEnumerator MechIntro(string zh, string piece)
+        {
+            yield return new WaitForSeconds(2.8f);   // 等城搭好
+            var e = d.arena.enemy;
+            if (!e) yield break;
+            var ms = e.blocks.FindAll(b => b && b.def != null && b.def.id == piece);
+            if (ms.Count == 0) yield break;
+            var bb = ms[0].WorldBounds; foreach (var m in ms) bb.Encapsulate(m.WorldBounds);
+            var mt = HintTag.Build(d.head.transform);
+            // 木牌挂在机关上方：敌城那么远，木牌要放大才看得清 —— 改挂到玩家和机关连线上、离眼睛 0.9 米处，正好叠在机关上方
+            var head = d.head.transform.position;
+            var dir = (bb.center + Vector3.up * bb.extents.y + Vector3.up * 0.35f - head).normalized;
+            mt.pin = head + dir * 0.9f;
+            mt.Show(zh);
+            for (float t = 0; t < 12f && d.phase == Director.Phase.Battle; t += Time.deltaTime)
+            {
+                float k = t < 3.6f ? Mathf.Max(0f, Mathf.Sin(t * Mathf.PI / 0.6f)) * 0.85f : 0f;   // 前 3.6 秒闪 3 下
+                foreach (var m in ms) if (m && !m.Dead) m.Hit(k);
+                if (ms.TrueForAll(m => !m || m.Dead || m.burning || m.Frozen || m.Displacement > 0.5f) && t > 2f) break;   // 已经触发了
+                yield return null;
+            }
+            mt.Show("");
+            yield return new WaitForSeconds(0.6f);
+            if (mt) Destroy(mt.gameObject);
         }
 
         void OnDestroy()
@@ -44,6 +77,8 @@ namespace PaperSiege
             if (!d || d.phase != Director.Phase.Battle) return;
             if (!saidFire && d.arena.mine.Burning.Count > 0) { saidFire = true; StartCoroutine(Say("着火了\n拍两下灭火", () => d.arena.mine.Burning.Count == 0, 10f)); }
             if (!saidEmpty && d.ammo.Total == 0) { saidEmpty = true; StartCoroutine(Say("没弹了\n接住敌弹来用", () => d.ammo.Total > 0, 8f)); }
+            // 冰丸登场那关：说完冰丸的效果后，投石机开始蓄力时提醒一句“冰丸也能冻住投石机”
+            if (iceCatapultTip && !stage && d.catapult && d.catapult.Winding && d.ammo.Count(Ammo.Ice) > 0) { iceCatapultTip = false; StartCoroutine(Say("冰丸也能冻住投石机", () => d.catapult.Frozen, 6f)); }
         }
 
         IEnumerator Say(string zh, System.Func<bool> until, float max)
@@ -62,7 +97,7 @@ namespace PaperSiege
             stage = new GameObject("AmmoDemo").transform;
             stage.SetPositionAndRotation(A.tableCenter + right * 0.31f + A.forward * 0.17f, Quaternion.LookRotation(A.forward));
             tag = HintTag.Build(d.head.transform);
-            tag.pin = stage.position + Vector3.up * 0.3f;
+            tag.pin = stage.position + Vector3.up * 0.36f;   // 木牌底边离样品积木留出一拳，摆动时也碰不到
             yield return new WaitForSeconds(1.2f);
             tag.Show(Effect(a));
             StartCoroutine(SwapGhost(a));

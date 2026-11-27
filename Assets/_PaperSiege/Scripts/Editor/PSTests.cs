@@ -516,7 +516,7 @@ namespace PaperSiege.EditorTools
             foreach (var r in Object.FindObjectsByType<Renderer>())
             {
                 var n = r.name;
-                if (n.StartsWith("Room") || n.StartsWith("Ceil") || n == "TableTopLook" || n == "Leg") { r.gameObject.SetActive(false); hidden.Add(r.gameObject); }
+                if (n.StartsWith("Room") || n.StartsWith("Ceil")) { r.gameObject.SetActive(false); hidden.Add(r.gameObject); }
             }
             var bg = cam.backgroundColor; var cf = cam.clearFlags;
             cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0, 0, 0, 0);
@@ -620,28 +620,27 @@ namespace PaperSiege.EditorTools
             D.arena.enemy.DamageKing(99, D.arena.enemy.transform.position - D.arena.forward);
             Debug.Log($"[结局] 打倒王城 phase={D.phase} ending={D.ending}");
             float t0 = Time.time;
-            foreach (var (at, name) in new[] { (1.6f, "E1_塌城"), (3.5f, "E2_烟花"), (6.5f, "E3_烟花渐稀"), (9.5f, "E4_天发白"), (12.5f, "E5_日出") })
+            foreach (var (at, name) in new[] { (1.8f, "E1_晃"), (3.8f, "E2_一层层垮"), (7.0f, "E3_烟花"), (10.5f, "E4_天亮光柱"), (12.5f, "E5_散去中"), (15.5f, "E6_地上空了") })
             {
                 while (Time.time - t0 < at) yield return null;
                 SnapPlayer(dir, name);
                 Debug.Log($"[结局] {at:0.0}s {name} dawn={D.sky.dawn:0.00} 敌城完整={D.arena.enemy.Integrity:0.00}");
             }
-            while (Time.time - t0 < 14.5f) yield return null;
+            while (Time.time - t0 < 18.0f) yield return null;
             var rb = GameObject.Find("ResultBoard");
             Debug.Log($"[结局] 终章横木={(rb != null)} 通关={Progress.Cleared} 总星={Progress.TotalStars} 按钮={string.Join("/", WoodButton.All.Where(b => b).Select(b => b.Key))}");
             if (rb)
             {
                 var rr = rb.transform.Find("Result");
                 var at2 = rr ? rr.position + Vector3.down * 0.12f : rb.transform.position;
-                SnapPlayerLook(dir, "E6_终章", at2);
-                Snap(dir, "E6_终章_近看", t.position, at2, 38);
-                Snap(dir, "E6_终章_头显像素", t.position, at2, 50.5f);
+                SnapPlayerLook(dir, "E7_终章", at2);
+                Snap(dir, "E7_终章_头显像素", t.position, at2, 50.5f);
             }
             yield return PressButton("回标题");
             yield return new WaitForSeconds(3f);
             Debug.Log($"[结局] 回标题后 phase={D.phase} 封面按钮={string.Join("/", WoodButton.All.Where(b => b).Select(b => b.Key))} dawn={D.sky.dawn:0.00} ending={D.ending}");
             t.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(10, 0, 0);
-            SnapPlayer(dir, "E7_封面");
+            SnapPlayer(dir, "E8_封面");
             Progress.Cleared = cleared0; Progress.Unlocked = unlocked0;
             Debug.Log("[结局] 完成");
         }
@@ -684,8 +683,16 @@ namespace PaperSiege.EditorTools
                 var at = pb.transform.position + Vector3.down * 0.09f;
                 SnapPlayerLook(dir, "P2_暂停板", at);
                 Snap(dir, "P2_暂停板_头显像素", t.position, at, 50.5f);
-                var g = GameObject.Find("Gesture_Catch");
-                if (g) for (int k = 0; k < 4; k++) { Snap(dir, $"P3_手势近看_{k}", t.position, pb.transform.position + Vector3.down * 0.07f + Vector3.Cross(Vector3.up, D.arena.forward) * -0.1f, 24); yield return new WaitForSecondsRealtime(0.55f); }
+                // 每块手势卡近拍一个完整循环（6 帧）：逐张核对动作和道具
+                foreach (var kind in new[] { "Raise", "Draw", "Swap", "Block", "Catch", "Repair", "PatOut" })
+                {
+                    var g = GameObject.Find("Gesture_" + kind);
+                    if (!g) continue;
+                    var card = g.transform.Find("Swing/Card");
+                    var c = card.position + card.up * -0.04f;
+                    var from = c - card.forward * 0.32f;
+                    for (int k = 0; k < 6; k++) { Snap(dir, $"P3_{kind}_{k}", from, c, 15f); yield return new WaitForSecondsRealtime(kind == "Draw" ? 0.47f : 0.37f); }
+                }
             }
             yield return PressRT("继续");
             yield return new WaitForSecondsRealtime(0.5f);
@@ -713,7 +720,7 @@ namespace PaperSiege.EditorTools
             foreach (var r in Object.FindObjectsByType<Renderer>())
             {
                 var n = r.name;
-                if (n.StartsWith("Room") || n.StartsWith("Ceil") || n == "TableTopLook" || n == "Leg") { r.gameObject.SetActive(false); hidden.Add(r.gameObject); }
+                if (n.StartsWith("Room") || n.StartsWith("Ceil")) { r.gameObject.SetActive(false); hidden.Add(r.gameObject); }
             }
             var cam = D.head;
             var bg = cam.backgroundColor; var cf = cam.clearFlags; var fov = cam.fieldOfView; var r0 = cam.transform.rotation;
@@ -755,6 +762,223 @@ namespace PaperSiege.EditorTools
             Debug.Log("[真实房间] " + SnapAlpha(dir, "R8_结局_天亮", pitch, vfov));
             Progress.Cleared = false;
             Debug.Log("[真实房间] 完成");
+        }
+
+        /// <summary>11-27 用户反馈逐项核对：新弹提示木牌（第 3 关火丸）、封面弹道线、天窗转角近景、结局光柱</summary>
+        public static string Check1127(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(Check1127Run(dir)); return "check started"; }
+
+        static System.Collections.IEnumerator Check1127Run(string dir)
+        {
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            var t = D.head.transform;
+            // 封面弹道线
+            D.GoTitle();
+            yield return new WaitForSeconds(3.5f);
+            var cv = GameObject.Find("CoverMenu/Cover");
+            t.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(4, -12, 0);
+            SnapPlayer(dir, "A1_封面_头显视场");
+            Snap(dir, "A2_封面弹道_头显像素", t.position, cv.transform.position + Vector3.up * 0.6f - Vector3.Cross(Vector3.up, D.arena.forward) * 0.55f, 50.5f);
+            // 新弹提示（第 3 关火丸）
+            Castle.InstantBuild = true; D.StartLevel(2); Castle.InstantBuild = false;
+            t.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(14, 0, 0);
+            yield return new WaitForSeconds(3.0f);
+            var ht = GameObject.Find("HintTag");
+            if (ht)
+            {
+                var tag = ht.transform.Find("Hang/Tag") ?? ht.transform;
+                Snap(dir, "B1_新弹木牌_头显像素", t.position, tag.position + Vector3.down * 0.06f, 50.5f);
+                SnapPlayer(dir, "B2_新弹木牌_全景");
+            }
+            // 天窗转角（左前角，抬头看）
+            yield return new WaitForSeconds(3.0f);
+            var lidC = D.sky.LidPoint(0, 0); var half = D.sky.LidHalfSize;
+            var corner = D.sky.LidPoint(-half.x, half.y * 0.2f);
+            Snap(dir, "C1_天窗边", t.position, corner, 30f);
+            Snap(dir, "C2_天窗转角", t.position, D.sky.LidPoint(-half.x, -half.y * 0.75f), 22f);
+            Snap(dir, "C3_天窗抬头", t.position, lidC, 90f);
+            Debug.Log("[核对] 完成");
+        }
+
+        /// <summary>11-27 版式核对：提示木牌（一行 / 两行 / 长句）正面近拍 + 菜单木签正面近拍</summary>
+        public static string TagLayout(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(TagLayoutRun(dir)); return "tags started"; }
+
+        static System.Collections.IEnumerator TagLayoutRun(string dir)
+        {
+            D.GoTitle();
+            yield return new WaitForSeconds(3.5f);
+            var t = D.head.transform;
+            var tags = Object.FindObjectsByType<HangTag>();
+            if (tags.Length > 0)
+            {
+                var tg = tags[0].transform.Find("Swing/Tag/Look");
+                Snap(dir, "T1_菜单木签_正面", tg.position - tg.forward * 0.25f + tg.up * -0.022f, tg.position + tg.up * -0.022f, 30f);
+            }
+            var ht = HintTag.Build(t);
+            ht.pin = t.position + D.arena.forward * 0.5f;
+            foreach (var (txt, name) in new[] { ("学会啦！", "H1_一行"), ("右手捏弹盒\n换上火丸", "H2_两行"), ("新弹：分裂丸\n空中一分为三", "H3_长句") })
+            {
+                ht.Show(txt);
+                yield return new WaitForSeconds(1.2f);
+                var tag = ht.transform.Find("Hang/Tag");
+                var c = tag.TransformPoint(new Vector3(0, -0.014f, 0));
+                Snap(dir, name, c - tag.forward * 0.45f, c, 16f);
+            }
+            Object.Destroy(ht.gameObject);
+            Debug.Log("[版式] 完成");
+        }
+
+        /// <summary>
+        /// 机关逐关验证（11-27）：每个机关关先截全景、再按设计的打法打（瞄准机关本身），记录机关是否触发、帅旗是否倒、城还剩多少；
+        /// 打法：5 草垛 = 火丸打最左草垛；6 火药桶 = 火丸打左桶；8 水桶 = 冰丸打桶 + 石丸打小堡；9 冰池 = 冰丸打池；
+        /// 11 连环 = 炸丸打第一只桶；12 拱桥 = 炸丸打拱心石；14 三钟 = 分裂丸打中间那口钟 + 石丸打帅旗；15 吊秤 = 分裂丸打右秤盘
+        /// </summary>
+        public static string MechCheck(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(MechRun(dir)); return "mech started"; }
+
+        static int Find(string piece, int nth = 0)
+        {
+            var e = D.arena.enemy; int k = 0;
+            for (int i = 0; i < e.blocks.Count; i++) if (e.blocks[i] && e.blocks[i].def.id == piece) { if (k == nth) return i; k++; }
+            return -1;
+        }
+
+        public static int MechBlown;
+        static string MechState()
+        {
+            var e = D.arena.enemy;
+            int hay = 0, hayBurnt = 0, keg = 0, kegGone = 0, frozen = 0;
+            foreach (var b in e.blocks) { if (!b) continue; if (b.def.id == "M_Hay") { hay++; if (b.burning || b.Dead) hayBurnt++; } if (b.def.id == "M_Keg") { keg++; if (b.Dead) kegGone++; } if (b.Frozen) frozen++; }
+            int blown = Mech.BlownCount;
+            return $"草垛 {hayBurnt}/{hay} 着  火药桶 {kegGone}/{keg} 没了（真炸 {blown} 次）  冻住 {frozen} 块  帅旗耐久 {e.kingHP}/{e.kingMaxHP} 倒={e.IsKingDown}  完整 {e.Integrity:0.00}  phase={D.phase}";
+        }
+
+        static System.Collections.IEnumerator Fire(Ammo a, int idx, float wait, bool high = false)
+        {
+            if (idx < 0 && idx != -1) yield break;
+            Shoot(a, idx, 5.5f, high);
+            yield return new WaitForSeconds(wait);
+        }
+
+        /// <summary>分裂丸要在飞过最高点后才分开：从更远、更高的地方打，分开后三颗正好落到目标附近</summary>
+        static System.Collections.IEnumerator FireAt(Ammo a, Vector3 tgt, float wait)
+        {
+            var from = D.arena.tableCenter + Vector3.up * 0.35f + D.arena.forward * 0.05f;
+            D.DebugShoot(a, from, tgt, 5.5f, a == Ammo.Split);
+            yield return new WaitForSeconds(wait);
+        }
+
+        static System.Collections.IEnumerator MechRun(string dir)
+        {
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            var t = D.head.transform;
+            foreach (int lv in new[] { 4, 5, 7, 8, 10, 11, 13, 14 })
+            {
+                Level(lv); Quiet();
+                foreach (var c in D.GetComponents<LevelTips>()) Object.Destroy(c);
+                D.arena.enemy.kingLocked = false;
+                t.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(12, 0, 0);
+                yield return new WaitForSeconds(2.0f);
+                var ov = Levels.Overlaps(Levels.Get(lv).enemy);
+                Debug.Log($"[机关] 第{lv + 1}关 {D.level.title} 块数 {D.arena.enemy.blocks.Count} 重叠 {ov.Count}{(ov.Count > 0 ? " " + ov[0] : "")}");
+                SnapEnemy(dir, $"M{lv + 1:00}_a_城");
+                switch (lv)
+                {
+                    case 4: yield return Fire(Ammo.Fire, Find("M_Hay", 0), 9f); break;
+                    case 5: yield return Fire(Ammo.Fire, Find("M_Keg", 0), 4f); yield return Fire(Ammo.Fire, Find("M_Keg", 1), 4f); break;
+                    case 7: yield return Fire(Ammo.Ice, Find("M_Bucket"), 1.5f); yield return Fire(Ammo.Stone, -1, 2f, true); yield return Fire(Ammo.Stone, Find("S_Cube", 3), 3f); break;
+                    case 8: { var pond = D.arena.enemy.blocks[Find("M_Trough")]; yield return FireAt(Ammo.Ice, pond.WorldBounds.center - D.arena.forward * pond.WorldBounds.extents.z * 0.75f, 6f); break; }
+                    case 10: yield return Fire(Ammo.Bomb, Find("M_Keg", 0), 5f); break;
+                    case 11: yield return Fire(Ammo.Bomb, Find("M_Keystone"), 5f); break;
+                    case 13: { var bells = D.arena.enemy.blocks.FindAll(b => b && b.def.id == "M_Bell"); var mid = bells.OrderBy(b => Mathf.Abs(b.transform.localPosition.x)).First();
+                               yield return FireAt(Ammo.Split, mid.WorldBounds.center, 4f); yield return Fire(Ammo.Stone, -1, 4f, true); break; }
+                    case 14: { var beam = D.arena.enemy.blocks[Find("M_ScaleBeam")].transform; var pan = beam.TransformPoint(new Vector3(2.0f, -1.3f, 0) * BlockLibrary.G);
+                               // 分裂丸两发 + 石丸一发，都打 B 盘（压够 3 发重就翻）
+                               yield return FireAt(Ammo.Split, pan, 2.5f); yield return FireAt(Ammo.Split, pan, 2.5f); yield return FireAt(Ammo.Stone, pan, 4f); break; }
+                }
+                SnapEnemy(dir, $"M{lv + 1:00}_b_触发后");
+                Debug.Log($"[机关] 第{lv + 1}关 结果：{MechState()}");
+            }
+            Debug.Log("[机关] 完成");
+        }
+
+        /// <summary>吊秤单测（按游戏时间）：单发最大角度、回弹；隔 1.6 秒两发不翻；0.25 秒三发掀翻帅旗</summary>
+        public static string ScaleCheck() { D.StartCoroutine(ScaleRun()); return "scale started"; }
+        static System.Collections.IEnumerator ScaleRun()
+        {
+            Level(14); Quiet();
+            foreach (var c in D.GetComponents<LevelTips>()) Object.Destroy(c);
+            yield return new WaitForSeconds(2f);
+            var e = D.arena.enemy; var m = e.blocks.Find(b => b && b.def.id == "M_ScaleBeam").mech;
+            m.DebugKick(1); yield return new WaitForSeconds(2.5f);
+            Debug.Log($"[秤测] 1 发重：停在 {m.ScaleAngle:0.0}° 翻={m.ScaleLaunched}");
+            m.DebugKick(1); yield return new WaitForSeconds(2.5f);
+            Debug.Log($"[秤测] 2 发重：停在 {m.ScaleAngle:0.0}° 翻={m.ScaleLaunched}");
+            m.DebugKick(1); yield return new WaitForSeconds(4f);
+            Debug.Log($"[秤测] 3 发重：翻={m.ScaleLaunched} 帅旗倒={e.IsKingDown} phase={D.phase}");
+            Debug.Log("[秤测] 完成");
+        }
+
+        /// <summary>量分裂丸三颗的落点散开宽度（打第 14 关钟架中间，低弧 / 高弧各一次）</summary>
+        public static string SplitSpread() { D.StartCoroutine(SplitRun()); return "split started"; }
+        static System.Collections.IEnumerator SplitRun()
+        {
+            Level(13); Quiet();
+            foreach (var c in D.GetComponents<LevelTips>()) Object.Destroy(c);
+            yield return new WaitForSeconds(2f);
+            var e = D.arena.enemy; var bell = e.blocks.Find(b => b && b.def.id == "M_Bell" && Mathf.Abs(b.transform.localPosition.x) < 0.01f);
+            var tgt = bell.WorldBounds.center;
+            var pts = new System.Collections.Generic.List<Vector3>();
+            System.Action<Ammo, Vector3, Block, Side> h = (a, p, b, s) => { if (s == Side.Player) pts.Add(p); };
+            Projectile.Impacted += h;
+            foreach (bool high in new[] { false, true })
+            {
+                pts.Clear();
+                var from = D.arena.tableCenter + Vector3.up * 0.35f + D.arena.forward * 0.05f;
+                D.DebugShoot(Ammo.Split, from, tgt, 5.5f, high);
+                yield return new WaitForSeconds(4f);
+                var r = Vector3.Cross(Vector3.up, D.arena.forward);
+                var xs = pts.Select(p => Vector3.Dot(p - tgt, r) / e.unit).OrderBy(x => x).ToArray();
+                Debug.Log($"[分裂] {(high ? "高弧" : "低弧")} 落点 {pts.Count} 颗，相对中间那口钟横向（格）：{string.Join(", ", xs.Select(x => x.ToString("0.0")))}");
+            }
+            Projectile.Impacted -= h;
+            Debug.Log("[分裂] 完成");
+        }
+
+        /// <summary>冰池单测：冰丸打池子后每 0.5 秒记录楼脚 / 帅旗的位置、是否醒着</summary>
+        public static string PondCheck() { D.StartCoroutine(PondRun()); return "pond started"; }
+        static System.Collections.IEnumerator PondRun()
+        {
+            Level(8); Quiet();
+            foreach (var c in D.GetComponents<LevelTips>()) Object.Destroy(c);
+            yield return new WaitForSeconds(2f);
+            var e = D.arena.enemy;
+            var pond = e.blocks.Find(b => b && b.def.id == "M_Trough");
+            var legs = e.blocks.FindAll(b => b && b.def.id == "W_Pillar" && b.homePos.y - e.transform.position.y < 1f * e.unit);
+            var front = pond.WorldBounds.center - D.arena.forward * pond.WorldBounds.extents.z * 0.75f;   // 楼前面露出来的那片水面
+            D.DebugShoot(Ammo.Ice, D.arena.tableCenter + Vector3.up * 0.35f, front, 5.5f, false);
+            for (float t = 0; t < 6f; t += 0.5f)
+            {
+                yield return new WaitForSeconds(0.5f);
+                Debug.Log($"[冰池] {t + 0.5f:0.0}s 池冻={pond.Frozen} 楼脚 {string.Join(" / ", legs.Select(l => $"位移 {l.Displacement:0.00} 醒={l.Dynamic}"))} 帅旗 位移 {e.king.Displacement:0.00} 醒={e.king.Dynamic} 倒={e.IsKingDown}");
+            }
+            Debug.Log("[冰池] 完成");
+        }
+
+        /// <summary>18 关全景：每关玩家视角一张（城搭好、盒盖掀开后）</summary>
+        public static string LevelShots(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(LevelShotsRun(dir)); return "shots started"; }
+        static System.Collections.IEnumerator LevelShotsRun(string dir)
+        {
+            SimHands.scripted = true; SimHands.Hide(0); SimHands.Hide(1);
+            D.head.transform.rotation = Quaternion.LookRotation(D.arena.forward) * Quaternion.Euler(10, 0, 0);
+            for (int i = 0; i < Levels.Count; i++)
+            {
+                Level(i); Quiet();
+                foreach (var c in D.GetComponents<Tutorial>()) Object.Destroy(c);
+                foreach (var c in D.GetComponents<LevelTips>()) Object.Destroy(c);
+                yield return new WaitForSeconds(4.5f);
+                SnapPlayer(dir, $"L{i + 1:00}");
+                SnapEnemy(dir, $"L{i + 1:00}_敌城");
+            }
+            Debug.Log("[全景] 完成");
         }
 
         /// <summary>从玩家眼睛的位置看向某处（模拟低头看），视场角和头显接近</summary>
@@ -1279,6 +1503,52 @@ namespace PaperSiege.EditorTools
             c.name = "XR Camera";
             c.transform.position = p0; c.transform.rotation = r0; c.fieldOfView = f0;
             return path;
+        }
+
+        /// <summary>虚拟桌（11-27）：玩家挪开 0.8 m 重摆场地 → 旧桌拆、新桌搭，侧面逐帧拍；再从玩家视角拍桌面 + 城，最后模拟头显（藏替身房间、透明背景）</summary>
+        public static string TableCheck(string dir) { foreach (var dp in Object.FindObjectsByType<DesktopPlay>()) Object.Destroy(dp); D.StartCoroutine(TableRun(dir)); return "table started"; }
+        static System.Collections.IEnumerator TableRun(string dir)
+        {
+            var h = D.head.transform;
+            void X(string m) => Debug.Log("[桌] " + m);
+            yield return new WaitForSeconds(1.5f);
+            var old = Object.FindObjectsByType<VirtualTable>();
+            X($"开局虚拟桌 {old.Length} 张 桌面中心 {D.arena.tableCenter:F2} 头 {h.position:F2} 真实桌={D.arena.usingRealTable}");
+            var r = Vector3.Cross(Vector3.up, D.arena.forward);
+            var c0 = D.arena.tableCenter;
+            h.position += r * 0.8f;
+            D.arena.Layout();
+            var c1 = D.arena.tableCenter;
+            var mid = (c0 + c1) * 0.5f; mid.y = 0.45f;
+            var eye = mid - D.arena.forward * 1.9f + r * 0.4f + Vector3.up * 0.75f;
+            for (int i = 0; i < 14; i++)
+            {
+                Snap(dir, $"1_过程_{i:00}", eye, mid, 50);
+                yield return new WaitForSeconds(0.12f);
+            }
+            yield return new WaitForSeconds(0.5f);
+            Snap(dir, "1_过程_终", eye, mid, 50);
+            X($"重摆后虚拟桌 {Object.FindObjectsByType<VirtualTable>().Length} 张 新中心 {c1:F2}");
+            h.position -= r * 0.8f;
+            D.arena.Layout();
+            yield return new WaitForSeconds(2f);
+            Castle.InstantBuild = true; D.StartLevel(1); Castle.InstantBuild = false;
+            foreach (var c in D.GetComponents<LevelTips>()) Object.Destroy(c);
+            D.catapult.Stop();
+            yield return new WaitForSeconds(1.5f);
+            var tc = D.arena.tableCenter;
+            SnapPlayerLook(dir, "2_玩家看桌", tc + D.arena.forward * 0.05f);
+            Snap(dir, "3_近看桌角", tc + Quaternion.LookRotation(D.arena.forward) * new Vector3(0.75f, 0.05f, -0.55f), tc + Quaternion.LookRotation(D.arena.forward) * new Vector3(0.3f, -0.35f, -0.2f), 50);
+            Snap(dir, "4_侧面全桌", tc + Quaternion.LookRotation(D.arena.forward) * new Vector3(1.6f, -0.2f, 0.2f), tc - Vector3.up * 0.4f, 50);
+            // 模拟头显：替身房间藏掉、透明背景
+            var hidden = new System.Collections.Generic.List<GameObject>();
+            foreach (var rr in Object.FindObjectsByType<Renderer>()) { var n = rr.name; if (n.StartsWith("Room") || n.StartsWith("Ceil")) { rr.gameObject.SetActive(false); hidden.Add(rr.gameObject); } }
+            var cam = D.head; var bg = cam.backgroundColor; var cf = cam.clearFlags;
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.5f, 0.5f, 0.5f, 1f);
+            Snap(dir, "5_头显模拟_侧面", tc + Quaternion.LookRotation(D.arena.forward) * new Vector3(1.6f, -0.2f, 0.2f), tc - Vector3.up * 0.4f, 50);
+            cam.backgroundColor = bg; cam.clearFlags = cf;
+            foreach (var g in hidden) g.SetActive(true);
+            X("完成");
         }
 
         public static string SnapPlayer(string dir, string name) => Snap(dir, name, D.head.transform.position, D.head.transform.position + D.head.transform.forward, D.head.fieldOfView);

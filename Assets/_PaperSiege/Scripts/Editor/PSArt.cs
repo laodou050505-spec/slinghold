@@ -58,6 +58,63 @@ namespace PaperSiege.EditorTools
         public static Material Mat(string name) => AssetDatabase.LoadAssetAtPath<Material>($"{MatDir}/{name}.mat");
 
         /// <summary>封面道具（旗杆、木签横臂、大灯笼、木签）：ArtSource/Models/cover → Resources/Cover，建材质 M_Cover（同一个积木着色器，颜色全烘在 albedo 里）</summary>
+        /// <summary>关卡机关（11-27）：ArtSource/Models/mech → Resources/Mech（mech.fbx + 三张图 + M_Mech 材质，和封面道具同一种着色器）</summary>
+        public static string SyncMech()
+        {
+            string src = Path.Combine(Proj, "ArtSource/Models/mech");
+            string dst = Path.Combine(Proj, "Assets/_PaperSiege/Resources/Mech");
+            Directory.CreateDirectory(dst);
+            File.Copy(Path.Combine(src, "mech.fbx"), Path.Combine(dst, "mech.fbx"), true);
+            foreach (var n in new[] { "mech_albedo", "mech_mask", "mech_normal" }) File.Copy(Path.Combine(src, "tex", n + ".png"), Path.Combine(dst, n + ".png"), true);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            const string path = "Assets/_PaperSiege/Resources/Mech/M_Mech.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (!m) { m = new Material(Shader.Find("PaperSiege/Block")); AssetDatabase.CreateAsset(m, path); }
+            Texture T(string n) => AssetDatabase.LoadAssetAtPath<Texture>($"Assets/_PaperSiege/Resources/Mech/{n}.png");
+            m.SetTexture("_Albedo", T("mech_albedo"));
+            m.SetTexture("_Mask", T("mech_mask"));
+            m.SetTexture("_Normal", T("mech_normal"));
+            m.SetFloat("_PaintCover", 0f);
+            m.SetFloat("_EmissionStrength", 0f);
+            m.SetColor("_ShadowTint", new Color(0.72f, 0.66f, 0.76f));
+            m.SetFloat("_Ambient", 1.1f);
+            m.enableInstancing = true;
+            EditorUtility.SetDirty(m);
+            AssetDatabase.SaveAssets();
+            var sb = new System.Text.StringBuilder();
+            foreach (var o in AssetDatabase.LoadAllAssetsAtPath("Assets/_PaperSiege/Resources/Mech/mech.fbx"))
+                if (o is Mesh mesh) sb.AppendLine($"{mesh.name} 包围盒中心 {mesh.bounds.center / BlockLibrary.G:F2} 尺寸 {mesh.bounds.size / BlockLibrary.G:F2}（格）三角面 {mesh.triangles.Length / 3}");
+            return sb.ToString();
+        }
+
+        /// <summary>虚拟木桌（11-27）：ArtSource/Models/table → Resources/Table，建 M_Table 材质（同积木着色器）</summary>
+        public static string SyncTable()
+        {
+            string src = Path.Combine(Proj, "ArtSource/Models/table");
+            string dst = Path.Combine(Proj, "Assets/_PaperSiege/Resources/Table");
+            Directory.CreateDirectory(dst);
+            File.Copy(Path.Combine(src, "table.fbx"), Path.Combine(dst, "table.fbx"), true);
+            foreach (var n in new[] { "table_albedo", "table_mask", "table_normal" }) File.Copy(Path.Combine(src, "tex", n + ".png"), Path.Combine(dst, n + ".png"), true);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            const string path = "Assets/_PaperSiege/Resources/Table/M_Table.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (!m) { m = new Material(Shader.Find("PaperSiege/Block")); AssetDatabase.CreateAsset(m, path); }
+            Texture T(string n) => AssetDatabase.LoadAssetAtPath<Texture>($"Assets/_PaperSiege/Resources/Table/{n}.png");
+            m.SetTexture("_Albedo", T("table_albedo"));
+            m.SetTexture("_Mask", T("table_mask"));
+            m.SetTexture("_Normal", T("table_normal"));
+            m.SetFloat("_PaintCover", 0f);
+            m.SetFloat("_EmissionStrength", 0f);
+            m.SetColor("_ShadowTint", new Color(0.72f, 0.66f, 0.76f));
+            m.SetFloat("_Ambient", 1.1f);
+            EditorUtility.SetDirty(m);
+            AssetDatabase.SaveAssets();
+            var sb = new System.Text.StringBuilder();
+            foreach (var o in AssetDatabase.LoadAllAssetsAtPath("Assets/_PaperSiege/Resources/Table/table.fbx"))
+                if (o is Mesh mesh) sb.AppendLine($"{mesh.name} 包围盒中心 {mesh.bounds.center:F3} 尺寸 {mesh.bounds.size:F3}（米）三角面 {mesh.triangles.Length / 3}");
+            return sb.ToString();
+        }
+
         public static void SyncCover()
         {
             string src = Path.Combine(Proj, "ArtSource/Models/cover");

@@ -43,7 +43,13 @@ namespace PaperSiege
         public string Diag { get; private set; } = "";
 
         // ── 编辑器假手（SimHands 写入）。真机上 XRSettings.isDeviceActive 时不用。
-        public static bool Sim => Application.isEditor || !XRSettings.isDeviceActive;
+        /// <summary>
+        /// 只在编辑器里、而且没连头显时才用假手。11-27：原来是“编辑器 或 XR 设备没激活”——头显开机头几帧 XR 还没就绪，
+        /// 模拟手（SimHands）在 Start 里就会被启用，之后游戏读的是键盘假手 → 头显里什么都点不了（《摘星》11-26 真机就出过同类问题）
+        /// </summary>
+        public static bool Sim => Application.isEditor && !XRSettings.isDeviceActive;
+        /// <summary>这只手的捏合是“一直捏着”的用法（左手举弓），不套用“捏太久不动就当松手”的防粘连规则</summary>
+        public static readonly bool[] KeepPinch = new bool[2];
         public static readonly Hand[] SimHand = new Hand[2];
         /// <summary>测试脚本可以指定假眼动射线（null = 没有眼动，退回头部朝向）</summary>
         public static Ray? SimGaze;
@@ -63,7 +69,14 @@ namespace PaperSiege
         bool eyeStarted; float eyeRetry;
         Vector3 gazeDir;
 
-        void Awake() { Instance = this; }
+        float lastEyeOkT = -9f;
+
+        void Awake()
+        {
+            Instance = this;
+            // 读眼动前要给每只眼的数据结构写上 API 版本号，否则真机上取数可能一直无效（照 PICO 官方 PXR_EyeGazeCursorDriver；《摘星》11-26 真机修复）
+            for (int i = 0; i < eye.eyeDatas.Length; i++) eye.eyeDatas[i].SetVersion(PXR_MotionTracking.PXR_EYE_TRACKING_API_VERSION);
+        }
         void OnDestroy() { if (Instance == this) Instance = null; }
         void OnDisable()
         {
@@ -195,7 +208,8 @@ namespace PaperSiege
                 if (rawPinch[side])
                 {
                     if ((pp - anchorP[side]).sqrMagnitude > 0.025f * 0.025f) { anchorP[side] = pp; anchorT[side] = Time.time; }
-                    if (Time.time - pinchT0[side] > T.staleAfter && Time.time - anchorT[side] > 1.5f) { rawPinch[side] = false; stale[side] = true; }
+                    // 防粘连：捏了很久又一直不动 → 当成追踪粘住了、算松手。举弓的手本来就要一直捏着不动，不能套用（11-27：否则举弓 13 秒多弓就自己掉了）
+                    if (!KeepPinch[side] && Time.time - pinchT0[side] > T.staleAfter && Time.time - anchorT[side] > 1.5f) { rawPinch[side] = false; stale[side] = true; }
                 }
             }
             var palm = (wrist + prox[0] + prox[1] + prox[3]) * 0.25f;
@@ -229,14 +243,21 @@ namespace PaperSiege
                     var cmb = eye.eyeDatas[(int)PerEyeUsage.Combined];
                     if (cmb.isPoseValid != 0 && !(cmb.isOpennessValid != 0 && cmb.openness < 0.2f))
                     {
-                        var o = new Vector3(cmb.pose.position.x, cmb.pose.position.y, -cmb.pose.position.z);
                         var q = new Quaternion(cmb.pose.orientation.x, cmb.pose.orientation.y, -cmb.pose.orientation.z, -cmb.pose.orientation.w);
-                        target = new Ray(World(o), (WorldRot(q) * Vector3.forward).normalized);
-                        EyeTracked = true;
+                        var dir = (WorldRot(q) * Vector3.forward).normalized;
+                        // 视线原点用相机中心（和 PICO 官方一致，没有眼位偏移视差）；方向和头的朝向差超过 70° 当成无效数据
+                        if (Vector3.Angle(dir, t.forward) < 70f)
+                        {
+                            target = new Ray(t.position, dir);
+                            EyeTracked = true;
+                            lastEyeOkT = Time.unscaledTime;
+                        }
                     }
                 }
             }
-            float k = 1f - Mathf.Exp(-Time.deltaTime / 0.035f);
+            // 眨眼宽限 220 ms：保持上一帧的视线，不让高亮的按钮一眨眼就掉
+            if (!EyeTracked && gazeDir != Vector3.zero && Time.unscaledTime - lastEyeOkT < 0.22f) { EyeTracked = true; Gaze = new Ray(t.position, gazeDir.normalized); return; }
+            float k = 1f - Mathf.Exp(-Time.unscaledDeltaTime / 0.035f);
             gazeDir = gazeDir == Vector3.zero ? target.direction : Vector3.Slerp(gazeDir, target.direction, k);
             Gaze = new Ray(target.origin, gazeDir.normalized);
         }

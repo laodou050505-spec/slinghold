@@ -9,9 +9,9 @@ namespace PaperSiege
     {
         [Header("捏合（滞回）")]
         [Tooltip("拇指尖到食指尖小于这个距离算捏住（米）。WarTable 真机实测：真捏时读数 2.1～3.2 cm")]
-        public float pinchOn = 0.040f;
+        public float pinchOn = 0.028f;   // 11-27：照《摘星》11-26 头显实测（同一台机器）：4 cm 时自然张开的手也会误触发
         [Tooltip("大于这个距离才算松开（米）。真机松开的手读数 5.1～6.6 cm")]
-        public float pinchOff = 0.055f;
+        public float pinchOff = 0.042f;  // 同上：5.5 cm 松手判定太晚，像粘住了
         [Tooltip("捏着且手几乎不动超过这么久，按“手指自然蜷着、其实已经松手”处理（秒）。拉弓瞄准时可能长时间不动，所以给长一点")]
         public float staleAfter = 12f;
 
@@ -53,7 +53,7 @@ namespace PaperSiege
 
         [Header("灭火")]
         [Tooltip("拍打判定的手掌速度（米/秒）")]
-        public float patSpeed = 1.2f;
+        public float patSpeed = 0.9f;   // 11-27：1.2 m/s 要拍得很猛（真人对着小玩具城拍不了那么重），降到 0.9
         [Tooltip("拍到着火块的距离（米）")]
         public float patRadius = 0.07f;
 

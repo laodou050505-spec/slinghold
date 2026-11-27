@@ -234,8 +234,10 @@ namespace PaperSiege
             var lr = new GameObject("Arc").AddComponent<LineRenderer>();
             lr.transform.SetParent(fx, false);
             lr.useWorldSpace = false; lr.positionCount = 32;
-            var mat = new Material(Mat("M_Dots")); mat.mainTextureScale = new Vector2(70f, 1f);   // 每米约 70 个点
-            lr.sharedMaterial = mat; lr.textureMode = LineTextureMode.Tile; lr.widthMultiplier = 0.0055f;
+            // 11-27 用户：“封面的辅助线怎么没了”——其实一直在，只是 5.5 mm 宽、每米 70 个小点，在头显分辨率下糊没了 → 加宽到 1 cm、点放大、颜色压深
+            var mat = new Material(Mat("M_Dots")); mat.mainTextureScale = new Vector2(34f, 1f);   // 每米约 34 个点
+            mat.color = new Color(0.62f, 0.22f, 0.16f, 1f);
+            lr.sharedMaterial = mat; lr.textureMode = LineTextureMode.Tile; lr.widthMultiplier = 0.010f;
             lr.alignment = LineAlignment.View; lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             for (int i = 0; i < 32; i++)
             {
@@ -247,7 +249,7 @@ namespace PaperSiege
             {
                 var q = GameObject.CreatePrimitive(PrimitiveType.Quad); Destroy(q.GetComponent<Collider>());
                 q.name = "Cross"; q.transform.SetParent(lr.transform, false);
-                q.transform.localPosition = b; q.transform.localScale = Vector3.one * 0.022f;
+                q.transform.localPosition = b; q.transform.localScale = Vector3.one * 0.03f;
                 q.GetComponent<MeshRenderer>().sharedMaterial = Mat("M_Cross");
                 q.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
@@ -325,8 +327,8 @@ namespace PaperSiege
                     bool open = i <= Progress.Unlocked;
                     var p = open ? Palette.WoodPaints[i % Palette.WoodPaints.Length] : Paint.Bare;
                     var b = WoodButton.Build("W_Cube", p, new Vector3(0.048f, 0.048f, 0.048f), (i + 1).ToString(), row, 0.5f);
-                    int c = i % 5, r = i / 5;
-                    b.transform.localPosition = new Vector3(0.10f + c * 0.07f, 0.27f - r * 0.085f, -0.08f - c * 0.012f);
+                    int c = i % 6, r = i / 6;   // 18 关：6 列 × 3 排（一排就是两个时段）
+                    b.transform.localPosition = new Vector3(0.08f + c * 0.064f, 0.29f - r * 0.078f, -0.08f - c * 0.011f);
                     b.transform.localRotation = Quaternion.Euler(0, -8f - c * 2f, (i * 37 % 7) - 3);
                     b.remote = true; b.interactable = open; b.pressRadius = 0.035f;
                     b.onPress = () => Begin(lv);
@@ -449,6 +451,7 @@ namespace PaperSiege
         float cordLen, seed, kick, tickA;
         string key;
         const float TagCenter = 0.022f;    // 穿绳孔到木签中心
+        const float TextY = -0.0227f;      // 字块中心（模型坐标：原点在上穿绳孔上方，上下两孔之间的版心中心）
 
         public static HangTag Build(Transform parent, Vector3 knot, float cordLen, Mesh mesh, Material mat, int index)
         {
@@ -473,10 +476,11 @@ namespace PaperSiege
             var mr = look.AddComponent<MeshRenderer>(); mr.sharedMaterial = mat;
             // 字：木签正面（-Z），比中心略低一点（让开穿绳孔）
             var tg = new GameObject("Text"); tg.transform.SetParent(look.transform, false);
-            tg.transform.localPosition = new Vector3(0, -TagCenter - 0.005f, -0.0053f);
+            // 版心 = 上孔下沿（−0.85 cm）到下孔上沿（−3.68 cm）：中心 −2.27 cm、高 2.8 cm。字块上下左右都居中（11-27：原来低了 4 mm，文字框还高过版心会压到孔）
+            tg.transform.localPosition = new Vector3(0, TextY, -0.0053f);
             h.text = tg.AddComponent<TextMeshPro>();
             h.text.font = Fonts.Type;
-            h.text.rectTransform.sizeDelta = new Vector2(0.114f, 0.039f);
+            h.text.rectTransform.sizeDelta = new Vector2(0.112f, 0.024f);
             h.text.enableAutoSizing = true; h.text.fontSizeMin = 0.02f; h.text.fontSizeMax = 0.26f;
             h.text.fontStyle = FontStyles.Bold;
             h.text.alignment = TextAlignmentOptions.Center; h.text.textWrappingMode = TextWrappingModes.NoWrap; h.text.lineSpacing = -32f;
@@ -487,7 +491,7 @@ namespace PaperSiege
             h.tick.useWorldSpace = false; h.tick.positionCount = 6; h.tick.widthMultiplier = 0.0022f;
             h.tick.sharedMaterial = new Material(Resources.Load<Material>("Cover/M_Cord")) { color = new Color(0.66f, 0.29f, 0.23f) };
             h.tick.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            for (int i = 0; i < 6; i++) { float u = i / 5f; h.tick.SetPosition(i, new Vector3(-0.046f + 0.092f * u, -TagCenter - 0.0175f + Mathf.Sin(u * 7f) * 0.0012f - u * 0.002f, -0.0056f)); }
+            for (int i = 0; i < 6; i++) { float u = i / 5f; h.tick.SetPosition(i, new Vector3(-0.046f + 0.092f * u, TextY - 0.0105f + Mathf.Sin(u * 7f) * 0.0012f - u * 0.002f, -0.0056f)); }   // 字下面一道，不碰底孔
             h.tick.enabled = false;
             h.button = WoodButton.Attach(bgo, look.transform, mr, new Vector3(0.13f, 0.052f, 0.012f), h.text, null);
             h.button.remote = true; h.button.pressRadius = 0.05f;

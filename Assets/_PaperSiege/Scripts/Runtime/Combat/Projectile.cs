@@ -221,9 +221,15 @@ namespace PaperSiege
             Impact(p, block, c.relativeVelocity);
         }
 
+        /// <summary>弹落地 / 打中东西（关卡机关用：水桶被冰丸打、钟被敲、秤盘挨打……）</summary>
+        public static event System.Action<Ammo, Vector3, Block, Side> Impacted;
+        /// <summary>爆炸（炸丸 / 火药桶）：中心、半径</summary>
+        public static event System.Action<Vector3, float> Exploded;
+
         void Impact(Vector3 p, Block block, Vector3 relVel)
         {
             state = State.Spent;
+            Impacted?.Invoke(type, p, block, from);
             gameObject.layer = Layers.Shot;
             var castle = block ? block.castle : NearestCastle(p);
             float unit = castle ? castle.unit : BlockLibrary.G;
@@ -252,6 +258,8 @@ namespace PaperSiege
                     Fx.Sparkle(p, new Color(1f, 0.6f, 0.2f), unit * 0.6f);
                     var target = block && block.Wood ? block : NearestWood(p, 1.3f * unit);
                     if (target) { target.fireGen = 0; target.Ignite(); }
+                    // 落点 1.3 格内的火药桶、草垛：一起点着（易燃物，火星溅到就着）
+                    foreach (var nb in BlocksNear(p, 1.3f * unit)) if (nb.mech && (nb.mech.kind == Mech.Kind.Keg || nb.mech.kind == Mech.Kind.Hay) && !nb.burning) { nb.fireGen = 0; nb.Ignite(); }
                     if (castle) castle.WakeAround(p, 0.8f * unit, block);
                     break;
                 default:
@@ -272,6 +280,7 @@ namespace PaperSiege
         {
             var T = GameTuning.I;
             Fx.Explosion(p, r);
+            Exploded?.Invoke(p, r);
             var blocks = BlocksNear(p, r);
             var castles = new HashSet<Castle>();
             foreach (var b in blocks) if (b.castle) castles.Add(b.castle);
@@ -281,6 +290,7 @@ namespace PaperSiege
                 if (b.isKing) { b.castle?.DamageKing(2, p); continue; }   // 炸丸：帅旗 -2（不炸碎、不推飞）
                 float d = Vector3.Distance(b.WorldBounds.ClosestPoint(p), p) / r;
                 // 冻脆的块：范围内全碎（冰 + 炸 = 碎一大片）；石块和木块：离得近的碎
+                if (b.mech && (b.mech.Scripted || b.mech.kind == Mech.Kind.Keg)) continue;   // 机关件（冰池、钟、秤、草垛）不会被炸碎；火药桶不炸碎，由它自己的连环逻辑接着炸
                 if (b.Frozen || (b.def.mat == Mat.Stone && d < 0.55f) || (b.def.mat == Mat.Wood && d < 0.4f && !b.isKing)) { b.Shatter(); continue; }
                 if (b.rb && !b.rb.isKinematic)
                 {

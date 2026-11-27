@@ -227,7 +227,8 @@ namespace PaperSiege
         IEnumerator PatOut()
         {
             var mine = d.arena.mine;
-            var burn = mine.blocks.Find(b => b && b.Wood && !b.Dead && !b.isKing && !b.burning && b.name == "W_Cube")
+            // 点着城门顶上那块雉堞：顶面露在外面、在正中间，火看得清、手拍得到（以前挑的方块被窗块压着，火很小、也拍不着）
+            var burn = mine.blocks.Find(b => b && !b.Dead && !b.burning && b.name == "W_Battlement")
                     ?? mine.blocks.Find(b => b && b.Wood && !b.Dead && !b.isKing && !b.burning);
             if (!burn) yield break;
             float bs = mine.BurnSeconds, sc = mine.SpreadChance;

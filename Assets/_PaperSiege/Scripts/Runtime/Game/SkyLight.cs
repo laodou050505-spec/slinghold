@@ -10,7 +10,7 @@ namespace PaperSiege
 {
     public static class LidRim
     {
-        const float Lip = 0.07f, LipT = 0.022f, WallH = 0.14f, WallT = 0.025f;
+        public const float Lip = 0.07f, LipT = 0.022f, WallH = 0.14f, WallT = 0.025f;
 
         /// <summary>开口（中心 center、天花板高 ceilY、宽 w、长 l）四周的原木框</summary>
         public static GameObject Build(Transform parent, Vector3 center, Vector3 fwd, float ceilY, float w, float l)
@@ -24,26 +24,28 @@ namespace PaperSiege
             var right = Vector3.Cross(Vector3.up, fwd);
             var c = new Vector3(center.x, ceilY, center.z);
             // 四条边：每条边的中点、沿边方向、朝外方向、边长
-            var sides = new (Vector3 mid, Vector3 along, Vector3 outN, float len)[]
+            // 四条边：前后两条横跨整个宽度并盖住四个转角，左右两条夹在中间、只到转角为止 —— 转角对接、不重叠
+            // （11-27 用户截图：原来四条都伸到转角，两两重叠、共面闪烁，看着像穿模）
+            var sides = new (Vector3 mid, Vector3 along, Vector3 outN, float len, bool full)[]
             {
-                (c + fwd * (l / 2), right, fwd, w),
-                (c - fwd * (l / 2), right, -fwd, w),
-                (c + right * (w / 2), fwd, right, l),
-                (c - right * (w / 2), fwd, -right, l),
+                (c + fwd * (l / 2), right, fwd, w, true),
+                (c - fwd * (l / 2), right, -fwd, w, true),
+                (c + right * (w / 2), fwd, right, l, false),
+                (c - right * (w / 2), fwd, -right, l, false),
             };
             const float bx = 3 * BlockLibrary.G, by = 0.4f * BlockLibrary.G, bz = 0.8f * BlockLibrary.G;   // W_Beam 尺寸（长沿 X、原点在底面）
-            foreach (var (mid, along, outN, len) in sides)
+            foreach (var (mid, along, outN, len, full) in sides)
             {
                 // 内壁：竖着的木板，内表面和开口边齐平，从天花板往上伸
                 var wall = Plank(root.transform, beam.lod1, mat, "Wall");
                 wall.rotation = Quaternion.LookRotation(Vector3.up, -outN);         // 本地 Z = 上，本地 Y = 朝里（木板从原点往 +Y 长厚度）
                 wall.position = mid + outN * WallT + Vector3.up * (WallH * 0.5f - 0.01f);
-                wall.localScale = new Vector3((len + 2 * WallT) / bx, WallT / by, WallH / bz);
+                wall.localScale = new Vector3((full ? len + 2 * WallT : len - 0.002f) / bx, WallT / by, (WallH - (full ? 0f : 0.004f)) / bz);
                 // 边框：贴着天花板往外伸的一圈木条（比天花板略低一点点，盖住开口的切边）
                 var lip = Plank(root.transform, beam.lod1, mat, "Lip");
                 lip.rotation = Quaternion.LookRotation(outN, Vector3.down);           // 本地 Z = 朝外，本地 Y = 朝下（厚度往下长）
                 lip.position = mid + outN * (Lip * 0.5f) + Vector3.up * 0.004f;
-                lip.localScale = new Vector3((len + 2 * Lip) / bx, LipT / by, Lip / bz);
+                lip.localScale = new Vector3((full ? len + 2 * Lip : len - 0.002f) / bx, (LipT - (full ? 0f : 0.002f)) / by, Lip / bz);   // 夹在中间的两条薄 2 mm，底面不和横跨的两条共面
             }
             return root;
         }
@@ -100,39 +102,53 @@ namespace PaperSiege
             built = true;
             var A = d.arena;
             var f = A.forward; var r = Vector3.Cross(Vector3.up, f);
-            // 清晨太阳在东边偏左（Times[0].sunAz）→ 光往反方向斜着往下照，约 60° 俯角
-            var hs = Quaternion.AngleAxis(SkyDome.Times[0].sunAz, Vector3.up) * f;
-            Dir = (-hs * 0.58f + Vector3.down).normalized;
+            // 11-27 用户：光束不能只在天窗尽头，要自然。原来太阳在前方、光往玩家这边斜，为了照到敌城只能把起点挤到天窗最远那头。
+            // 现在：清晨的阳光从玩家身后偏左斜照进来（约 30° 斜度），光柱均匀铺满整片天窗、一起往前落，正好照在倒下的王城那一带；
+            // 起点在盒沿里面（天花板以上 12 cm），看着是从天窗照进来的，不是凭空从天花板长出来。
+            Dir = (f * 0.52f + r * 0.16f + Vector3.down).normalized;
             float ceil = A.ceilingHeight;
-            var e = A.enemy ? A.enemy.transform.position : A.tableCenter + f * 3.8f;
             var sh = Shader.Find("PaperSiege/LightShaft");
             if (!sh) return;
             var rng = new System.Random(7);
             float R(float a, float b) => a + (float)rng.NextDouble() * (b - a);
-            for (int i = 0; i < 5; i++)
+            var half = sky.LidHalfSize;
+            // 分层抖动：沿天窗长边 5 段、短边 3 段，每格一道；再加 3 道很宽很淡的“空气光”垫底
+            // 只用天窗中段到远端（纵向 −0.3 ～ 0.95）：靠玩家那一头就在头顶上，光柱会贴着脸、整片冲白（11-27 第一版过曝）
+            int nz = 4, nx = 3;
+            for (int iz = 0; iz < nz; iz++)
+                for (int ix = 0; ix < nx; ix++)
+                {
+                    if (rng.NextDouble() < 0.3) continue;   // 随机缺几道，不像栅栏
+                    float u = ((ix + R(0.15f, 0.85f)) / nx) * 2 - 1, v = Mathf.Lerp(-0.3f, 0.95f, (iz + R(0.15f, 0.85f)) / nz);
+                    var top = sky.LidPoint(u * (half.x - 0.15f), v * (half.y - 0.15f)) + Vector3.up * 0.12f;
+                    AddShaft(top, (top.y + 0.02f) / -Dir.y, R(0.1f, 0.22f), R(0.38f, 0.55f), r, f, sh, R(0, 10), R(0, 6));
+                }
+            for (int i = 0; i < 2; i++)
             {
-                var end = new Vector3(e.x, e.y, e.z) + r * R(-0.7f, 0.7f) + f * R(-0.5f, 0.4f);
-                var org = end - Dir * ((ceil - end.y) / -Dir.y);
-                org = sky.ClampToLid(org, 0.18f);                     // 光一定是从开口里照进来的
-                float len = (ceil - e.y) / -Dir.y;
-                end = org + Dir * len;
-                var go = new GameObject("LightShaft");
-                go.transform.SetParent(transform, false);
-                go.transform.SetPositionAndRotation(org, Quaternion.LookRotation(Dir, Vector3.Cross(Dir, r).sqrMagnitude > 1e-4f ? r : f));
-                go.AddComponent<MeshFilter>().sharedMesh = ShaftMesh(len, R(0.16f, 0.26f), R(0.3f, 0.45f));
-                var mr = go.AddComponent<MeshRenderer>();
-                var m = new Material(sh);
-                m.SetColor("_Color", Color.Lerp(new Color(1f, 0.82f, 0.55f), new Color(1f, 0.9f, 0.72f), R(0, 1)));
-                m.SetFloat("_Seed", R(0, 10));
-                m.SetFloat("_Intensity", 0);
-                mr.sharedMaterial = m;
-                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
-                shafts.Add((go, m, R(0, 6)));
+                var top = sky.LidPoint(R(-0.3f, 0.3f) * half.x, (0.15f + i * 0.45f) * half.y) + Vector3.up * 0.12f;
+                AddShaft(top, (top.y + 0.02f) / -Dir.y, R(0.6f, 0.8f), 0.16f, r, f, sh, R(0, 10), R(0, 6));
             }
-            // 浮尘：敌城上方、光柱经过的那一块空间里慢慢飘的小亮点
-            var mid = new Vector3(e.x, (ceil + e.y) * 0.5f, e.z) - Dir * 0.2f;
-            motes = Fx.Motes(mid, new Vector3(1.6f, ceil - e.y - 0.3f, 1.2f), new Color(1f, 0.9f, 0.7f));
+            // 浮尘：天窗下面、光柱经过的那片空间
+            var c = sky.LidPoint(0, 0); c.y = ceil * 0.5f; c += Dir * 0.3f;
+            motes = Fx.Motes(c, new Vector3(half.x * 1.6f, ceil - 0.4f, half.y * 1.6f), new Color(1f, 0.9f, 0.7f));
             motes.transform.SetParent(transform, true);
+            motes.transform.rotation = Quaternion.LookRotation(f, Vector3.up);
+        }
+
+        void AddShaft(Vector3 org, float len, float width, float gain, Vector3 r, Vector3 f, Shader sh, float seed, float phase)
+        {
+            var go = new GameObject("LightShaft");
+            go.transform.SetParent(transform, false);
+            go.transform.SetPositionAndRotation(org, Quaternion.LookRotation(Dir, r));
+            go.AddComponent<MeshFilter>().sharedMesh = ShaftMesh(len, width * 0.85f, width * 1.15f);
+            var mr = go.AddComponent<MeshRenderer>();
+            var m = new Material(sh);
+            m.SetColor("_Color", Color.Lerp(new Color(1f, 0.82f, 0.55f), new Color(1f, 0.9f, 0.72f), Mathf.Repeat(seed, 1f)) * gain);
+            m.SetFloat("_Seed", seed);
+            m.SetFloat("_Intensity", 0);
+            mr.sharedMaterial = m;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
+            shafts.Add((go, m, phase));
         }
 
         /// <summary>两片交叉的长条（沿本地 +Z 从 0 到 len），上窄下宽；uv.y：0 = 天花板、1 = 地上</summary>

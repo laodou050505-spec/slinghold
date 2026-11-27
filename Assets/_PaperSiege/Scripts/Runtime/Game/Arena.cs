@@ -42,8 +42,18 @@ namespace PaperSiege
             }
             else
             {
-                tableCenter = new Vector3(hp.x, T.tableHeight, hp.z) + forward * 0.5f;
+                // 虚拟桌高按玩家眼高定：站着（眼高约 1.6 m）≈ 0.95 m，坐着（约 1.2 m）≈ 0.6 m；读不到合理眼高时用默认 0.85 m
+                float th = hp.y > 0.9f && hp.y < 2.3f ? Mathf.Clamp(hp.y - 0.62f, 0.6f, 0.95f) : T.tableHeight;
+                tableCenter = new Vector3(hp.x, th, hp.z) + forward * 0.5f;
+                tableSize = new Vector2(0.9f, 0.6f);
                 usingRealTable = false;
+                // 已经有一张虚拟桌、新位置只差一点（玩家挪了几步 / 系统事件误报）：沿用旧桌，不拆了重搭
+                if (vtable && Vector3.Distance(vtable.transform.position, tableCenter) < 0.25f
+                    && Vector3.Angle(vtable.transform.forward, forward) < 15f)
+                {
+                    tableCenter = vtable.transform.position;
+                    forward = vtable.transform.forward;
+                }
             }
             // 天花板：系统扫描里读到就用它（盒盖 / 字标 / 天空开口都以它为准），否则默认 2.5 m
             float ceil = room ? room.CeilingAbove(hp) : 0f;
@@ -110,6 +120,7 @@ namespace PaperSiege
 
         /// <summary>这一局用的是不是系统扫描出来的真桌子</summary>
         public bool usingRealTable { get; private set; }
+        VirtualTable vtable;
 
         void BuildEnv()
         {
@@ -127,7 +138,16 @@ namespace PaperSiege
             table.transform.SetParent(env.transform, false);
             table.transform.SetPositionAndRotation(tableCenter - Vector3.up * 0.02f, rot);
             table.AddComponent<BoxCollider>().size = new Vector3(tableSize.x, 0.04f, tableSize.y);
-            // 编辑器占位房间
+            // 看得见的桌子：读到真实桌子就不画；没有就立一张虚拟木桌（编辑器、头显同一张，搭建有过程）
+            var vtPos = tableCenter;
+            bool keep = vtable && !usingRealTable && (vtable.transform.position - vtPos).sqrMagnitude < 0.0004f
+                        && Quaternion.Angle(vtable.transform.rotation, rot) < 2f;
+            if (!keep)
+            {
+                if (vtable) vtable.Dismantle();
+                vtable = usingRealTable ? null : VirtualTable.Build(transform, vtPos, rot, tableSize);
+            }
+            // 编辑器占位房间（墙 / 地板 / 天花板替身，只在编辑器里）
             if (HandInput.Sim) EditorRoom(rot);
             // 盒盖：盖在玩家和敌城之间那片天花板上（宽 2.4 m、长 = 敌城距离 + 1.2 m）
             if (sky) sky.BuildLid(new Vector3(tableCenter.x, 0, tableCenter.z) + forward * (enemyDistance * 0.5f + 0.2f), forward, ceilingHeight, 2.4f, enemyDistance + 1.2f);
@@ -144,16 +164,14 @@ namespace PaperSiege
             // 占位天花板（盒盖那片之外的部分）：四块拼成一个框，中间留出盒盖的位置
             var cc = new Vector3(tableCenter.x, ceilingHeight + 0.03f, tableCenter.z) + forward * 1.5f;
             var r = Vector3.Cross(Vector3.up, forward);
-            Prim("CeilL", cc - r * 2.1f, new Vector3(1.8f, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
-            Prim("CeilR", cc + r * 2.1f, new Vector3(1.8f, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
-            float lidL = enemyDistance + 1.2f, lidC = enemyDistance * 0.5f + 0.2f - 1.5f;
+            // 中间留出盒盖的洞，洞比开口每边大 3 cm：替身天花板的切边藏在盒沿内壁后面（11-27：原来切边和内壁共面，闪成一道灰条像穿模）
+            const float m = LidRim.WallT + 0.005f;
+            Prim("CeilL", cc - r * (2.1f + m / 2), new Vector3(1.8f - m, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
+            Prim("CeilR", cc + r * (2.1f + m / 2), new Vector3(1.8f - m, 0.06f, 7.5f), rot, new Color(0.9f, 0.89f, 0.86f));
+            float lidL = enemyDistance + 1.2f + 2 * m, lidC = enemyDistance * 0.5f + 0.2f - 1.5f;
             float back = (7.5f / 2) - (lidC + lidL / 2), front = (7.5f / 2) + (lidC - lidL / 2);
-            if (back > 0.01f) Prim("CeilB", cc + forward * (7.5f / 2 - back / 2), new Vector3(2.4f, 0.06f, back), rot, new Color(0.9f, 0.89f, 0.86f));
-            if (front > 0.01f) Prim("CeilF", cc - forward * (7.5f / 2 - front / 2), new Vector3(2.4f, 0.06f, front), rot, new Color(0.9f, 0.89f, 0.86f));
-            var legH = tableCenter.y - 0.04f;
-            Prim("TableTopLook", tableCenter - Vector3.up * 0.02f, new Vector3(tableSize.x, 0.04f, tableSize.y), rot, new Color(0.48f, 0.33f, 0.21f));
-            foreach (var (sx, sz) in new[] { (-1, -1), (1, -1), (-1, 1), (1, 1) })
-                Prim("Leg", tableCenter + rot * new Vector3(sx * (tableSize.x / 2 - 0.04f), 0, sz * (tableSize.y / 2 - 0.04f)) - Vector3.up * (0.04f + legH / 2), new Vector3(0.05f, legH, 0.05f), rot, new Color(0.42f, 0.29f, 0.18f));
+            if (back > 0.01f) Prim("CeilB", cc + forward * (7.5f / 2 - back / 2), new Vector3(2.4f + 2 * m, 0.06f, back), rot, new Color(0.9f, 0.89f, 0.86f));
+            if (front > 0.01f) Prim("CeilF", cc - forward * (7.5f / 2 - front / 2), new Vector3(2.4f + 2 * m, 0.06f, front), rot, new Color(0.9f, 0.89f, 0.86f));
         }
 
         void Prim(string name, Vector3 pos, Vector3 size, Quaternion rot, Color c)

@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f3849efed7e994d8a9007f32cf43dcc5, type: 3}
   m_Name: InputTuning
   m_EditorClassIdentifier: Assembly-CSharp::PaperSiege.InputTuning
-  pinchOn: 0.04
-  pinchOff: 0.055
+  pinchOn: 0.028
+  pinchOff: 0.042
   staleAfter: 12
   curlRatio: 1.22
   extendRatio: 1.45
@@ -28,7 +28,7 @@ MonoBehaviour:
   releaseOnLost: 1
   catchRadius: 0.2
   catchHover: 0.6
-  patSpeed: 1.2
+  patSpeed: 0.9
   patRadius: 0.07
   grabRadius: 0.04
   snapDistance: 0.04

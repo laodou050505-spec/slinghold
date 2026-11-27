@@ -305,6 +305,59 @@ def gen_collapse(i):
     return finish(add_reverb(buf, 0.16, rt60=0.6, size=1.0), rms_db=-15)
 
 
+def gen_tremble(i):
+    """王城晃动（结局）：1.6 秒越来越响的低沉隆隆 + 一阵阵木头吱嘎 + 几下小积木互相磕"""
+    rng = np.random.default_rng(750 + i)
+    dur = 1.8
+    n = int(dur * SR)
+    t = T(dur)
+    grow = np.clip(t / 1.6, 0, 1) ** 1.5
+    rumble = lp(rng.standard_normal(n), 120, 2) * (0.3 + 0.7 * grow) * (1 + 0.4 * np.sin(2 * np.pi * 7 * t))
+    buf = hp(rumble, 45, 2) * 1.4
+    for k in range(6):
+        t0 = 0.15 + k * 0.25 + rng.uniform(-0.05, 0.05)
+        m = int(0.22 * SR)
+        imp = np.zeros(m)
+        s0 = 0.0
+        while s0 < 0.2:
+            imp[int(s0 * SR)] += rng.uniform(0.4, 1.0)
+            s0 += rng.uniform(0.008, 0.025)
+        put(buf, bp(imp, 350, 1000, 2) * (0.3 + 0.7 * min(1, t0 / 1.6)), t0, 0.7)
+    for k in range(5):
+        put(buf, small_tap(rng), rng.uniform(0.6, 1.6), 0.25)
+    return finish(add_reverb(buf, 0.14, rt60=0.6), rms_db=-19)
+
+
+def gen_fuse(i):
+    """火药桶引信：嗤嗤的火星声（中频噪声颗粒，越烧越密），约 1.3 秒"""
+    rng = np.random.default_rng(760 + i)
+    dur = 1.35
+    n = int(dur * SR)
+    t = T(dur)
+    imp = np.zeros(n)
+    tt = 0.0
+    while tt < dur - 0.05:
+        imp[int(tt * SR)] += rng.uniform(0.3, 1.0)
+        tt += rng.exponential(0.03 * (1.2 - 0.7 * tt / dur))
+    crack = bp(imp, 1500, 4200, 2) * 1.5
+    hiss = bp(rng.standard_normal(n), 900, 2600, 2) * 0.18 * np.clip(t / 0.15, 0, 1)
+    x = lp(crack + hiss, 4500, 2)
+    return finish(add_reverb(x, 0.08), rms_db=-23)
+
+
+def gen_bell(i):
+    """铜钟：青铜钟的非谐泛音（嗡音 0.5、基音 1、小三度 1.2、五度 1.5、八度 2……），长余音"""
+    rng = np.random.default_rng(770 + i)
+    dur = 3.2
+    f0 = [392.0, 466.16, 523.25][i % 3]
+    modes = [(f0 * 0.5, 0.55, 2.4), (f0, 1.0, 1.6), (f0 * 1.19, 0.5, 1.1), (f0 * 1.5, 0.35, 0.9), (f0 * 2.0, 0.3, 0.7), (f0 * 2.51, 0.16, 0.45), (f0 * 3.0, 0.1, 0.3)]
+    x = modal(dur, modes, rng, attack=0.002)
+    n = len(x)
+    x += lp(rng.standard_normal(n), 2500, 2) * env(n, 0.0005, 0.006) * 0.5   # 锤子敲上去的“咔”
+    x *= 1 + 0.06 * np.sin(2 * np.pi * 4.5 * T(dur))[:n]                     # 嗡嗡的拍音
+    return finish(add_reverb(x, 0.2, rt60=1.2, size=1.5), rms_db=-20)
+
+
 def gen_bomb(i):
     """炸丸：卡通的“嘭”（低频下滑 + 闷的噪声团），后面跟一阵碎木屑落下；不刺耳、不吓人"""
     rng = np.random.default_rng(800 + i)
@@ -514,6 +567,9 @@ SFX = {
     'stone_hit': (gen_stone_hit, 3),
     'clatter': (gen_clatter, 3),
     'collapse': (gen_collapse, 1),
+    'tremble': (gen_tremble, 1),
+    'fuse': (gen_fuse, 1),
+    'bell': (gen_bell, 3),
     'bomb': (gen_bomb, 2),
     'ice': (gen_ice, 2),
     'fire': (gen_fire, 2),

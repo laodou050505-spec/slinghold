@@ -376,6 +376,33 @@ namespace PaperSiege
             SkyDome.Flash(c);
         }
 
+        /// <summary>
+        /// 小火苗（手势卡上的“灭火”示意）：和积木着火同一张手绘火苗序列帧，一直循环；用真实时间（暂停时也在动）。
+        /// size = 火苗高度（米）。返回粒子系统，调 Stop / Play 让它缩下去 / 再着起来。
+        /// </summary>
+        public static ParticleSystem MiniFlame(Transform parent, Vector3 localPos, float size)
+        {
+            var fl = Child(parent, "MiniFlame", FlameMat, -20);
+            fl.transform.localPosition = localPos;
+            fl.GetComponent<ParticleSystemRenderer>().pivot = new Vector3(0, 0.45f, 0);
+            var m = fl.main;
+            m.simulationSpace = ParticleSystemSimulationSpace.Local;
+            m.useUnscaledTime = true;
+            m.loop = true;
+            m.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.75f);
+            m.startSize = new ParticleSystem.MinMaxCurve(size * 0.8f, size * 1.15f);
+            m.startRotation = new ParticleSystem.MinMaxCurve(-0.12f, 0.12f);
+            m.startSpeed = 0f;
+            m.maxParticles = 8;
+            var em = fl.emission; em.rateOverTime = 7f;
+            var sh = fl.shape; sh.enabled = true; sh.shapeType = ParticleSystemShapeType.Box; sh.scale = new Vector3(size * 0.6f, 0.001f, 0.001f);
+            Sheet(fl, 4, 2, true);
+            var sz = fl.sizeOverLifetime; sz.enabled = true;
+            sz.size = new ParticleSystem.MinMaxCurve(1, new AnimationCurve(new Keyframe(0, 0.35f), new Keyframe(0.22f, 1f), new Keyframe(0.7f, 0.85f), new Keyframe(1, 0f)));
+            fl.Play();
+            return fl;
+        }
+
         /// <summary>浮尘：一块空间（中心 center、大小 size）里慢慢飘的小亮点，持续发射（发射率由调用方控制）</summary>
         public static ParticleSystem Motes(Vector3 center, Vector3 size, Color c)
         {

@@ -92,6 +92,19 @@ namespace PaperSiege
             Add("W_Cone", Mat.Wood, new Vector3(1.3f, 1.95f, 1.3f), new Box(0, 0.4f, 0, 1.1f, 0.8f, 1.1f), new Box(0, 1.2f, 0, 0.6f, 0.8f, 0.6f));
             Add("S_Wall", Mat.Stone, new Vector3(2, 1, 1));
             Add("S_Shield", Mat.Stone, new Vector3(3, 2, 0.5f));
+            // ── 关卡机关（11-27：一种弹配几种机关；模型在 Resources/Mech，由 Tools/blender/ps_props.py 的 mech 模式生成）
+            Add("M_Hay", Mat.Wood, new Vector3(1.1f, 0.8f, 0.9f));                                                       // 草垛：烧得快、一碰就着
+            Add("M_Keg", Mat.Wood, new Vector3(0.85f, 1.0f, 0.85f), new Box(0, 0.5f, 0, 0.8f, 1.0f, 0.8f));                  // 火药桶：着火 / 被炸 → 爆
+            Add("M_Bucket", Mat.Wood, new Vector3(1.0f, 0.7f, 1.0f), new Box(0, 0.35f, 0, 0.95f, 0.7f, 0.95f));              // 水桶：冰丸打中 → 周围冻脆
+            Add("M_Trough", Mat.Wood, new Vector3(4.0f, 0.22f, 2.2f), new Box(0, 0.11f, 0, 3.95f, 0.22f, 2.15f));          // 浅水池：冰丸打中 → 结冰，上面的塔打滑（碰撞盒顶 = 水面 0.22 格，木框边沿高出 0.12 格只是外观）
+            Add("M_Keystone", Mat.Stone, new Vector3(0.7f, 0.6f, 1.0f), new Box(0, 0.3f, 0, 0.6f, 0.6f, 0.95f));            // 拱心石：炸掉 → 拱上的整片塌
+            Add("M_Bell", Mat.Stone, new Vector3(0.7f, 0.8f, 0.7f), new Box(0, -0.42f, 0, 0.62f, 0.76f, 0.62f));             // 铜钟（原点在顶上挂环，往下垂）
+            Add("M_BellFrame", Mat.Wood, new Vector3(4.4f, 2.4f, 0.8f),
+                new Box(-2.05f, 1.15f, 0, 0.3f, 2.3f, 0.3f), new Box(2.05f, 1.15f, 0, 0.3f, 2.3f, 0.3f), new Box(0, 2.25f, 0, 4.4f, 0.3f, 0.35f));   // 钟架（三个挂钩 x = −1.7 / 0 / +1.7：和分裂丸高抛三颗的散开宽度对上）
+            Add("M_ScalePost", Mat.Wood, new Vector3(0.9f, 2.0f, 0.9f), new Box(0, 0.1f, 0, 0.9f, 0.2f, 0.9f), new Box(0, 1.05f, 0, 0.5f, 1.9f, 0.5f));   // 吊秤立柱
+            Add("M_ScaleBeam", Mat.Wood, new Vector3(4.5f, 1.5f, 0.9f),
+                new Box(0, 0, 0, 4.5f, 0.25f, 0.3f), new Box(-2.0f, -1.3f, 0, 0.9f, 0.12f, 0.9f), new Box(2.0f, -1.3f, 0, 0.9f, 0.12f, 0.9f));   // 秤杆 + 两只秤盘（原点在转轴）
+
             // 帅旗灯笼：底座 + 旗杆（模型由道具组提供，没有时用占位）
             // 帅旗：底座 + 旗杆 + 旗面（旗面挂在 2.425 格高处、向 +X 伸出 0.9 格；打中旗面也算打中帅旗）
             Add("King", Mat.Wood, new Vector3(0.8f, 2.8f, 0.8f), new Box(0, 0.175f, 0, 0.78f, 0.35f, 0.78f), new Box(0, 1.55f, 0, 0.14f, 2.4f, 0.14f), new Box(0.44f, 2.45f, 0, 0.9f, 0.62f, 0.16f));   // 旗面 = 露在外面的命中区（约等于旗子本身，要瞄得准）

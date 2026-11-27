@@ -12,7 +12,7 @@ namespace PaperSiege.EditorTools
         [MenuItem("PaperSiege/桌面试玩（鼠标 + 键盘模拟双手）")]
         public static void Manual() => Play(false);
 
-        [MenuItem("PaperSiege/直接看结局（进度设到第十关并自动打下王城）")]
+        [MenuItem("PaperSiege/直接看结局（进度设到最后一关并自动打下王城）")]
         public static void Ending()
         {
             Progress.Unlocked = Levels.Count - 1;
@@ -20,7 +20,7 @@ namespace PaperSiege.EditorTools
             Play(false);
         }
 
-        [MenuItem("PaperSiege/进度设到第十关（自己打）")]
+        [MenuItem("PaperSiege/进度设到最后一关（自己打）")]
         public static void ToLastLevel() { Progress.Unlocked = Levels.Count - 1; Play(false); }
 
         [MenuItem("PaperSiege/清空存档进度")]

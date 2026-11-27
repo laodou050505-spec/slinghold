@@ -13,7 +13,9 @@ namespace PaperSiege.EditorTools
         const string ArtRoot = "Assets/_PaperSiege/Art/";
 
         const string CoverRoot = "Assets/_PaperSiege/Resources/Cover/";
-        static bool IsArt(string p) { p = p.Replace('\\', '/'); return p.StartsWith(ArtRoot) || p.StartsWith(CoverRoot); }
+        // 11-27 补：关卡机关（Resources/Mech）、虚拟桌（Resources/Table）原来不在这里，法线 / 遮罩图被当成 sRGB 颜色图导入、模型也没写描边用的平滑法线
+        static readonly string[] ExtraRoots = { "Assets/_PaperSiege/Resources/Mech/", "Assets/_PaperSiege/Resources/Table/" };
+        static bool IsArt(string p) { p = p.Replace('\\', '/'); if (p.StartsWith(ArtRoot) || p.StartsWith(CoverRoot)) return true; foreach (var r in ExtraRoots) if (p.StartsWith(r)) return true; return false; }
         static bool IsCoverPrint(string p) { var f = System.IO.Path.GetFileName(p); return p.Replace('\\', '/').StartsWith(CoverRoot) && (f.StartsWith("banner_") || f.StartsWith("scrap_") || f.StartsWith("mark_") || f.StartsWith("flag_") || f.StartsWith("result_") || f.StartsWith("note_")); }
 
         void OnPreprocessModel()

@@ -25,6 +25,8 @@ namespace PaperSiege
         public bool TableFound => raws.Count > 0;
         public bool CeilingFound => ceilings.Count > 0;
         public string Status { get; private set; } = "未开始";
+        /// <summary>第一次读房间结束了（不管成功失败）——启动时等它再摆场地</summary>
+        public bool FirstLoadDone { get; private set; }
         bool providerOn, loading;
 
         void Awake() { I = this; }
@@ -64,7 +66,7 @@ namespace PaperSiege
                 Status = $"桌子 {raws.Count} 张、天花板 {ceilings.Count} 块";
             }
             catch (System.Exception e) { Status = "场景识别异常 " + e.Message; }
-            finally { loading = false; Debug.Log("[木垒][房间] " + Status); }
+            finally { loading = false; FirstLoadDone = true; Debug.Log("[木垒][房间] " + Status); }
         }
 
         async System.Threading.Tasks.Task Query(PxrSemanticLabel label, List<Raw> into)

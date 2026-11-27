@@ -82,6 +82,14 @@ namespace PaperSiege
             Play(Pick("clatter", Synth.Clatter), p + Vector3.right * 0.3f, 0.5f, 0.85f);
         }
 
+        /// <summary>火药桶引信：嗤嗤冒火星（约 1.2 秒）</summary>
+        public static void Fuse(Vector3 p) => Play(Pick("fuse", Synth.Hiss), p, 0.8f, 1f, 0.03f);
+        /// <summary>铜钟：pitch 区分三口钟（低 / 中 / 高）</summary>
+        public static void Bell(Vector3 p, float pitch) => Play(Pick("bell", Synth.Ding), p, 0.9f, pitch, 0f);
+
+        /// <summary>王城晃动（结局）：越来越响的隆隆 + 木头吱嘎</summary>
+        public static void Tremble(Vector3 p) => Play(Pick("tremble", Synth.Boom), p, 1f, 1f, 0f);
+
         /// <summary>松手：力度越大越响、略低一点（更“饱”）</summary>
         public static void Launch(Vector3 p, float power) { StopCreak(); Play(Pick("sling_release", Synth.Snap), p, 0.55f + power * 0.45f, 1.06f - power * 0.12f); }
         /// <summary>右手捏住皮兜</summary>

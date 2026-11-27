@@ -41,6 +41,13 @@ namespace PaperSiege
                 return baseR;
             }
             var m = BlockLibrary.I ? BlockLibrary.I.Paint(def != null && def.mat == Mat.Stone ? Paint.Stone : paint) : Lit(Palette.Of(paint));
+            // 机关件（模型还没导入时）：按碰撞盒一块块搭，原点不在底面的（铜钟、秤杆）也摆得对
+            if (def != null && piece.StartsWith("M_") && def.boxes != null && def.boxes.Length > 0)
+            {
+                MeshRenderer first = null;
+                foreach (var bx in def.boxes) { var r = Part(parent, PrimitiveType.Cube, bx.c * G, bx.s * G, m); if (!first) first = r; }
+                return first;
+            }
             var s = def != null ? def.size : Vector3.one;
             return Part(parent, PrimitiveType.Cube, new Vector3(0, s.y * 0.5f, 0) * G, s * G, m);
         }

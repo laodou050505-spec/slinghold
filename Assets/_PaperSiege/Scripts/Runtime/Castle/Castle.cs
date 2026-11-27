@@ -103,7 +103,13 @@ namespace PaperSiege
                     if (id == "K_Flag" && side == Side.Player) MineFlag.Apply(part);   // 我方帅旗：干净布面 + TRIPO 图标（敌方仍是太阳纹）
                 }
             }
-            else if (pm != null && (pm.lod0 || pm.lod1))
+            else if (p.piece.StartsWith("M_") && MechLib.Has(p.piece))
+            {
+                go.AddComponent<MeshFilter>().sharedMesh = MechLib.Get(p.piece, lowDetail);
+                b.mr = go.AddComponent<MeshRenderer>();
+                b.mr.sharedMaterial = MechLib.Material;
+            }
+                        else if (pm != null && (pm.lod0 || pm.lod1))
             {
                 go.AddComponent<MeshFilter>().sharedMesh = lowDetail && pm.lod1 ? pm.lod1 : (pm.lod0 ? pm.lod0 : pm.lod1);
                 b.mr = go.AddComponent<MeshRenderer>();
@@ -129,6 +135,7 @@ namespace PaperSiege
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             rb.maxDepenetrationVelocity = 0.5f;
             b.rb = rb;
+            b.mech = Mech.Attach(b);   // 关卡机关（草垛 / 火药桶 / 水桶 / 冰池 / 拱心石 / 铜钟 / 吊秤）
             b.homePos = go.transform.position;
             b.homeRot = go.transform.rotation;
             return b;
@@ -203,7 +210,7 @@ namespace PaperSiege
             }
             if (burning.Count == 0) return;
             fireTick += Time.deltaTime;
-            foreach (var b in burning) b.burn = Mathf.Min(1f, b.burn + Time.deltaTime / (BurnSeconds * (b.isKing ? 2f : 1f)));   // 旗杆烧得慢一倍
+            foreach (var b in burning) b.burn = Mathf.Min(1f, b.burn + Time.deltaTime * b.burnRate / (BurnSeconds * (b.isKing ? 2f : 1f)));   // 旗杆烧得慢一倍；草垛 burnRate = 3
             if (fireTick < 0.6f) return;
             fireTick = 0;
             foreach (var b in burning.ToArray())
@@ -213,17 +220,20 @@ namespace PaperSiege
                 if (b.burn > 0.5f && b.rb.mass > 0.02f && b.rb.isKinematic) { b.rb.mass *= 0.6f; b.Wake(); }
                 if (b.burn >= 1f) { b.Ash(); continue; }
                 // 蔓延到相接的木块（自己烧到 30% 以后才往外传）
-                if (b.burn < 0.3f) continue;
+                if (b.burn < (b.mech && b.mech.kind == Mech.Kind.Hay ? 0.15f : 0.3f)) continue;
                 var bb = b.WorldBounds;
-                foreach (var c in Physics.OverlapBox(bb.center, bb.extents + Vector3.one * 0.12f * unit, Quaternion.identity, Layers.BlockMask))
+                bool hayHere = b.mech && b.mech.kind == Mech.Kind.Hay;
+                foreach (var c in Physics.OverlapBox(bb.center, bb.extents + Vector3.one * (hayHere ? 0.35f : 0.12f) * unit, Quaternion.identity, Layers.BlockMask))   // 草垛的火苗窜得远：隔着一点缝也能引着下一个
                 {
                     var o = c.GetComponent<Block>();
-                    if (b.spreadLeft <= 0 || b.fireGen >= MaxFireGen) break;
-                    if (o && o != b && !o.burning && o.Wood && o.burn < 1f && !o.doused && UnityEngine.Random.value < SpreadChance)
+                    // 草垛：火一碰就着，而且不占“蔓延名额”、不算代数 —— 一排草垛会一路烧过去（第 5 关“草垛连营”）
+                    bool hay = o && o.mech && (o.mech.kind == Mech.Kind.Hay || o.mech.kind == Mech.Kind.Keg);   // 草垛、火药桶：挨着火就着
+                    if (!hay && (b.spreadLeft <= 0 || b.fireGen >= MaxFireGen)) continue;
+                    if (o && o != b && !o.burning && o.Wood && o.burn < 1f && !o.doused && (hay || UnityEngine.Random.value < SpreadChance))
                     {
-                        o.fireGen = b.fireGen + 1;
+                        o.fireGen = hay ? b.fireGen : b.fireGen + 1;
                         o.Ignite();
-                        if (o.burning) b.spreadLeft--;
+                        if (o.burning && !hay) b.spreadLeft--;
                     }
                 }
             }

@@ -14,7 +14,7 @@ namespace PaperSiege
         IEnumerator Start()
         {
             d = Director.I;
-            Progress.Unlocked = Levels.Count - 1;           // 进度直接到第十关（选关里十关全开）
+            Progress.Unlocked = Levels.Count - 1;           // 进度直接到最后一关（选关里全开）
             yield return new WaitForSeconds(0.5f);
             d.StartLevel(Levels.Count - 1);
             var t = d.head.transform;
@@ -23,17 +23,17 @@ namespace PaperSiege
             d.catapult.Stop();
             foreach (var p in Projectile.Live.ToArray()) if (p) Destroy(p.gameObject);
             d.arena.enemy.DamageKing(99, d.arena.enemy.transform.position - d.arena.forward);
-            // 1) 盯着王城塌
-            yield return Turn(t, d.arena.enemy.transform.position + Vector3.up * 0.2f, 0.6f);
-            yield return new WaitForSeconds(2.2f);
-            // 2) 慢慢抬头看天花板开口：烟花 → 天亮、日出
+            // 1) 盯着王城：晃 → 一层层垮（约 6 秒）
+            yield return Turn(t, d.arena.enemy.transform.position + Vector3.up * 0.3f, 0.6f);
+            yield return new WaitForSeconds(5.2f);
+            // 2) 抬头看天窗：满天烟花 → 天发白
             var sky = d.arena.tableCenter + d.arena.forward * 1.6f + Vector3.up * 2.6f;
-            yield return Turn(t, sky, 2.5f);
-            yield return new WaitForSeconds(6.5f);
-            // 3) 低头看一眼塌掉的城在晨光里
-            yield return Turn(t, d.arena.enemy.transform.position + Vector3.up * 0.5f, 2.0f);
+            yield return Turn(t, sky, 2.0f);
+            yield return new WaitForSeconds(3.0f);
+            // 3) 低头看废墟：晨光照进来，积木一块块化成光点散去
+            yield return Turn(t, d.arena.enemy.transform.position + Vector3.up * 0.45f, 2.0f);
             float w = 0; GameObject rb = null;
-            while (w < 6f && !(rb = GameObject.Find("ResultBoard"))) { w += Time.deltaTime; yield return null; }
+            while (w < 9f && !(rb = GameObject.Find("ResultBoard"))) { w += Time.deltaTime; yield return null; }
             yield return new WaitForSeconds(0.3f);
             // 4) 转向终章横木
             if (rb) { var r = rb.transform.Find("Result"); yield return Turn(t, (r ? r.position : rb.transform.position) + Vector3.down * 0.12f, 1.6f); }

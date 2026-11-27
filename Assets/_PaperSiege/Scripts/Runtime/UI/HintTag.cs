@@ -66,15 +66,19 @@ namespace PaperSiege
             // 字：写在木牌正面（模型正面朝本地 -Z）
             var tgo = new GameObject("Text");
             tgo.transform.SetParent(tag, false);
-            tgo.transform.localPosition = new Vector3(0, -0.0175f, -0.0026f);   // 让开顶上的穿绳孔
+            // 11-27 用户：注意字号和排版。木牌模型 6×4 cm（y +0.6 ～ −3.4 cm），穿绳孔和孔下的木结在 y 0 ～ −0.9 cm：
+            //   字只排在孔下面那块（y −1.0 ～ −3.1 cm）、左右各留 4 mm；字体从细笔画的手写体换成粗一点的思源黑体（头显分辨率下手写体的细笔画会糊）
+            // 版心 = 穿绳孔下沿（−0.26 cm）再留 1.4 mm 到木牌底边倒角上方（−3.2 cm）：中心 −1.85 cm。字块在版心里上下左右都居中（11-27 用户：注意排版，居中更好）
+            tgo.transform.localPosition = new Vector3(0, -0.0185f, -0.0026f);
             text = tgo.AddComponent<TextMeshPro>();
-            if (Fonts.Hand) text.font = Fonts.Hand;
-            text.rectTransform.sizeDelta = new Vector2(0.054f, 0.026f);
+            text.font = Fonts.Sans ? Fonts.Sans : Fonts.Hand;
+            text.fontStyle = FontStyles.Bold;
+            text.rectTransform.sizeDelta = new Vector2(0.05f, 0.022f);   // 四周各留约 3～5 mm
             text.textWrappingMode = TextWrappingModes.NoWrap;   // 只在写好的换行处换行（自动换行会把短句再拆碎、字被缩得很小）
             text.enableAutoSizing = true; text.fontSizeMin = 0.05f; text.fontSizeMax = 0.6f;
             text.alignment = TextAlignmentOptions.Center;
             text.color = new Color(0.13f, 0.08f, 0.05f);   // 墨色（深褐，压得住木纹）
-            text.lineSpacing = -10f;
+            text.lineSpacing = 0f;
             // 绳
             cord = gameObject.AddComponent<LineRenderer>();
             cord.material = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { color = new Color(0.55f, 0.45f, 0.32f) };

@@ -121,6 +121,11 @@ namespace PaperSiege
         GameObject rim;
         LightShafts shafts;
 
+        /// <summary>开口的半宽 / 半长（米）</summary>
+        public Vector2 LidHalfSize => lidHalf;
+        /// <summary>开口里的一点（天花板高度）：x 沿横向、z 沿纵向，相对开口中心（米）</summary>
+        public Vector3 LidPoint(float x, float z) => new Vector3(lidCenter.x, lidCeil, lidCenter.z) + lidRight * x + lidFwd * z;
+
         /// <summary>把一个天花板上的点挪进开口里（离边至少 margin 米）</summary>
         public Vector3 ClampToLid(Vector3 p, float margin)
         {
@@ -200,22 +205,24 @@ namespace PaperSiege
         /// 结局（第十关打下王城）：先一阵比平时密的烟花（约 7 秒，越放越稀），烟花还没放完天就开始泛白，
         /// 约 9 秒里星星、月亮淡掉，天边转暖，太阳从地平线下面升到清晨的高度。打了一整天，又是新的一天。
         /// </summary>
-        public void Ending()
+        /// <summary>结局：fireworksAt 秒后放一阵满天烟花（约 6 秒，越放越稀），dawnAt 秒后天开始亮（9 秒亮到清晨）</summary>
+        public void Ending(float fireworksAt = 0f, float dawnAt = 4.5f)
         {
             StopAllCoroutines();
             openTarget = 1f;
-            StartCoroutine(EndingRun());
+            StartCoroutine(EndingRun(fireworksAt, dawnAt));
         }
 
-        IEnumerator EndingRun()
+        IEnumerator EndingRun(float fireworksAt, float dawnAt)
         {
+            StartCoroutine(DawnRun(dawnAt, 9f));
+            yield return new WaitForSeconds(fireworksAt);
             float t = 0;
-            StartCoroutine(DawnRun(4.5f, 9f));
-            while (t < 7.5f)
+            while (t < 6.5f)
             {
                 Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.45f, 1f));
-                if (t < 3f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.4f, 1f));   // 头三秒一次两朵
-                float w = Mathf.Lerp(0.25f, 1.1f, t / 7.5f);                                     // 越放越稀
+                if (t < 2.5f) Fx.Firework(SkyPoint(), Color.HSVToRGB(Random.value, 0.4f, 1f));   // 头两秒半一次两朵
+                float w = Mathf.Lerp(0.3f, 1.2f, t / 6.5f);                                       // 越放越稀
                 t += w;
                 yield return new WaitForSeconds(w);
             }
@@ -358,7 +365,7 @@ namespace PaperSiege
                 {
                     sun.transform.rotation = Quaternion.Slerp(sun.transform.rotation, Quaternion.LookRotation(shafts.Dir), shafts.K);
                     sun.color = Color.Lerp(sun.color, new Color(1f, 0.86f, 0.66f), shafts.K * 0.6f);
-                    sun.intensity *= 1f + 0.25f * shafts.K;
+                    sun.intensity *= 1f + 0.08f * shafts.K;   // 11-27：原来 +25%，加上光柱整片过曝
                 }
                 // 烟花闪光：炸开那一下积木被照亮（0.35 秒衰减）
                 float ft = Time.time - flashAt;

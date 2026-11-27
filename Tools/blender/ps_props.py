@@ -20,12 +20,22 @@ from ps_wear import arrays, write, tangent, press, groove, make_low, make_lod, d
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.abspath(argv[0] if argv else os.path.join(HERE, '../../ArtSource/Models/props'))
+MECH = len(argv) > 2 and argv[2] == 'mech'
+TABLE = len(argv) > 2 and argv[2] == 'table'
+OUT = os.path.abspath(argv[0] if argv else (
+    os.path.join(HERE, '../../ArtSource/Models/mech') if MECH else
+    os.path.join(HERE, '../../ArtSource/Models/table') if TABLE else
+    os.path.join(HERE, '../../ArtSource/Models/props')
+))
 RES = int(argv[1]) if len(argv) > 1 else 2048
 QUICK = len(argv) > 2 and argv[2] == 'quick'
 COVER = len(argv) > 2 and argv[2] == 'cover'
-PREFIX = 'cover' if COVER else 'props'
-SHOTS = os.path.abspath(os.path.join(HERE, '../../Docs/进度截图/' + ('1125_封面道具' if COVER else '1124_道具')))
+PREFIX = 'cover' if COVER else ('mech' if MECH else ('table' if TABLE else 'props'))
+SHOTS = os.path.abspath(os.path.join(HERE, '../../Docs/进度截图/' + (
+    '1125_封面道具' if COVER else
+    ('1127_机关模型' if MECH else
+     ('1127_虚拟桌' if TABLE else '1124_道具'))
+)))
 os.makedirs(os.path.join(OUT, 'tex'), exist_ok=True)
 g = G
 
@@ -556,6 +566,530 @@ if COVER:
         ('CV_Lantern', cv_lantern, 0.014, 0.6, 2400),
         ('CV_Tag', cv_tag, 0.01, 0.9, 900),
         ('CV_Stick', cv_stick, 0.012, 0.8, 1200),
+    ]
+
+
+# ───────────────────────── 关卡机关建模函数（mech 模式专用，不影响 props/cover） ─────────────────────────
+
+def mech_hay(rng):
+    """M_Hay 草垛：1.1×0.9×0.8格，底面中心为原点。
+    实心圆角草捆核心 + 密排垂直草茎（细圆柱，轻微随机倾斜，有的嵌入核心，
+    顶部和四侧有少量散草乱翘）；颜色干草金黄 d8b75a 为主，
+    少量 b8913f 深色草茎增加层次；grain≤0.15，不用 bare=1.0。
+    两道麻绳箍绕草捆中部（高度0.28格和0.56格），紧贴表面略微嵌入，
+    用 torus 绕整圈（XY 平面圆环，轴向 Z）。"""
+    parts = []
+    # ─── 实心草捆核心（圆角长方体）─────────────────────────────────
+    # 尺寸：1.1×0.9×0.8格；用 bevel 修饰器做圆角，模拟压实的稻草捆
+    core = box('hay_core', 1.1 * g, 0.9 * g, 0.8 * g)
+    md = core.modifiers.new('bev', 'BEVEL')
+    md.width = 0.08 * g
+    md.segments = 3
+    md.limit_method = 'ANGLE'
+    md.angle_limit = math.radians(30)
+    apply_mods(core)
+    # 颜色：干草金黄；grain 极低不走裸木底层
+    core_col = dict(col='d8b75a', wear=0.0, grain=0.08, bare=0.0)
+    parts.append(tag(core, core_col))
+
+    # ─── 垂直草茎（细圆柱/扁条，密排在核心表面）────────────────────
+    # 草茎参数
+    hay_col_a = dict(col='d8b75a', wear=0.0, grain=0.08, bare=0.0)   # 主色
+    hay_col_b = dict(col='b8913f', wear=0.0, grain=0.10, bare=0.0)   # 深色草茎（约 20%）
+    # 侧面草茎：沿四面外表面密排，高度略超出核心，轻微随机倾斜
+    ctr = 0
+    side_configs = [
+        # (固定轴, 固定值, 扫描轴1范围, 扫描轴2范围, 草茎朝向)
+        # +X 面 / -X 面
+        ('x',  0.52 * g, 'y', 'z'),
+        ('x', -0.52 * g, 'y', 'z'),
+        # +Y 面 / -Y 面
+        ('y',  0.43 * g, 'x', 'z'),
+        ('y', -0.43 * g, 'x', 'z'),
+    ]
+    step_a = 0.075 * g   # 草茎间距
+    r_stem = 0.014 * g   # 草茎半径
+    for face_axis, face_val, sa, sb in side_configs:
+        if face_axis in ('x',):
+            lim_a = (-0.4 * g, 0.4 * g)    # y 范围
+            lim_b = (0.0, 0.8 * g)          # z 范围（从底到顶）
+        else:
+            lim_a = (-0.5 * g, 0.5 * g)    # x 范围
+            lim_b = (0.0, 0.8 * g)
+        pos_a = lim_a[0]
+        while pos_a <= lim_a[1] + 1e-9:
+            pos_b = lim_b[0]
+            while pos_b <= lim_b[1] + 1e-9:
+                tilt_x = rng.uniform(-0.08, 0.08)
+                tilt_y = rng.uniform(-0.08, 0.08)
+                stem_h = 0.09 * g + rng.uniform(0, 0.04) * g
+                offset = rng.uniform(-0.015, 0.015) * g
+                if face_axis == 'x':
+                    cx = face_val + rng.uniform(0, 0.02) * g * (1 if face_val > 0 else -1)
+                    cy = pos_a + offset
+                    cz = pos_b + stem_h * 0.5 + rng.uniform(-0.01, 0.01) * g
+                else:
+                    cx = pos_a + offset
+                    cy = face_val + rng.uniform(0, 0.02) * g * (1 if face_val > 0 else -1)
+                    cz = pos_b + stem_h * 0.5 + rng.uniform(-0.01, 0.01) * g
+                # 草茎沿 Z 轴，轻微倾斜用 bm 直接建
+                bm_s = bmesh.new()
+                bm_s.verts.new((cx - tilt_x * stem_h, cy - tilt_y * stem_h, cz - stem_h * 0.5))
+                bm_s.verts.new((cx + tilt_x * stem_h, cy + tilt_y * stem_h, cz + stem_h * 0.5))
+                bm_s.edges.new(bm_s.verts)
+                # 体素化后线段太细，改用细圆柱，在原点建后移位
+                bm_s.free()
+                s = cylinder(f'st{ctr}', r_stem, stem_h, verts=5, c=(cx, cy, cz))
+                col = hay_col_a if rng.random() > 0.2 else hay_col_b
+                parts.append(tag(s, col))
+                ctr += 1
+                pos_b += step_a
+            pos_a += step_a
+
+    # 顶面散草：少量较高的草茎随机散布
+    for _ in range(30):
+        cx = rng.uniform(-0.48 * g, 0.48 * g)
+        cy = rng.uniform(-0.38 * g, 0.38 * g)
+        stem_h = rng.uniform(0.06, 0.14) * g
+        tilt_x = rng.uniform(-0.15, 0.15)
+        tilt_y = rng.uniform(-0.15, 0.15)
+        cz = 0.8 * g + stem_h * 0.5
+        s = cylinder(f'st{ctr}', r_stem * rng.uniform(0.8, 1.2), stem_h, verts=5,
+                     c=(cx + tilt_x * stem_h, cy + tilt_y * stem_h, cz))
+        col = hay_col_a if rng.random() > 0.25 else hay_col_b
+        parts.append(tag(s, col))
+        ctr += 1
+
+    # ─── 两道麻绳箍（torus 绕整圈，紧贴核心表面，轴向 Z）─────────────
+    # 核心在 XY 截面约 ±0.52×±0.43格，绳子略微嵌入（半径略小于核心外壁）
+    # 高度：0.28格 和 0.56格
+    # 用椭圆环：在 XY 平面构建椭圆环路（近似：用细管绕矩形 4 段，或用 torus 适当 scale）
+    # 采用 4 段圆弧（Bezier 圆角矩形逼近），用 tube 函数
+    r_rope = 0.018 * g   # 绳截面半径
+    for rope_z in (0.28 * g, 0.56 * g):
+        # 椭圆矩形环路：4 段直线 + 4 段圆角（直接用稠密折线点列近似圆角）
+        pts_rope = []
+        RX, RY = 0.52 * g, 0.42 * g    # 绳子路径的矩形半宽（嵌入核心约 0.015g）
+        corner_r = 0.06 * g             # 圆角半径
+        # 生成矩形圆角路径（逆时针，从 +X+Y 角开始）
+        corners_xy = [(RX - corner_r, RY), (RX, RY - corner_r),
+                      (RX, -(RY - corner_r)), (RX - corner_r, -RY),
+                      (-(RX - corner_r), -RY), (-RX, -(RY - corner_r)),
+                      (-RX, RY - corner_r), (-(RX - corner_r), RY)]
+        arc_centers = [(RX - corner_r, RY - corner_r),
+                       (RX - corner_r, -(RY - corner_r)),
+                       (-(RX - corner_r), -(RY - corner_r)),
+                       (-(RX - corner_r), RY - corner_r)]
+        arc_starts = [math.radians(90), math.radians(0), math.radians(270), math.radians(180)]
+        for ci in range(4):
+            # 直线段
+            if ci == 0:
+                # +Y 侧直线
+                pts_rope.append((-(RX - corner_r), RY, rope_z, r_rope))
+                pts_rope.append((RX - corner_r, RY, rope_z, r_rope))
+            elif ci == 1:
+                # +X 侧直线
+                pts_rope.append((RX, RY - corner_r, rope_z, r_rope))
+                pts_rope.append((RX, -(RY - corner_r), rope_z, r_rope))
+            elif ci == 2:
+                # -Y 侧直线
+                pts_rope.append((RX - corner_r, -RY, rope_z, r_rope))
+                pts_rope.append((-(RX - corner_r), -RY, rope_z, r_rope))
+            else:
+                # -X 侧直线
+                pts_rope.append((-RX, -(RY - corner_r), rope_z, r_rope))
+                pts_rope.append((-RX, RY - corner_r, rope_z, r_rope))
+            # 圆弧（4点近似）
+            cx_arc, cy_arc = arc_centers[ci]
+            a0 = arc_starts[ci]
+            for k in range(5):
+                a = a0 + math.radians(90) * k / 4
+                px = cx_arc + corner_r * math.cos(a)
+                py = cy_arc + corner_r * math.sin(a)
+                pts_rope.append((px, py, rope_z, r_rope))
+        # 闭合（首尾连接）：在 tube 中首尾点重合即可
+        pts_rope.append(pts_rope[0])
+        rope_ob = tube(f'rope_{int(rope_z * 1000)}', pts_rope, res=8, bevel_res=3)
+        parts.append(tag(rope_ob, ROPE))
+
+    return parts
+
+
+def mech_keg(rng):
+    """M_Keg 火药桶：直径0.85格高1.0格，外凸桶板+两道铁箍+警示红漆圈+顶部导火绳。底面中心为原点。"""
+    parts = []
+    # 桶体：竖圆柱，腰部略鼓出（用锥形叠加模拟）
+    # 外形：底/顶半径0.4，腰部半径0.425
+    n_seg = 20
+    bm = bmesh.new()
+    # 建桶体顶点：用分层圆截面，腰部鼓出
+    layers = 12
+    r_base = 0.425 * g
+    r_mid = 0.455 * g   # 腰部鼓
+    for i in range(layers + 1):
+        t = i / layers
+        # 鼓形曲线
+        rr = r_base + (r_mid - r_base) * math.sin(t * math.pi)
+        z = t * 1.0 * g
+        for j in range(n_seg):
+            a = 2 * math.pi * j / n_seg
+            bm.verts.new((math.cos(a) * rr, math.sin(a) * rr, z))
+    bm.verts.ensure_lookup_table()
+    # 侧面四边形
+    for i in range(layers):
+        for j in range(n_seg):
+            a = i * n_seg + j
+            b = i * n_seg + (j + 1) % n_seg
+            c = (i + 1) * n_seg + (j + 1) % n_seg
+            d = (i + 1) * n_seg + j
+            bm.faces.new((bm.verts[a], bm.verts[b], bm.verts[c], bm.verts[d]))
+    # 顶/底盖
+    top_verts = [bm.verts[(layers) * n_seg + j] for j in range(n_seg)]
+    bot_verts = [bm.verts[j] for j in range(n_seg)]
+    bm.faces.new(top_verts)
+    bm.faces.new(list(reversed(bot_verts)))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    keg_ob = obj_from_bm('keg_body', bm)
+    # 在桶侧面刻出桶板缝（垂直槽）
+    stave_cuts = []
+    for k in range(10):
+        a = 2 * math.pi * k / 10
+        # 细长条切割体（从内侧切）
+        sc = cylinder('sc', 0.025 * g, 1.1 * g, verts=6,
+                      c=(math.cos(a) * 0.46 * g, math.sin(a) * 0.46 * g, 0.5 * g))
+        stave_cuts.append(sc)
+    boolean(keg_ob, stave_cuts)
+    boolean(keg_ob, chip_cutters(keg_ob, rng, 3, 0.07 * g))
+    parts.append(tag(finish(keg_ob, rng, 0.018 * g, seg=2, jitter=0.004 * g),
+                     dict(col='8a6440', wear=0.6, grain=0.9, bare=0.0)))  # 旧木桶
+
+    # 两道铁箍（上下各一）
+    for hz in (0.18, 0.82):
+        parts.append(tag(torus('hoop', 0.46 * g, 0.022 * g, (0, 0, hz * g), maj=24, mn=7), IRON))
+
+    # 警示红漆圈（桶腰一圈）：用薄圆柱环套在桶上
+    warn_ring = cylinder('warn', 0.462 * g, 0.18 * g, verts=28, c=(0, 0, 0.5 * g),
+                         r_top=0.462 * g)
+    inner_cut = cylinder('wc', 0.44 * g, 0.3 * g, verts=28, c=(0, 0, 0.5 * g))
+    boolean(warn_ring, [inner_cut])
+    parts.append(tag(warn_ring, dict(col='a05a46', wear=0.3, grain=0.0)))  # brick
+
+    # 导火绳从桶盖中心伸出（弯曲的管状绳子）
+    pts = [(0, 0, 1.01 * g, 0.025 * g), (0.02 * g, 0, 1.08 * g, 0.022 * g),
+           (0.05 * g, 0.015 * g, 1.14 * g, 0.020 * g)]
+    parts.append(tag(tube('fuse', pts, res=8, bevel_res=2), dict(col='c2a878', wear=0.0, grain=0.0)))
+    return parts
+
+
+def mech_bucket(rng):
+    """M_Bucket 水桶：宽口木桶，直径1.0格高0.7格，底面中心为原点。
+    外圆柱 boolean 挖空内部 → 实心桶壁；桶板缝、两道铁箍、提耳、水面。"""
+    parts = []
+    # 桶外壳：上宽下窄实心圆柱（r_top=0.5, r_bot=0.4）
+    outer = cylinder('outer', 0.4 * g, 0.7 * g, verts=28, r_top=0.5 * g)
+    # 内部挖空（上宽下窄，桶壁厚约 0.06g）
+    inner = cylinder('inner', 0.34 * g, 0.75 * g, verts=28, r_top=0.44 * g, c=(0, 0, 0.06 * g))
+    boolean(outer, [inner])
+    # 刻桶板缝（竖向细槽）
+    stave_cuts = []
+    for k in range(10):
+        a = 2 * math.pi * k / 10
+        sc = cylinder('sc', 0.018 * g, 0.8 * g, verts=6,
+                      c=(math.cos(a) * 0.5 * g, math.sin(a) * 0.5 * g, 0.35 * g))
+        stave_cuts.append(sc)
+    boolean(outer, stave_cuts)
+    boolean(outer, chip_cutters(outer, rng, 2, 0.06 * g))
+    parts.append(tag(finish(outer, rng, 0.018 * g, seg=2, jitter=0.004 * g),
+                     dict(col='9c7350', wear=0.5, grain=0.9, bare=0.0)))
+
+    # 两道铁箍（套在桶外壁）
+    for hz, rr in ((0.14 * g, 0.42 * g), (0.52 * g, 0.51 * g)):
+        parts.append(tag(torus('hoop', rr, 0.020 * g, (0, 0, hz), maj=22, mn=7), IRON))
+
+    # 提耳（两侧 D 形铁环）
+    for sx in (-1, 1):
+        ear_base = box('ear', 0.06 * g, 0.07 * g, 0.07 * g,
+                       cx=sx * 0.5 * g, z0=0.56 * g)
+        parts.append(tag(ear_base, IRON))
+        # 提环轴向 Y（使环在 XZ 平面内、侧面竖立）
+        parts.append(tag(torus('handle', 0.11 * g, 0.016 * g,
+                               (sx * 0.53 * g, 0, 0.63 * g), axis=(0, 1, 0), maj=14, mn=6), IRON))
+
+    # 水面（实心薄圆柱盖，蓝灰，略低于桶口）
+    water = cylinder('water', 0.42 * g, 0.015 * g, verts=22, c=(0, 0, 0.63 * g))
+    parts.append(tag(water, dict(col='7a9eb5', wear=0.0, grain=0.0)))
+    return parts
+
+
+def mech_trough(rng):
+    """M_Trough 浅水槽：4.0×2.2格×0.25格高，底面中心为原点。木框四周+水面内衬。"""
+    parts = []
+    W, D, H = 4.0 * g, 2.2 * g, 0.25 * g
+    wall_t = 0.14 * g
+    # 四面木板框
+    # 长边 (Y 向)
+    for sx in (-1, 1):
+        wl = box('trough_side', wall_t, D - 2 * wall_t, H, cx=sx * (W / 2 - wall_t / 2))
+        boolean(wl, chip_cutters(wl, rng, 2, 0.06 * g))
+        parts.append(tag(finish(wl, rng, 0.018 * g, seg=2, jitter=0.004 * g),
+                         dict(col='8a6440', wear=0.6, grain=0.9, bare=0.0)))
+    # 短边 (X 向)
+    for sy in (-1, 1):
+        wl = box('trough_end', W, wall_t, H, cy=sy * (D / 2 - wall_t / 2))
+        boolean(wl, chip_cutters(wl, rng, 2, 0.06 * g))
+        parts.append(tag(finish(wl, rng, 0.018 * g, seg=2, jitter=0.004 * g),
+                         dict(col='8a6440', wear=0.6, grain=0.9, bare=0.0)))
+    # 底板
+    bottom = box('trough_bot', W, D, wall_t * 0.6, z0=-wall_t * 0.6)
+    parts.append(tag(finish(bottom, rng, 0.015 * g, seg=2, jitter=0.003 * g),
+                     dict(col='7a5638', wear=0.4, grain=0.9, bare=0.0)))
+    # 四角角撑（榫卯/钉子视觉）
+    for sx, sy in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
+        brace = box('corner', wall_t * 0.8, wall_t * 0.8, H,
+                    cx=sx * (W / 2 - wall_t * 0.4), cy=sy * (D / 2 - wall_t * 0.4))
+        parts.append(tag(brace, dict(col='3b3a3c', wear=0.0, grain=0.0, metal=1.0)))
+    # 水面（蓝灰，略低于框口）
+    water = box('water', W - wall_t * 2.2, D - wall_t * 2.2, 0.01 * g, z0=H - 0.04 * g)
+    parts.append(tag(water, dict(col='7a9eb5', wear=0.0, grain=0.0)))
+    return parts
+
+
+def mech_keystone(rng):
+    """M_Keystone 楔形拱顶石：顶宽0.7底宽0.45，高0.6厚1.0格，正面有圆圈印记。底面中心为原点。
+    整块石头，不分层，石头材质（bare=1.0, grain=0.0 无木纹）。"""
+    parts = []
+    # 楔形轮廓（XZ 平面：x 水平 z 竖直），沿 Y 挤出 1.0 格厚度
+    # 顶面在 z=0.6g（上宽0.7格），底面在 z=0（下宽0.45格）——正视图明显倒梯形楔形
+    pts_xz = [(-0.35, 0.6), (0.35, 0.6), (0.225, 0.0), (-0.225, 0.0)]
+    stone = prism('keystone', [(x * g, z * g) for x, z in pts_xz], 1.0 * g)
+    # 正面圆圈印记（从正面 y=-0.5g 切入 0.08g 深，圆半径0.1格，位于石体高度中心 z=0.3g）
+    mark = cylinder('mark', 0.1 * g, 0.1 * g, verts=16, axis='Y', c=(0, -0.46 * g, 0.3 * g))
+    boolean(stone, [mark])
+    # 石头磕碰缺角（圆润碎块，stone=True 更接近石质破损）
+    boolean(stone, chip_cutters(stone, rng, 4, 0.08 * g, stone=True, corner_share=0.7))
+    # 石头表面起伏（比木头更大振幅、更随机）
+    out = finish(stone, rng, 0.055 * g, seg=2, jitter=0.018 * g, warp=0.015 * g, angle=35)
+    parts.append(tag(out, dict(col='b0a898', wear=0.0, grain=0.0, bare=0.0)))  # 石灰色，无木纹，不用木材质底层
+    return parts
+
+
+def mech_bell(rng):
+    """M_Bell 铜钟：钟口直径0.7格高0.8格，原点=顶部挂环中心，钟体向 -Z 垂下。
+    车削截面：钟口外张，腰部鼓出，顶部收颈；两道凸起钟带；顶部挂环。"""
+    parts = []
+    # 车削截面点列 (r, z)：z=0 是钟口（底），z=0.8 是顶颈
+    # 坐标原点在挂环顶，钟体在 -Z 方向
+    # 截面绕 Z 轴旋转 → 偏移到 -Z
+    # 钟形轮廓：口部微外展（喇叭口）→ 腰部略收 → 中上略鼓 → 顶颈
+    profile = [
+        (0.32, 0.0),     # 钟口内缘
+        (0.36, 0.03),    # 钟口外展（喇叭最宽处，直径约0.72）
+        (0.33, 0.10),    # 收进
+        (0.27, 0.26),    # 腰部
+        (0.24, 0.40),    # 腰最细
+        (0.26, 0.54),    # 中上略鼓
+        (0.20, 0.66),    # 上收
+        (0.11, 0.75),    # 颈部
+        (0.07, 0.80),    # 顶颈
+    ]
+    # 旋转体：绕 Z 轴，z 坐标偏移到 -Z 方向（钟挂在 -Z）
+    n_seg = 28
+    n_prof = len(profile)
+    bm = bmesh.new()
+    for pi, (r, pz) in enumerate(profile):
+        for j in range(n_seg):
+            a = 2 * math.pi * j / n_seg
+            # 钟在 -Z 下垂：z_world = -(挂环偏移 + pz)
+            bm.verts.new((math.cos(a) * r * g, math.sin(a) * r * g, -(pz + 0.1) * g))
+    bm.verts.ensure_lookup_table()
+    # 侧面
+    for i in range(n_prof - 1):
+        for j in range(n_seg):
+            a = i * n_seg + j
+            b = i * n_seg + (j + 1) % n_seg
+            c = (i + 1) * n_seg + (j + 1) % n_seg
+            d = (i + 1) * n_seg + j
+            bm.faces.new((bm.verts[a], bm.verts[b], bm.verts[c], bm.verts[d]))
+    # 钟口底盖（开口=空，不盖；但要有钟口内壁）
+    # 顶盖
+    top_vs = [bm.verts[(n_prof - 1) * n_seg + j] for j in range(n_seg)]
+    bm.faces.new(top_vs)
+    # 钟口口沿（环形底）：外圈 + 内圈（内壁略薄）
+    # 内壁：从钟口向内深约 0.1g，半径收0.03g
+    inner_r = 0.32 * g
+    inner_verts = []
+    for j in range(n_seg):
+        a = 2 * math.pi * j / n_seg
+        v_new = bm.verts.new((math.cos(a) * inner_r, math.sin(a) * inner_r, -0.1 * g))
+        inner_verts.append(v_new)
+    bm.verts.ensure_lookup_table()
+    outer_ring = [bm.verts[j] for j in range(n_seg)]
+    # 钟口环面
+    for j in range(n_seg):
+        bm.faces.new((outer_ring[j], outer_ring[(j + 1) % n_seg],
+                      inner_verts[(j + 1) % n_seg], inner_verts[j]))
+    # 内壁上盖（连接内圈和钟内壁顶）
+    bm.faces.new(list(reversed(inner_verts)))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bell_ob = obj_from_bm('bell_body', bm)
+    # 顶部挂环（圆环，原点在 z=0 即挂环顶中心）
+    parts.append(tag(bell_ob, dict(col='7a8c5a', wear=0.0, grain=0.0, metal=0.6)))  # 铜绿色
+
+    # 两道凸起钟带（箍）
+    for hz in (-0.25, -0.55):
+        rr_at_z = 0.0
+        # 在对应 z 处找截面半径（线性插值）
+        z_norm = -hz / 0.8   # 对应 profile 中 z 值
+        for pi in range(len(profile) - 1):
+            r0, z0 = profile[pi]
+            r1, z1 = profile[pi + 1]
+            if z0 <= z_norm <= z1:
+                t = (z_norm - z0) / (z1 - z0 + 1e-9)
+                rr_at_z = (r0 + (r1 - r0) * t) * g
+                break
+        if rr_at_z < 0.01 * g:
+            rr_at_z = 0.2 * g
+        parts.append(tag(torus('band', rr_at_z + 0.012 * g, 0.018 * g,
+                               (0, 0, hz * g), maj=22, mn=7), dict(col='8a7230', wear=0.0, grain=0.0, metal=0.8)))
+
+    # 顶部挂环（向 +Z，在原点上方）
+    ring = torus('hang_ring', 0.065 * g, 0.022 * g, (0, 0, 0.055 * g), axis=(0, 1, 0), maj=16, mn=7)
+    parts.append(tag(ring, IRON))
+    return parts
+
+
+def mech_bellframe(rng):
+    """M_BellFrame 钟架：宽4.4高2.4格深0.8格，门型木架，三个铁钩在横梁下（x=-1.7,0,+1.7格）。
+    两根立柱+一根横梁+斜撑+底脚；report 中记录三钩坐标。"""
+    parts = []
+    W = 4.4 * g    # 总宽（立柱中心在 x=±2.05格）
+    H = 2.4 * g    # 总高
+    D = 0.8 * g    # 深度
+    bt = 0.18 * g  # 梁柱截面宽
+
+    def frame_beam(name, p0, p1, w=None):
+        b = beam(name, p0, p1, w or bt)
+        boolean(b, chip_cutters(b, rng, 2, 0.06 * g))
+        return tag(finish(b, rng, 0.022 * g, seg=2, jitter=0.005 * g), STAIN)
+
+    # 两根立柱（从底到顶）
+    for sx in (-1, 1):
+        x = sx * (W / 2 - bt / 2)
+        parts.append(frame_beam('post', (x, 0, 0), (x, 0, H)))
+        # 前后各一根（深度方向）
+        parts.append(frame_beam('post_b', (x, D - bt, 0), (x, D - bt, H)))
+
+    # 横梁（前后）
+    for dy in (0, D - bt):
+        parts.append(frame_beam('xbeam', (-W / 2 + bt / 2, dy, H - bt / 2), (W / 2 - bt / 2, dy, H - bt / 2)))
+
+    # 侧向联系梁（两侧连立柱前后）
+    for sx in (-1, 1):
+        x = sx * (W / 2 - bt / 2)
+        for hz in (H * 0.35, H * 0.65):
+            parts.append(frame_beam('side_beam', (x, 0, hz), (x, D - bt, hz), bt * 0.9))
+
+    # 斜撑（前面两条，从底侧到横梁）
+    for sx in (-1, 1):
+        x = sx * (W / 2 - bt / 2)
+        parts.append(frame_beam('brace', (x, 0, H * 0.4), (x * 0.45, 0, H - bt), bt * 0.75))
+
+    # 底脚撑（柱脚横向踏木）
+    for dy in (0, D - bt):
+        parts.append(frame_beam('foot', (-W / 2, dy, 0), (W / 2, dy, bt), bt))
+
+    # 三个铁钩（挂钟，间距1.7格：x = -1.7格, 0, +1.7格）
+    hook_coords = []
+    hook_z = H - bt - 0.04 * g
+    for kx in (-1.7 * g, 0, 1.7 * g):
+        hook_coords.append((round(kx, 5), round(0.0, 5), round(hook_z, 5)))
+        h = torus('hook', 0.055 * g, 0.016 * g, (kx, 0, hook_z), axis=(0, 1, 0), maj=14, mn=6)
+        parts.append(tag(h, IRON))
+        stem = cylinder('stem', 0.014 * g, 0.07 * g, verts=8, c=(kx, 0, hook_z + 0.04 * g))
+        parts.append(tag(stem, IRON))
+    return parts, hook_coords
+
+
+def mech_scalepost(rng):
+    """M_ScalePost 秤立柱：高2.0格含底座，顶部轴座；底面中心为原点。"""
+    parts = []
+    # 底座（加宽）
+    base = box('base', 0.9 * g, 0.9 * g, 0.2 * g)
+    boolean(base, chip_cutters(base, rng, 3, 0.07 * g))
+    parts.append(tag(finish(base, rng, 0.025 * g, seg=2, jitter=0.005 * g, warp=0.01 * g), 'teal'))
+    # 立柱（方形截面，渐收）
+    post = box('post', 0.5 * g, 0.5 * g, 1.75 * g, z0=0.2 * g)
+    boolean(post, chip_cutters(post, rng, 3, 0.08 * g))
+    parts.append(tag(finish(post, rng, 0.025 * g, seg=2, jitter=0.006 * g, warp=0.012 * g), STAIN))
+    # 顶部轴座（方块，中间有轴孔）
+    axle_seat = box('axle_seat', 0.6 * g, 0.6 * g, 0.3 * g, z0=1.95 * g)
+    axle_hole = cylinder('ah', 0.06 * g, 0.7 * g, verts=14, axis='X', c=(0, 0, 2.1 * g))
+    boolean(axle_seat, [axle_hole])
+    parts.append(tag(axle_seat, dict(col='6d958e', wear=0.3, grain=0.0, metal=0.4)))  # teal 铁件
+    # 加固斜肋（从立柱到底座）
+    for sx in (-1, 1):
+        rib = beam('rib', (sx * 0.22 * g, 0, 0.2 * g), (sx * 0.4 * g, 0, 0.6 * g), 0.08 * g)
+        parts.append(tag(rib, STAIN))
+    return parts
+
+
+def mech_scalebeam(rng):
+    """M_ScaleBeam 秤横杆+两个秤盘：横杆4.5格×0.25格正方截面，原点=旋转轴中心。
+    两端铁箍+中心铁轴套；秤盘直径0.9格高0.12格；三根铁链悬挂；秤盘中心在(±2.0格,0,-1.3格)。"""
+    parts = []
+    # 横杆（方木 0.25×0.25 格截面，沿 X）
+    arm = box('arm', 4.5 * g, 0.25 * g, 0.25 * g, z0=-0.125 * g)
+    boolean(arm, chip_cutters(arm, rng, 4, 0.07 * g))
+    parts.append(tag(finish(arm, rng, 0.018 * g, seg=2, jitter=0.004 * g), 'ochre'))
+    # 中心铁轴套（方形夹环：外壳套住横杆 YZ 截面，内腔略大于横杆）
+    col_out = box('col_out', 0.3 * g, 0.33 * g, 0.33 * g, z0=-0.165 * g)
+    col_in = box('col_in', 0.4 * g, 0.26 * g, 0.26 * g, z0=-0.13 * g)
+    boolean(col_out, [col_in])
+    parts.append(tag(col_out, IRON))
+    # 两端及秤盘
+    pan_centers = []
+    for sx in (-1, 1):
+        side = 'L' if sx < 0 else 'R'
+        arm_x = sx * 2.25 * g   # 横杆端点 X
+        pan_x = sx * 2.0 * g    # 秤盘中心 X = ±2.0 格
+        pan_z = -1.3 * g        # 秤盘中心 Z = -1.3 格（向下1.3格）
+        # 端部铁箍（YZ 平面内圆环，套在横杆末端）
+        hoop = torus(f'eh_{side}', 0.155 * g, 0.018 * g, (arm_x, 0, 0), axis=(1, 0, 0), maj=14, mn=6)
+        parts.append(tag(hoop, IRON))
+        # 秤盘（浅圆木盘，直径0.9格高0.12格）
+        pan_body = cylinder(f'pan_{side}', 0.45 * g, 0.12 * g, verts=22, c=(pan_x, 0, pan_z))
+        pan_inner = cylinder(f'pi_{side}', 0.38 * g, 0.08 * g, verts=22, c=(pan_x, 0, pan_z + 0.04 * g))
+        boolean(pan_body, [pan_inner])
+        parts.append(tag(finish(pan_body, rng, 0.015 * g, seg=2, jitter=0.003 * g),
+                         dict(col='c09a55', wear=0.5, grain=0.8, bare=0.0)))  # ochre 木盘
+        pan_centers.append((round(pan_x, 5), 0.0, round(pan_z, 5)))
+        # 盘缘铁箍
+        parts.append(tag(torus(f'pr_{side}', 0.46 * g, 0.012 * g,
+                               (pan_x, 0, pan_z + 0.06 * g), maj=18, mn=5), IRON))
+        # 3 根铁链：从横杆端点到秤盘盘沿三个等分点（120°间距）
+        rim_r = 0.32 * g   # 链条在盘沿的附着半径
+        for k in range(3):
+            ang = math.radians(90 + k * 120)
+            rx = pan_x + rim_r * math.cos(ang)
+            ry = rim_r * math.sin(ang)
+            ch = tube(f'ch_{side}{k}',
+                      [(arm_x, 0, 0, 0.012 * g), (rx, ry, pan_z, 0.012 * g)],
+                      res=4, bevel_res=3)
+            parts.append(tag(ch, IRON))
+    return parts, pan_centers
+
+
+if MECH:
+    ITEMS = [
+        ('M_Hay',       mech_hay,        0.007, 0.8, 1800),
+        ('M_Keg',       mech_keg,        0.007, 0.9, 2200),
+        ('M_Bucket',    mech_bucket,     0.007, 0.8, 1800),
+        ('M_Trough',    mech_trough,     0.009, 0.7, 2600),
+        ('M_Keystone',  mech_keystone,   0.006, 0.9, 1600),
+        ('M_Bell',      mech_bell,       0.006, 0.4, 2000),
+        ('M_BellFrame', mech_bellframe,  0.010, 0.9, 3800),
+        ('M_ScalePost', mech_scalepost,  0.007, 0.8, 1800),
+        ('M_ScaleBeam', mech_scalebeam,  0.007, 0.6, 2800),
     ]
 
 
@@ -1197,7 +1731,12 @@ def main():
     for l, h in pairs:
         bpy.data.objects.remove(h, do_unlink=True)
     for k, v in extra.items():
-        report.append(f'{k} 额外锚点（米）: {tuple(round(x, 5) for x in v)}')
+        if v and isinstance(v[0], (list, tuple)):
+            # 多个锚点（如钟架三钩、秤盘两端）
+            pts_str = ', '.join(str(tuple(round(c, 5) for c in p)) for p in v)
+            report.append(f'{k} 锚点列表（米）: [{pts_str}]')
+        else:
+            report.append(f'{k} 额外锚点（米）: {tuple(round(x, 5) for x in v)}')
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, PREFIX + '.blend'))
     export(lows + lods)
     open(os.path.join(OUT, 'report.txt'), 'w').write('\n'.join(report) + '\n')

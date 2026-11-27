@@ -34,6 +34,8 @@ namespace PaperSiege
         public int fireGen;            // 火从第几代传过来（火丸直接点着的是 0）
         public int spreadLeft;         // 还能再点着几块
         public bool doused;            // 被冰浇过：不会再着
+        public float burnRate = 1f;    // 燃烧速度倍数（草垛 3 倍）
+        public Mech mech;              // 关卡机关（没有就是普通积木）
         float calm, flash, emberPhase;
         MaterialPropertyBlock mpb;
         bool hasStateLook;
@@ -70,6 +72,7 @@ namespace PaperSiege
         public void Wake()
         {
             if (Dead || !rb || !rb.isKinematic) return;
+            if (mech && mech.Scripted) return;   // 钟、钟架、秤杆、秤柱由机关脚本驱动，不交给物理
             rb.isKinematic = false;
             rb.WakeUp();
             calm = 0;
@@ -93,7 +96,7 @@ namespace PaperSiege
             var other = c.rigidbody;
             float v = c.relativeVelocity.magnitude;
             // 冻住的块被撞一下就碎
-            if (Frozen && v > 0.6f) { Shatter(); return; }
+            if (Frozen && v > 0.6f && !(mech && mech.Scripted)) { Shatter(); return; }   // 冰池、钟、秤这些机关件冻住了也不会被碰碎（冰池结冰就是它的效果）
             // 帅旗：只有掉下来的积木砸到它（够快）才会被撞醒；弹打它只扣耐久（Projectile 处理）
             if (isKing)
             {

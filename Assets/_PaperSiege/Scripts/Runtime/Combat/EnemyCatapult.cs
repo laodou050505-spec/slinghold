@@ -123,8 +123,44 @@ namespace PaperSiege
 
         public void Stop() { active = false; windT = -1f; telegraph.Hide(); arm.localRotation = Quaternion.Euler(armRest, 0, 0); }
 
+        // ── 被冰丸打中：冻住 8 秒（停火、蓄力中断，整台结霜），化开后过一会儿再开火
+        float frozenFor; MaterialPropertyBlock frostMpb; Renderer[] rends;
+        void OnEnable() { Projectile.Impacted += OnShot; }
+        void OnDisable() { Projectile.Impacted -= OnShot; }
+        void OnShot(Ammo a, Vector3 p, Block hit, Side from)
+        {
+            if (a != Ammo.Ice || from != Side.Player) return;
+            rends ??= GetComponentsInChildren<Renderer>();
+            var b = new Bounds(transform.position, Vector3.zero); foreach (var r in rends) if (r) b.Encapsulate(r.bounds);
+            if (Vector3.Distance(b.ClosestPoint(p), p) > b.extents.magnitude * 0.5f) return;
+            Freeze(8f);
+        }
+        public bool Frozen => frozenFor > 0f;
+        /// <summary>正在蓄力（预警弧线亮着）</summary>
+        public bool Winding => windT >= 0f;
+        public void Freeze(float seconds)
+        {
+            frozenFor = Mathf.Max(frozenFor, seconds);
+            windT = -1f; telegraph.Hide(); arm.localRotation = Quaternion.Euler(armRest, 0, 0);
+            Fx.IceBurst(transform.position + Vector3.up * 0.15f, 0.25f);
+            Sfx.Hit(Ammo.Ice, Mat.Stone, transform.position);
+        }
+        void Frost(float k)
+        {
+            rends ??= GetComponentsInChildren<Renderer>();
+            frostMpb ??= new MaterialPropertyBlock();
+            foreach (var r in rends) { if (!r) continue; r.GetPropertyBlock(frostMpb); frostMpb.SetFloat("_Frost", k); r.SetPropertyBlock(frostMpb); }
+        }
+
         void Update()
         {
+            if (frozenFor > 0f)
+            {
+                frozenFor -= Time.deltaTime;
+                Frost(Mathf.Clamp01(frozenFor / 1.5f));   // 最后 1.5 秒慢慢化开
+                if (frozenFor <= 0f) { Frost(0f); timer = Mathf.Max(timer, 1.5f); }
+                return;
+            }
             if (Projectile.DebugImpacts && Time.frameCount % 60 == 0) Debug.Log($"[投石机] active={active} target={(target ? target.name : "null")} timer={timer:0.0} windT={windT:0.00} ts={Time.timeScale}");
             if (!target) return;
             if (!active && windT < 0f) return;   // 停火时只处理教学指定的那一发

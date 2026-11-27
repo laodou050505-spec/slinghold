@@ -11,6 +11,8 @@ namespace PaperSiege
     {
         public static readonly List<WoodButton> All = new();
         public static WoodButton Hovered { get; private set; }
+        /// <summary>手指着的远程按钮（眼动可用时也算，兜底）</summary>
+        static WoodButton PointHit;
         public Action onPress;
         public bool interactable = true;
         public float pressRadius = 0.06f;
@@ -99,9 +101,24 @@ namespace PaperSiege
             if (frame == Time.frameCount) return;
             frame = Time.frameCount;
             var input = HandInput.Instance;
-            Hovered = null;
+            Hovered = null; PointHit = null;
             if (!input) return;
-            float best = float.MaxValue;
+            // 11-27 改：眼动和手同时参与，不再“有眼动就只认眼睛”——眼动数据一旦偏了，远处的木签就怎么都按不到（头显里“什么都点不了”）。
+            //   ① 手离某个按钮 10 cm 内：选它（伸手碰到的永远优先）
+            //   ② 否则眼睛看着的远程按钮（眼动可用时）
+            //   ③ 否则手指着的远程按钮（头 → 捏合点的射线 6° 内）
+            WoodButton near = null, gazeHit = null, pointHit = null;
+            float bestNear = 0.1f, bestGaze = InputTuning.I.gazeSnap + 2f, bestPoint = 6f;
+            foreach (var b in All)
+            {
+                if (!b.interactable) continue;
+                for (int s = 0; s < 2; s++)
+                {
+                    if (!input.hands[s].tracked) continue;
+                    float dd = Vector3.Distance(b.ClosestPoint(input.hands[s].pinchPoint), input.hands[s].pinchPoint);
+                    if (dd < bestNear) { bestNear = dd; near = b; }
+                }
+            }
             if (input.EyeTracked)
             {
                 var g = input.Gaze;
@@ -109,40 +126,24 @@ namespace PaperSiege
                 {
                     if (!b.interactable) continue;
                     float ang = Vector3.Angle(g.direction, b.transform.position - g.origin);
-                    if (ang < InputTuning.I.gazeSnap + 2f && ang < best) { best = ang; Hovered = b; }
+                    if (ang < bestGaze) { bestGaze = ang; gazeHit = b; }
                 }
             }
-            else
+            var head = Director.I && Director.I.head ? Director.I.head.transform.position : (Camera.main ? Camera.main.transform.position : Vector3.zero);
+            foreach (var b in All)
             {
-                foreach (var b in All)
+                if (!b.interactable || !b.remote) continue;
+                for (int s = 0; s < 2; s++)
                 {
-                    if (!b.interactable) continue;
-                    for (int s = 0; s < 2; s++)
-                    {
-                        if (!input.hands[s].tracked) continue;
-                        float dd = Vector3.Distance(b.ClosestPoint(input.hands[s].pinchPoint), input.hands[s].pinchPoint);
-                        if (dd < 0.1f && dd < best) { best = dd; Hovered = b; }
-                    }
-                }
-                // 远程按钮：手指着它（头 → 捏合点的射线），离得近的手优先
-                if (!Hovered)
-                {
-                    var head = Director.I && Director.I.head ? Director.I.head.transform.position : (Camera.main ? Camera.main.transform.position : Vector3.zero);
-                    float bestAng = 6f;
-                    foreach (var b in All)
-                    {
-                        if (!b.interactable || !b.remote) continue;
-                        for (int s = 0; s < 2; s++)
-                        {
-                            if (!input.hands[s].tracked) continue;
-                            var dir = input.hands[s].pinchPoint - head;
-                            if (dir.sqrMagnitude < 0.01f) continue;
-                            float ang = Vector3.Angle(dir, b.transform.position - head);
-                            if (ang < bestAng) { bestAng = ang; Hovered = b; }
-                        }
-                    }
+                    if (!input.hands[s].tracked) continue;
+                    var dir = input.hands[s].pinchPoint - head;
+                    if (dir.sqrMagnitude < 0.01f) continue;
+                    float ang = Vector3.Angle(dir, b.transform.position - head);
+                    if (ang < bestPoint) { bestPoint = ang; pointHit = b; }
                 }
             }
+            Hovered = near ? near : gazeHit ? gazeHit : pointHit;
+            PointHit = pointHit;
             // 按下：捏合的那一帧，捏合点离哪个按钮最近（6 cm 内）
             for (int s = 0; s < 2; s++)
             {
@@ -156,6 +157,7 @@ namespace PaperSiege
                 }
                 if (hit) hit.Press();
                 else if (Hovered && Hovered.remote) Hovered.Press();   // 远程：看着 / 指着它捏一下
+                else if (PointHit) PointHit.Press();                    // 眼睛看着的不是远程按钮（比如近处的）时，手指着的远程按钮照样能按
             }
         }
 
